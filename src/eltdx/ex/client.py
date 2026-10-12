@@ -29,7 +29,7 @@ from eltdx.ex.commands.get_transaction import (
     GetExHistoryTransactionDataCmd,
     GetExTransactionDataCmd,
 )
-from eltdx.ex.hosts import DEFAULT_EX_PORT, KNOWN_EX_HOSTS
+from eltdx.ex.hosts import DEFAULT_EX_PORT, load_ex_hosts
 from eltdx.ex.models import (
     ExInstrumentBar,
     ExInstrumentInfo,
@@ -101,7 +101,7 @@ class ExTdxClient:
         probe_timeout: float | None = None,
         max_probe_workers: int = DEFAULT_PROBE_WORKERS,
     ) -> None:
-        candidates = list(KNOWN_EX_HOSTS) if hosts is None else list(hosts)
+        candidates = load_ex_hosts() if hosts is None else list(hosts)
         if host is not None:
             candidates = [host] + [h for h in candidates if h != host]
         if not candidates:
@@ -141,7 +141,7 @@ class ExTdxClient:
         真的应答业务命令，所以选出来的主机是可用的。
         """
 
-        candidates = list(KNOWN_EX_HOSTS) if hosts is None else list(hosts)
+        candidates = load_ex_hosts() if hosts is None else list(hosts)
         results = probe_ex_hosts(candidates, port, ping_timeout)
         ordered = rank_ex_hosts(results, candidates=candidates)
         client = cls(

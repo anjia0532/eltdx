@@ -127,6 +127,49 @@ client.refresh_hosts()                      # 手动并发重探并重排优先�
     `get_instrument_count` 都被 RST，需冷却约 2 分钟）。反复调试请复用一个实例，
     或用 `hosts=` 缩小候选范围。
 
+### 用户可覆盖的主机列表
+
+内置主机表会随主站增减而失效（实测 16 台里只有 1 台应答枚举命令），所以必须能在
+**不发版**的前提下替换。候选来源优先级：**环境变量 > 用户配置文件 > 包内默认**。
+
+```bash
+# 方式 1：环境变量（逗号 / 分号 / 空白分隔）
+export ELTDX_EX_HOSTS="203.0.113.10,198.51.100.7"
+```
+
+```json
+// 方式 2：<data_dir>/ex_servers.json
+{
+  "schema_version": 1,
+  "hosts": ["203.0.113.10", "198.51.100.7"]
+}
+```
+
+```python
+from eltdx.ex import ExTdxClient, ex_server_file_path, load_ex_hosts, save_ex_hosts
+
+print(ex_server_file_path())        # 用户配置文件位置
+print(load_ex_hosts())              # 当前生效的主机列表
+save_ex_hosts(["203.0.113.10"])     # 原子写入用户配置（权限 0600）
+```
+
+| 项 | 说明 |
+| --- | --- |
+| `<data_dir>` | 由 `eltdx._paths.data_dir()` 决定：`ELTDX_DATA_DIR` > 平台标准位置（Windows `%LOCALAPPDATA%\eltdx`、macOS `~/Library/Application Support/eltdx`、Linux `$XDG_DATA_HOME/eltdx`）。**与安装包分离，重装/升级不会覆盖** |
+| 主机项写法 | **裸主机名/IP**，如 `203.0.113.10`、`tdx.example.com`、`[::1]`。端口由 `ExTdxClient(port=)` 统一指定（默认 7727）——写成 `host:port` 会**明确报错**而不是静默忽略端口 |
+| 配置写坏了 | 非法 JSON、缺 `hosts` 数组、条目无效都**立刻抛 `ValueError`**，不会静默回退到默认列表 —— 否则你会以为配置生效了，实际一直在用包内列表 |
+| 默认顺序 | `DEFAULT_EX_HOSTS` 把实测能应答枚举命令的主机（见 `PROBE_VERIFIED_EX_HOSTS`）排在官方顺序之前，这样即使某条路径没走并发探活，首选也是能取数的那台 |
+
+!!! note "为什么不去读通达信客户端的 `connect.cfg`"
+    客户端安装目录里确实有完整主机表（`[HQHOST]` 48 台、`[DSHOST]` 16 台、`[HFHost]` 2 台等，
+    其 `[DSHOST]` 与 `KNOWN_EX_HOSTS` 逐台同序一致），但各平台（Windows / Linux / macOS /
+    信创）的安装路径与文件名都不固定，用户也可能根本没装客户端。因此本包只提供自己
+    位置确定的配置层。
+
+!!! warning "不提供线上主机列表拉取"
+    从远端下载主机表意味着「远端可把用户流量导向任意 IP」，属供应链风险，所以**不做**。
+    需要更新包内默认表时，走正常发版流程（见 `PROBE_VERIFIED_EX_HOSTS` 的实测记录）。
+
 连接支持 `with` / `connect()` / `close()`。
 
 !!! warning "不要自己发 `EX_SETUP_CMD` 握手帧（公开 API 已移除）"

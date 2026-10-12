@@ -4,16 +4,33 @@ from __future__ import annotations
 
 from eltdx.ex.client import ExTdxClient
 from eltdx.ex.enums import ExMarket
-from eltdx.ex.hosts import KNOWN_EX_HOSTS, MAC_EX_HOSTS
+from eltdx.ex.hosts import (
+    DEFAULT_EX_HOSTS,
+    DEFAULT_EX_PORT,
+    EX_HOSTS_ENV,
+    KNOWN_EX_HOSTS,
+    MAC_EX_HOSTS,
+    PROBE_VERIFIED_EX_HOSTS,
+    ex_server_file_path,
+    load_ex_hosts,
+    save_ex_hosts,
+)
 from eltdx.ex.models import KNOWN_EX_MARKETS
 
 __all__ = [
     "ExTdxClient",
     "MacExClient",
     "ExMarket",
+    "DEFAULT_EX_HOSTS",
+    "DEFAULT_EX_PORT",
+    "EX_HOSTS_ENV",
     "KNOWN_EX_HOSTS",
     "KNOWN_EX_MARKETS",
     "MAC_EX_HOSTS",
+    "PROBE_VERIFIED_EX_HOSTS",
+    "ex_server_file_path",
+    "load_ex_hosts",
+    "save_ex_hosts",
 ]
 
 

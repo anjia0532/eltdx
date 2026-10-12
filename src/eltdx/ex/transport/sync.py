@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 from eltdx.ex.commands.get_instrument_info import GetExInstrumentInfoCmd
 from eltdx.ex.frame import HEADER_SIZE, decompress_body, parse_header
-from eltdx.ex.hosts import DEFAULT_EX_PORT, KNOWN_EX_HOSTS
+from eltdx.ex.hosts import DEFAULT_EX_HOSTS, DEFAULT_EX_PORT, load_ex_hosts
 from eltdx.exceptions import EltdxError, TransportError
 
 if TYPE_CHECKING:
@@ -27,7 +27,7 @@ DEFAULT_PROBE_WORKERS: int = 16
 
 
 def _first_host() -> str:
-    return KNOWN_EX_HOSTS[0]
+    return DEFAULT_EX_HOSTS[0]
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,7 +93,8 @@ def probe_ex_hosts(
 ) -> list[ExHostProbe]:
     """并发探活多台主机；返回结果与输入顺序一一对应。
 
-    ``hosts=None`` 表示「未指定」→ 用全部内置主机；``hosts=[]`` 表示「显式要零台」
+    ``hosts=None`` 表示「未指定」→ 用 :func:`eltdx.ex.hosts.load_ex_hosts`
+    （环境变量 > 用户配置 > 包内默认）；``hosts=[]`` 表示「显式要零台」
     → 返回空列表（两者不可混淆）。
 
     ``stop_after_first=True`` 时，一旦某台主机确认应答就立即返回，不再等其余主机的
@@ -103,7 +104,7 @@ def probe_ex_hosts(
     需要完整排名时请保持默认的 ``False``。
     """
 
-    candidates = list(KNOWN_EX_HOSTS) if hosts is None else list(hosts)
+    candidates = load_ex_hosts() if hosts is None else list(hosts)
     if not candidates:
         return []
 
