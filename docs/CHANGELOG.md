@@ -1,9 +1,20 @@
 # 变更记录
 
-## Unreleased
+## v3.3.1 - 2026-10-12
+
+### 新增
 
 - MCP 的公司概况、热点题材、财务报表和公司资讯 F10 结果新增按 Entry / 请求分区解析的 `field_labels`、`unmapped_fields` 与 `field_notes`；资产负债表、利润表和现金流量表进一步按 `nhytype` 区分通用企业、银行、券商和保险模板，保留原始字段和行结构，避免 `T039` 等跨接口或跨行业字段被错误复用。
 - 财务报表字段映射补充保险保费/赔付项目、金融行业专用现金收支和现金流量补充资料；确认通用企业现金流量表 `T063` 是不承载数值的分组标题。银行历史现金流量表 `T088` 是随证券和报告期变化的动态扩展项，继续显式未映射，并通过 `field_notes` 返回歧义说明。
+
+### 修复
+
+- **客户端资源延迟回收（引用环）**：`TdxClient` 与它的子服务此前互持强引用——子服务持有 client 的 bound method（`price_resolver` / `metadata_sink` / `transport_factory`），client 又持有这些子服务，构成引用环，引用计数永远到不了 0，底层 Rust worker 线程只能等分代 GC 才回收。实测（关闭 gc）10 个未 `close()` 的客户端会滞留约 **5 条线程/个**；现在**每个 0 条**，`del` 后立即释放。做法：子服务改为持弱引用（bound method 用 `weakref.WeakMethod`，其余用 `weakref.ref`），`TdxClient` 显式声明 `__weakref__` 槽位使其可被弱引用。
+- **扩展行情并发探活早退不再残留线程**：`probe_ex_hosts(stop_after_first=True)` 此前用 `shutdown(wait=False)`，被放弃的在途探活线程要等满 `probe_timeout` 才退出——实测 6 次创建客户端会累积到 **97 条 OS 线程**。现在早退时**主动中断**在途连接（关闭其 socket，使阻塞中的 `connect()` 立即失败）后再 `shutdown(wait=True)`：同样场景回落到 **5 条**，而 connect 耗时仍是 **0.08 秒**。
+
+### 行为变更
+
+- **`TdxClient(...).helpers.foo()` 这类临时链式调用不再可用**：打断引用环的同时也取消了「子服务替 client 续命」的副作用，因此不绑定到变量就直接链式调用会抛 `ReferenceError`。请先 `client = TdxClient(...)` 再调用——文档与全部示例一直是这样写的，`with TdxClient() as client:` 不受影响。
 
 ## v3.3.0 - 2026-10-12
 
