@@ -6,7 +6,6 @@ import ipaddress
 import json
 import os
 import socket
-import sys
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -17,6 +16,8 @@ from importlib import resources
 from pathlib import Path
 from threading import Lock, get_ident
 from typing import Any
+
+from eltdx._paths import data_dir
 
 SERVER_FILE = "tdx_server.json"
 MONEY_FLOW_SERVER_FILE = "money_flow_servers.json"
@@ -284,18 +285,7 @@ def load_money_flow_hosts() -> list[str]:
 def server_ranking_path() -> Path:
     """Return the writable per-user server ranking path."""
 
-    override = os.environ.get("ELTDX_DATA_DIR")
-    if override:
-        data_dir = Path(override).expanduser()
-    elif os.name == "nt":
-        windows_data = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
-        data_dir = Path(windows_data or Path.home()) / "eltdx"
-    elif sys.platform == "darwin":
-        data_dir = Path.home() / "Library" / "Application Support" / "eltdx"
-    else:
-        xdg_data = os.environ.get("XDG_DATA_HOME")
-        data_dir = Path(xdg_data or Path.home() / ".local" / "share") / "eltdx"
-    return data_dir / SERVER_RANKING_FILE
+    return data_dir() / SERVER_RANKING_FILE
 
 
 def load_server_ranking() -> dict[str, Any]:

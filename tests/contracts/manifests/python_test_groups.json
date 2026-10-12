@@ -44,6 +44,7 @@
       "tests/test_shortline_helpers.py",
       "tests/test_ex.py",
       "tests/test_ex_failover.py",
+      "tests/test_ex_hosts_config.py",
       "tests/test_ex_mac.py",
       "tests/test_financial.py",
       "tests/test_mac.py",
