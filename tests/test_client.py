@@ -39,7 +39,7 @@ def local_probe_results(tmp_path, monkeypatch):
 
 
 def test_version_is_defined() -> None:
-    assert __version__ == "3.2.3"
+    assert __version__ == "3.3.0"
 
 
 def test_packaged_server_hosts_load_from_json() -> None:
@@ -546,10 +546,15 @@ def test_protocol_round_trip() -> None:
 
 
 def test_command_registry_contains_7709_documents() -> None:
-    assert len(COMMANDS) == 22
+    # 25 = 原 22 个 + 7057088 新增的 block_meta / company_info_category /
+    # company_info_content（见 command_contracts.json）。
+    assert len(COMMANDS) == 25
     assert COMMANDS["snapshots"].hex == "0x054c"
     assert COMMANDS["legacy_quotes"].hex == "0x053e"
     assert COMMANDS["file_content"].hex == "0x06b9"
+    assert COMMANDS["block_meta"].hex == "0x02c5"
+    assert COMMANDS["company_info_category"].hex == "0x02cf"
+    assert COMMANDS["company_info_content"].hex == "0x02d0"
     assert COMMANDS["file_content"].method == "read"
     assert COMMANDS["security_list"].document == "0x044d-代码表分页接口.md"
     assert {item.name for item in required_commands()} >= {
