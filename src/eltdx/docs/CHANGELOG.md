@@ -1,5 +1,65 @@
 # 变更记录
 
+## v3.3.0 - 2026-10-12
+
+> **兼容性说明**：以下「移除」与「行为变更」两节涉及的模块
+> （`eltdx.offline`、`eltdx.ex.mac_commands`、`MacExClient`、`MacClient.get_stock_kline`
+> 的帧格式）都是 `7057088` 起新增、且**从未随任何正式版本发布过**的代码。
+> `v3.2.3` 及更早版本不含它们，因此从 `v3.2.3` 升级到 `v3.3.0` 的普通使用者
+> **不受这些改动影响**；只有直接跟踪 `main` 分支、已经在用这些未发布 API 的人需要关注。
+
+### 修复
+
+- **`MacClient.get_stock_kline()` 完全不可用**：`SymbolBarCmd` 帧体少 1 个标志字节（`bbb` 应为 `bbbb`），服务端对任何标的都只回 1 字节空体，随即抛 `ProtocolError: symbol_bar header: 数据不足，需要 9 字节`。已在 7709 与 7727 两条通道上分别验证：修复前两个市场均失败，修复后 `MacClient.get_stock_kline(0, "000001")` 正常返回 K 线。
+- **本地行情文件读取过于严格**：`.day` / `.lc1` / `.lc5` / `.5` / 扩展市场 `.day` 现在只遍历完整记录，末尾不足一条的残尾被忽略，文件不足一条记录时返回空列表。此前残尾会抛 `ResourceFormatError`，使通达信写盘中断留下的截断文件整份读不出来；现与 `easy_tdx` 行为一致。
+- **港股 `ds/*.day` 的成交额口径错误**：该槽位存的是 `float32`，按整数读会得到 IEEE-754 位模式（`1234567.5` → `1234613308`）。`ExDailyBar` 新增 `hk_stock_amount` 字段给出正确值（与 `easy_tdx` 同名同值，已用同一份合成文件逐条对照通过）；`amount` 保留整数视图，写回时使用它，读改写不丢字节。
+- **`normalize_code` 缺 `5xxxxx` 号段**：沪市 ETF / LOF / 货币基金 / 权证（`510300`、`511360`、`515180`、`518850`、`501050`、`580000` 等）此前会抛 `ProtocolError: unable to infer market`，现正确识别为沪市；同时补上 `4xxxxx` → 北交所（`430047`），与既有的 `92xxxx` → 北交所、`900xxx` → 沪市 B 股规则保持一致。
+- **省略端口的主机被静默丢弃**：`normalize_host` 此前要求 host 必须含 `:`，于是 `TdxClient(host="116.205.183.150")`、`TdxClient(hosts=["10.0.0.1"])` 这类写法会被逐条丢弃，最终只报一句 `at least one host is required`——用户看到的是「缺少主机」，而实际输入里明明有主机。现在省略端口时**自动补 7709**，并用 `DEFAULT_QUOTE_PORT` 常量导出；`normalize_host(..., default_port=None)` 可恢复「必须显式给端口」的严格模式。`"116.205.183.150"` 与 `"116.205.183.150:7709"` 会被归一成同一条，避免同一主机被重复连接。
+- **裸 IPv6 被错误解析**：`"::1"` 原先按 `rsplit(":", 1)` 拆成 `host=":"`、`port="1"`，得到一个无意义的 `":1"`。现在裸 IPv6 会补上方括号规整为 `"[::1]:7709"`，且规整结果**幂等**（再次规整不变）。
+- **`at least one host is required` 信息不具可操作性**：现在附上正确写法示例与「端口默认 7709」的说明；MCP 的 `host` 参数校验也从 `host must use host:port with a port between 1 and 65535` 改为说明端口可省略。
+
+### 移除
+
+- **删除 `ExTdxClient.send_setup()` 与 `eltdx.ex.commands.setup`**：该握手帧是从 `easy_tdx` / `pytdx` 移植过来的、上游从未调用的常量；被包装成公开方法后，调用它会让服务器回一帧恒定 299 字节，之后对任何命令都不再应答，等于把连接打死。`connect()` 从不调用它，库内也无其他引用，删除后无行为影响。
+- `eltdx.ex.mac_commands` **不再重复定义命令类**，改为再导出 `eltdx.mac.commands` 的同一批实现（与 `eltdx.ex.mac_models` 相同的薄转发模式）。两份副本此前已各自漂移，并因此产生了上面的 `SymbolBarCmd` 缺陷。
+
+### 行为变更
+
+- `eltdx.ex.mac_commands` 的 `Period` / `Adjust` 现为 `eltdx.mac.enums` 中的同一对象（成员与取值不变，仅类型标识统一）。
+- `SymbolBarCmd` 的 `times` 参数改为 keyword-only 并移到参数表末尾，恢复 `(market, code, period, start, count, fq)` 的位置传参顺序——此前 `SymbolBarCmd(47, "IFL0", Period.DAILY, 0, 800)` 会把 `0`/`800` 错位成 `times`/`start`。
+- `MacExClient.goods_quotes()` / `goods_quotes_list()` 的默认请求字段仍是原先的 7 个基础字段（前收/开/高/低/收/量/额），请求字节与返回值不变；该默认值现由 `eltdx.ex.mac_commands.DEFAULT_QUOTE_FIELDS` 显式给出。
+- **`eltdx ex markets` 不再默认向服务器索取市场表**：改用 `--probe-server` 才走网络。实测所有内置主站都不回应 `get_markets`（`0x23f4`），原行为是每台主机各等满一个连接超时（默认 2 台 = 约 30 秒）后才回退到枚举，而**枚举本身就是完整且权威的市场表**——实测该命令耗时 **30.6 秒 → 0.3 秒**，输出逐字节不变。判定依据：eltdx 与 easy_tdx 1.20.7 的 `GetExMarketsCmd` 请求帧完全相同（`01 02 48 69 00 01 02 00 02 00 f4 23`），同一主机上 easy_tdx 同样超时，且同一连接上 `get_instrument_count()` 在两边都正常返回 `107165`，故属服务端行为而非本项目缺陷。
+
+### 新增
+
+- **`bar_time` 时间戳语义（对齐 easy_tdx）**：`client.bars.get()`、`ExTdxClient.get_instrument_bars()`、`ExTdxClient.get_history_instrument_bars_range()`、`MacClient.get_stock_kline()` 新增关键字参数 `bar_time`，默认 `"start"`（通达信原始：上午最后一根 5min 标 `11:25`、下午第一根标 `13:00`）；传 `"end"` 则给**分钟级** bar 加上一个周期时长得到右端点（同一根标 `11:30`），与 Tushare/同花顺对齐。日线及以上、多日、秒级周期一律不偏移（不影响任何日线调用）。`get_history_instrument_bars_range` 与 easy_tdx 一样**不支持 `"end"`**——它只按日期范围查询、拿不到周期时长，会抛 `ValueError` 而不是静默返回错值；非法取值同样 fail-fast。三条路径的进位语义分别与 easy_tdx 逐条对拍通过：扩展行情按 `hour/minute` 的 `% 24` 回绕、MAC 按真实 `timedelta`（可跨日）、7709 按 `% 24` 回绕。周期到分钟数的换算取自各协议自身的编号（扩展行情 `KlineCategory`、MAC `Period`、7709 `KlinePeriod`），其中 7709 直接复用响应里已解析好的 `period_raw`/`period_param_raw`，避免重复实现映射而与 Rust 侧漂移。
+- **`eltdx.Market` 枚举**（与 `easy_tdx.models.enums.Market` 同名同路径）：`SZ=0` / `SH=1` / `BJ=2`，并带 `code` 属性返回 `"sz"/"sh"/"bj"`。`eltdx` 内部仍以小写字符串为准，两者可互换传给任何 `market` 参数。`tests/test_protocol_unit.py` 会断言它与 `MARKET_TO_ID` 一致，防止两处漂移。
+- **`MacExClient.goods_quotes_list()` 的 `sort_type` / `sort_order` 恢复位置传参**：以前是 keyword-only，`goods_quotes_list(33, 0, 5, SortType.CHANGE_PCT, SortOrder.DESC)` 会报 `TypeError`；现在与 `easy_tdx` 一致，并接受普通 `int`。注意这两个参数**仅作预留、不生效**——底层 `GoodsListCmd`（0x2562）请求体只有 `market/start/count`，协议上无法排序（`easy_tdx` 亦标注为「暂未实现排序」）。
+- **6 个扩展行情模型补齐 `_raw`**：`ExInstrumentBar` / `ExInstrumentInfo` / `ExInstrumentQuote` / `ExMarketInfo` / `ExMinuteBar` / `ExTransactionRecord` 现在都带 `_raw: bytes`，保存该条记录在响应体中的**原始字节切片**（与 `easy_tdx` 同名同语义）。7 个构造点全部填充，切片范围与 `easy_tdx` 逐一对齐。该字段 `repr=False`、`compare=False` 且有默认值 `b""`，因此**不参与相等比较、不出现在 repr、也不破坏既有位置/关键字构造**。用途：本库尚未解析的字段可以按字节级复核，不用重发请求。
+- **`MacClient.ping_all()` / `MacClient.from_best_host()`**（对应 `easy_tdx` 同名 API）与底层 `eltdx.mac.ping_mac_all` / `ping_mac_host`。`from_best_host` 会把探测到的最快主机放到候选列表**首位**，因此 `client.host` 确实是那台最快的主机，其余候选保留用于故障转移。
+- **`MacClient.ensure_connected()`**（对应 `easy_tdx` 同名 API）：用一条极廉价的 `KlineOffsetCmd(0, 1)` **真实探测**连接，断线则重建。这里刻意不只看标志位——标志位发现不了「TCP 还在但服务端已经不理人」的半开连接。传输失败时沿用 `_execute` 既有的故障转移，会把当前主机切到候选列表下一台并重试。
+
+- **资金流空数据主机故障转移**：`money_flow.daily()` 拿到的直连结果为空时，不再立刻返回空，
+  而是按已排好的延迟顺序**逐台主机实测**，拿到非空即返回；**所有主机都为空时返回空而不是抛错**
+  （新股 / 真无数据的标的不能被误报成故障）。找到可用主机后会记住并复用，避免每次空返回都重探。
+  重试次数有上界：一次 `daily()` 调用只探测一轮，整批共享，不会出现「一批 75 只空票 × 候选主机数」的连接放大。
+  该行为只在响应**确实是空数据**（带 `blocks` 且为空）时触发；只有非连接池客户端（无候选主机）时自动退化为原行为。
+
+### 内部
+
+- **MAC 选主探测要求「服务器给出交易日」**，不能只看「没抛异常」：`ServerInfoCmd.parse_response` 对短于 87 字节的响应体是宽容的，会返回 `ServerSession(today="")` 而不报错，所以 `ping_mac_host` 额外要求 `today` 非空。否则端口开放但不提供 MAC 行情的主机会被误选为最佳节点。已对真实服务器验证：`today='2026-10-12'`，判定通过。
+- **`BaseCommand` 统一为单一类对象**：`eltdx.mac.commands` 与 `eltdx.ex.commands.base` 此前各定义了一个结构相同、仅 TypeVar 名不同的基类，导致把 MAC 命令交给 `MacExClient._execute`（形参标注为 *ex* 的 `BaseCommand`）时被类型检查判为不兼容（9 处错误）。现统一到 :mod:`eltdx._command`，两个模块只做再导出。
+- **25 个 7709 命令全部有差分 fixture**：`block_meta`（`0x02c5`）、`company_info_category`（`0x02cf`）、`company_info_content`（`0x02d0`）补齐后，`tests/native/test_differential.py` 的 `PENDING_DIFFERENTIAL_FIXTURES` 已清空为 `frozenset()`，`tests/contracts/test_static_fixture_inputs.py` 的期望清单从 22 个命令更新到 25 个。这 3 个 fixture 的输入由 `scripts/fixtures/materialize_static_inputs.py` **离线合成**（无需连服务器），载荷格式取自 `crates/eltdx-protocol/src/commands/{corporate,resources}.rs` 的常量与解析器：板块元数据 38 字节 = `size`(u32 LE) + 1 保留字节 + 32 字节 ASCII md5；公司信息目录 = `count`(u16 LE) + `count × 152` 字节记录（64 name + 80 filename + 4 start + 4 length，GBK）；公司信息内容 = 12 字节头（正文长度在 `[10:12]`）+ GBK 正文。
+- **`_native` 可从本仓库源码在 Windows 上本地编译**：用 MinGW-w64（`gcc 16.2.0`）+ `rustc 1.99.0 (x86_64-pc-windows-gnu)`，`cargo build --release -p eltdx-python` 约 42 秒产出 `_native.dll`（约 5.9 MB），复制为 `src/eltdx/_native.pyd` 即可（该路径已被 `.gitignore` 忽略）。编译产物与 `v3.2.3` 发布版二进制**行为零回归**（全量测试结果逐项相同），并额外支持上述 3 个新命令。注意：`crates.io` 在部分网络下不可达，需在 `~/.cargo/config.toml` 配置镜像源。
+- **3 个新命令已通过实盘验证**：连真实主站（`116.205.183.150:7709`）实测 `0x02cf` 返回 16 条目录、`0x02d0` 返回 1533 字符的平安银行 F10 正文（含当日更新日期）、`0x02c5` 返回 `size=329507` 与 md5，三者均在 0.05 秒内返回。实盘返回的首条目录记录（`最新提示` / `000001.txt` / start=0 / len=23426）与差分 fixture 中按 Rust 解析器推导出的值**逐字段一致**，且 23426 正是 `easy_tdx` 纯 Python 实现取回同一文件的字节数。
+
+### 文档
+
+- 新增 [从 easy_tdx 迁移](MIGRATION_FROM_EASY_TDX.md)：把 `easy_tdx` 1.20.7 → eltdx 的差异按「🔁 改名 / 🎯 有意不同 / ⏳ 尚未提供 / ✅ 已对齐」四类逐项列出，含 14 条离线 API 名称映射（全部实测对照签名）与迁移自查清单。
+- [F10_7615.md](F10_7615.md) 增补**实盘验证状态**：`python -m eltdx.f10_smoke --code 000001` 5/5 通过（约 1.1 秒）；并说明 easy_tdx 1.20.7 **没有任何 7615 实现**（全仓检索命中 0 次），故该通路无同协议对比对象。同时记录 7709 文本型 F10（`0x02CF`/`0x02D0`）的可用性取决于原生模块版本：随 `v3.2.3` 发布的 `_native` 不含这 3 个命令（`0x02c5`/`0x02cf`/`0x02d0`）会抛 `UnsupportedCommandError`，而由本仓库源码编译出的 `_native` 已包含它们；`resources.read()` 在任何情况下都无法替代（返回空块）。
+- **测试：命令注册表计数 22 → 25**：`7057088` 新增 `block_meta`(0x02c5) / `company_info_category`(0x02cf) / `company_info_content`(0x02d0) 后，`test_command_registry_contains_7709_documents` 与差分矩阵测试仍写着 22。前者已更新并补上 3 个新码断言。
+- **~~已知缺口：3 个新命令没有差分 fixture~~ 已补齐**。这 3 个命令的 fixture 原先缺失，因为请求编码与响应解析都在 Rust 侧（`eltdx.protocol` 走 `call_native`），而随 `v3.2.3` 发布的旧 `_native` 会对它们抛 `UnsupportedCommandError: unsupported command: 0x02c5`。从源码重编 `_native` 后已补齐，`PENDING_DIFFERENTIAL_FIXTURES` 清空，`tests/native` 由 97 → 103 passed（详见上面「25 个 7709 命令全部有差分 fixture」）。
+
 ## v3.2.3 - 2026-10-05
 
 - 新增 `client.delisted_bars.get()`，查询退市股票的不复权日线，支持自动分页。

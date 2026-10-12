@@ -54,6 +54,7 @@ http = [
 ]
 
 [project.scripts]
+eltdx = "eltdx.cli:main"
 eltdx-smoke = "eltdx.cli:smoke"
 eltdx-f10-smoke = "eltdx.cli:f10_smoke"
 eltdx-mcp = "eltdx.mcp:main"
