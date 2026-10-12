@@ -73,9 +73,61 @@ with ExTdxClient.from_best_host() as client:
 `ExMarket` 枚举描述支持的市场编号（期权、外汇、外盘、港基金、基金、德股、美股等，共 53 项）。
 `KNOWN_EX_MARKETS` 只是其中一部分的**中文别名表**（11 项，不含 33/34/93 等基金市场），
 它不做任何校验，不要拿它当市场白名单。默认服务器见 `eltdx.ex.KNOWN_EX_HOSTS`、
-`eltdx.ex.MAC_EX_HOSTS`；`ping_all()` 可测速。
+`eltdx.ex.MAC_EX_HOSTS`。
 
-连接支持 `with` / `connect()` / `close()`，并按 hosts 顺序做故障转移。
+### 主机选择：并发探活 + 失败自动负载均衡
+
+扩展行情的可用性比 7709 差得多：16 台内置主机 **TCP 全部可连**，但只有极少数会应答
+业务命令。实测 `0x23f0`（商品总数）**16 台全部应答**，而 `0x23f5`（枚举）**只有 1 台应答**。
+所以「按 TCP 顺序故障转移」没有意义——**连得上不等于用得了**。
+
+`ExTdxClient` 因此改为：
+
+1. **并发探活**：`connect()` 用真实业务命令（默认 `0x23f5` 枚举）并发探测全部候选主机，
+   把真正应答的按延迟排在前面。16 台并发只花一个 `probe_timeout`（默认
+   `min(3.0, timeout)` 秒），而不是串行超时 16 次。单主机模式（只给 `host`，或 `hosts`
+   只有一台）**不探活**，行为与旧版一致、零额外开销。
+2. **命令级故障转移**：失败判定看**命令是否拿到应答**，不看 TCP。某台主机命令失败后
+   立刻标记为不健康并换到次优主机，不会再回到刚失败的那台（旧实现把当前主机排在候选
+   首位，导致故障转移形同虚设——这正是「查不到 016947」的根因）。
+3. **失败自动负载均衡**：一次会话内失败的主机会被排除，请求自动落到其余健康主机；
+   成功一次即自动恢复其健康标记；全部失败时清空标记重来一轮，避免会话被永久锁死。
+   失败后会**并发重探**剩余主机，所以一次失败不会退化成 `15 × timeout` 的串行盲试。
+
+```python
+from eltdx.ex import ExTdxClient
+
+with ExTdxClient() as c:             # 自动并发探活并选中可用主机
+    print(c.host, c.healthy_hosts)   # 例：150.158.20.127 ['150.158.20.127']
+    rows = c.get_instrument_info(0, 100)
+
+client = ExTdxClient(auto_failover=False)   # 单次尝试，传输错误直接抛出
+client.refresh_hosts()                      # 手动并发重探并重排优先级
+```
+
+| 参数 / 成员 | 说明 |
+| --- | --- |
+| `auto_failover=True` | 命令失败时换台重试；设 `False` 则单次尝试、错误直接抛出 |
+| `probe_on_connect=True` | `connect()` 时并发探活选主；单主机模式自动跳过 |
+| `probe_timeout=None` | 探活超时，默认 `min(3.0, timeout)` |
+| `max_probe_workers=16` | 探活并发度 |
+| `healthy_hosts` | 属性：已知可用且近期未失败的主机（未探活时为空 = 「没有信息」） |
+| `unhealthy_hosts` | 属性：近期失败主机 → 原因 的映射 |
+| `refresh_hosts(timeout=None, max_workers=None)` | 手动并发重探并重排优先级，返回探活明细 |
+| `ping_all(hosts=None, port=7727, timeout=3.0)` | 静态方法：并发探活，只返回**应答业务命令**的主机 |
+| `from_best_host(...)` | 并发探活后选延迟最低的**可用**主机 |
+
+!!! note "`ping_all()` 的语义已修正"
+    旧版把「TCP 能连上」当成健康，于是 16 台内置主机**全部**返回，结论毫无参考价值。
+    现在只返回真正应答业务命令的主机（实测 **1/16**）。
+
+!!! warning "探活会打主站，注意限流"
+    一次 `connect()` 会并发打 16 台主机，但**每个客户端实例只探一次**（`refresh_hosts()`
+    除外）。免费主站对批量探测敏感，短时间内反复新建客户端可能触发限流（表现是连
+    `get_instrument_count` 都被 RST，需冷却约 2 分钟）。反复调试请复用一个实例，
+    或用 `hosts=` 缩小候选范围。
+
+连接支持 `with` / `connect()` / `close()`。
 
 !!! warning "不要自己发 `EX_SETUP_CMD` 握手帧（公开 API 已移除）"
     实测发送该握手后，服务器只回一帧恒定的 299 字节，**之后对任何命令都不再应答**，

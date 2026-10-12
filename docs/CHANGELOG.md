@@ -17,6 +17,7 @@
 - **省略端口的主机被静默丢弃**：`normalize_host` 此前要求 host 必须含 `:`，于是 `TdxClient(host="116.205.183.150")`、`TdxClient(hosts=["10.0.0.1"])` 这类写法会被逐条丢弃，最终只报一句 `at least one host is required`——用户看到的是「缺少主机」，而实际输入里明明有主机。现在省略端口时**自动补 7709**，并用 `DEFAULT_QUOTE_PORT` 常量导出；`normalize_host(..., default_port=None)` 可恢复「必须显式给端口」的严格模式。`"116.205.183.150"` 与 `"116.205.183.150:7709"` 会被归一成同一条，避免同一主机被重复连接。
 - **裸 IPv6 被错误解析**：`"::1"` 原先按 `rsplit(":", 1)` 拆成 `host=":"`、`port="1"`，得到一个无意义的 `":1"`。现在裸 IPv6 会补上方括号规整为 `"[::1]:7709"`，且规整结果**幂等**（再次规整不变）。
 - **`at least one host is required` 信息不具可操作性**：现在附上正确写法示例与「端口默认 7709」的说明；MCP 的 `host` 参数校验也从 `host must use host:port with a port between 1 and 65535` 改为说明端口可省略。
+- **`ExTdxClient` 的故障转移形同虚设，导致扩展行情「查不到」场外基金**：旧 `_execute()` 失败后调用 `connect()`，而 `connect()` 依据的 `_ordered_hosts()` 把**当前这台（刚失败的）主机排在首位**，于是重连又回到同一台、再次失败。更根本的是失败判定只看 TCP，而 16 台内置主机 **TCP 全部可连**、只有极少数会应答业务命令，所以换台条件永远不会成立。实测默认 `ExTdxClient()` 调 `get_instrument_info()` 必然超时，`016947`（国泰利安中短债A，`market=33`、`category=8`）这类场外基金因此查不到——**根因不是「场外基金不收录」**，也不是协议错误。
 
 ### 移除
 
@@ -38,6 +39,8 @@
 - **6 个扩展行情模型补齐 `_raw`**：`ExInstrumentBar` / `ExInstrumentInfo` / `ExInstrumentQuote` / `ExMarketInfo` / `ExMinuteBar` / `ExTransactionRecord` 现在都带 `_raw: bytes`，保存该条记录在响应体中的**原始字节切片**（与 `easy_tdx` 同名同语义）。7 个构造点全部填充，切片范围与 `easy_tdx` 逐一对齐。该字段 `repr=False`、`compare=False` 且有默认值 `b""`，因此**不参与相等比较、不出现在 repr、也不破坏既有位置/关键字构造**。用途：本库尚未解析的字段可以按字节级复核，不用重发请求。
 - **`MacClient.ping_all()` / `MacClient.from_best_host()`**（对应 `easy_tdx` 同名 API）与底层 `eltdx.mac.ping_mac_all` / `ping_mac_host`。`from_best_host` 会把探测到的最快主机放到候选列表**首位**，因此 `client.host` 确实是那台最快的主机，其余候选保留用于故障转移。
 - **`MacClient.ensure_connected()`**（对应 `easy_tdx` 同名 API）：用一条极廉价的 `KlineOffsetCmd(0, 1)` **真实探测**连接，断线则重建。这里刻意不只看标志位——标志位发现不了「TCP 还在但服务端已经不理人」的半开连接。传输失败时沿用 `_execute` 既有的故障转移，会把当前主机切到候选列表下一台并重试。
+- **`ExTdxClient` 并发探活 + 失败自动负载均衡**：`connect()` 现在用真实业务命令（默认枚举命令 `0x23f5`）**并发**探测全部候选主机，只把真正应答的按延迟排到前面。失败判定改为**命令级**（拿到应答才算成功）：失败主机立即被排除出候选，请求自动落到其余健康主机；成功一次即恢复其健康标记；全部失败时清空标记重来一轮，避免会话被永久锁死。失败后还会**并发重探**剩余主机，因此一次失败不会退化成 `15 × timeout` 的串行盲试。探活采用**首个可用即返回**的早退策略——实测默认 `ExTdxClient()` 的 `connect()` 由「必然失败」变为 **0.08 秒**（等满完整探活要 3 秒，串行则要 15 次超时）。单主机模式（只给 `host`，或 `hosts` 只有一台）**不探活**，与旧版行为一致、零额外开销。新增 `healthy_hosts` / `unhealthy_hosts` 属性与 `refresh_hosts()` 方法，以及 `auto_failover` / `probe_on_connect` / `probe_timeout` / `max_probe_workers` 参数；`hosts=[]` 现在明确报 `ValueError`（旧代码把「显式要零台」当成「未指定」而静默回退到全部内置主机）。
+- **`ExTdxClient.ping_all()` / `from_best_host()` 语义修正**：旧版把「TCP 能连上」当成健康，于是 16 台内置主机**全部**返回、`from_best_host()` 实际等于随机挑一台。现在探活要求主机真的应答业务命令，`ping_all()` 实测只返回 **1/16**，选出来的主机确实可用；`from_best_host()` 会把自己探到的排名直接交给客户端，不再重复探活。底层新增 `probe_ex_host()` / `probe_ex_hosts()` / `rank_ex_hosts()` 与 `ExHostProbe`。
 
 - **资金流空数据主机故障转移**：`money_flow.daily()` 拿到的直连结果为空时，不再立刻返回空，
   而是按已排好的延迟顺序**逐台主机实测**，拿到非空即返回；**所有主机都为空时返回空而不是抛错**
