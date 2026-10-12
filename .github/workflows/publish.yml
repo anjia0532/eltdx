@@ -57,6 +57,11 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: [native-dist, verify-release]
     runs-on: ubuntu-24.04
+    # PyPI 发布不是本工作流的必要条件：fork 上通常没有配置 Trusted Publisher，
+    # 这里会失败。用 continue-on-error 让它不把整轮 run 判为失败。
+    # 注意：真正保证 GitHub Release 仍会被创建的是 release job 上显式的 if 门，
+    # 而不是这个开关——不要只依赖 continue-on-error 的 needs 语义。
+    continue-on-error: true
     environment:
       name: pypi
       url: https://pypi.org/p/eltdx
@@ -77,8 +82,15 @@ jobs:
 
   release:
     name: Create GitHub Release from exact artifacts
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: [native-dist, verify-release, pypi]
+    # 显式门：只要求「构建」与「校验」成功，pypi 的成败与本 job 无关。
+    # 必须写 always() 覆盖默认的 success() 门，否则 pypi 失败时这里会被跳过，
+    # 结果就是既没发上 PyPI、也拿不到 GitHub Release。
+    if: >-
+      always()
+      && startsWith(github.ref, 'refs/tags/v')
+      && needs.native-dist.result == 'success'
+      && needs.verify-release.result == 'success'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
