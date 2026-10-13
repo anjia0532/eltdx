@@ -1,7 +1,7 @@
 window.ELTDX_CATALOG = {
   "schema_version": 14,
   "release": {
-    "version": "3.3.1",
+    "version": "3.4.0",
     "status": "stable",
     "backend": "Rust native 7709 protocol and transport engine",
     "python_api": "compatible modular API and dataclasses",
@@ -26,7 +26,7 @@ window.ELTDX_CATALOG = {
         "label": "7615 原生 Entry 接口",
         "tag_label": "7615 原生 Entry",
         "stat_label": "7615 原生 Entry 接口",
-        "description": "22 个 7615 原生 Entry 接口，对应 TQLEX/F10 的 HTTP Entry 与功能调用。",
+        "description": "28 个 7615 原生 Entry 接口，对应 TQLEX/F10 的 HTTP Entry 与功能调用。",
         "source": "F10"
       },
       {
@@ -133,7 +133,9 @@ window.ELTDX_CATALOG = {
           "评价排名",
           "估值行情",
           "资讯公告",
-          "连板天梯"
+          "连板天梯",
+          "交易数据",
+          "基金与市场"
         ],
         "item_ids": [
           "helper-stock-topics",
@@ -786,7 +788,17 @@ window.ELTDX_CATALOG = {
       "title": "主营构成",
       "source": "F10",
       "category": "经营财务",
-      "api": "client.f10.business_composition()",
+      "api": "client.f10.business_report() / client.f10.business_composition()",
+      "calls": [
+        {
+          "label": "经营分析各分区",
+          "api": "client.f10.business_report(code, section=..., report_date=...)"
+        },
+        {
+          "label": "主营构成（自动取最新报告期）",
+          "api": "client.f10.business_composition(code)"
+        }
+      ],
       "aliases": [
         "business_composition",
         "主营收入",
@@ -1131,6 +1143,115 @@ window.ELTDX_CATALOG = {
       "summary": "返回新闻、公告和路演列表，包含标题、日期、来源、公告类型和附件地址。",
       "return_model": "F10Response",
       "doc": "methods/F10-新闻公告路演.md"
+    },
+    {
+      "id": "f10-shareholders",
+      "title": "股东研究",
+      "source": "F10",
+      "category": "股东与融资",
+      "api": "client.f10.shareholders(code, section=...)",
+      "aliases": [
+        "shareholders",
+        "股东人数",
+        "十大流通股东",
+        "机构持仓明细",
+        "增减持计划"
+      ],
+      "protocol": "CWServ.tdxf10_gg_gdyj",
+      "kind": "Entry 封装",
+      "summary": "按 section 返回股东人数与股价比较、同业股东人数排名、控股股东与实际控制人、十大流通股东、十大股东、十大债券持有人、重要股东持股变动、机构持股汇总与分类、机构持仓明细和股东增减持计划。",
+      "return_model": "F10Response",
+      "doc": "methods/F10-股东研究.md"
+    },
+    {
+      "id": "f10-capital-structure",
+      "title": "股本结构",
+      "source": "F10",
+      "category": "股东与融资",
+      "api": "client.f10.capital_structure(code, section=...)",
+      "aliases": [
+        "capital_structure",
+        "股本结构",
+        "股票回购",
+        "限售解禁"
+      ],
+      "protocol": "CWServ.tdxf10_gg_gbjg",
+      "kind": "Entry 封装",
+      "summary": "按 section 返回股本结构、股本变动、股票回购、限售流通，以及需要日期的限售解禁明细。",
+      "return_model": "F10Response",
+      "doc": "methods/F10-股本结构.md"
+    },
+    {
+      "id": "f10-industry-analysis",
+      "title": "行业分析",
+      "source": "F10",
+      "category": "经营财务",
+      "api": "client.f10.industry_analysis(code, section=...)",
+      "aliases": [
+        "industry_analysis",
+        "同业对比",
+        "行业研报",
+        "市场份额"
+      ],
+      "protocol": "CWServ.tdxf10_gg_hyfx",
+      "kind": "Entry 封装",
+      "summary": "按 section 返回同业对比、同业分红排名、同业规模、同业估值、行业新闻、行业研报、市场份额和行业汇总。",
+      "return_model": "F10Response",
+      "doc": "methods/F10-行业分析.md"
+    },
+    {
+      "id": "f10-trading-report",
+      "title": "交易数据",
+      "source": "F10",
+      "category": "交易数据",
+      "api": "client.f10.trading_report(code, section=...)",
+      "aliases": [
+        "trading_report",
+        "融资融券",
+        "龙虎榜",
+        "涨停分析"
+      ],
+      "protocol": "CWServ.tdxf10_gg_jyds",
+      "kind": "Entry 封装",
+      "summary": "按 section 返回近期与近 6 个月融资融券、大宗交易、龙虎榜、沪深股通、涨跌停分析、可转债、主力盘口、研报席位和科创板标记；资金流向由 client.money_flow.history 提供。",
+      "return_model": "F10Response",
+      "doc": "methods/F10-交易数据.md"
+    },
+    {
+      "id": "f10-fund-report",
+      "title": "基金与ETF",
+      "source": "F10",
+      "category": "基金与市场",
+      "api": "client.f10.fund_report(code, section=...)",
+      "aliases": [
+        "fund_report",
+        "ETF",
+        "基金净值",
+        "基金持仓"
+      ],
+      "protocol": "CWServ.skef10_jj_jjzl",
+      "kind": "Entry 封装",
+      "summary": "ETF 与场外基金共用的 30 个分区：基金经理、管理人、基本概况、席位、规模份额、净值回报、分红、资产与行业配置、重仓股、持股情况、财务指标、销售信息、评级等。",
+      "return_model": "F10Response",
+      "doc": "methods/F10-基金与ETF.md"
+    },
+    {
+      "id": "f10-market-report",
+      "title": "板块与指数",
+      "source": "F10",
+      "category": "基金与市场",
+      "api": "client.f10.market_report(code, section=...)",
+      "aliases": [
+        "market_report",
+        "板块资金",
+        "指数概况",
+        "大盘两融"
+      ],
+      "protocol": "CWServ.skef10_bk_getinfo",
+      "kind": "Entry 封装",
+      "summary": "板块 880xxx、指数 399001 与大盘 000001 共用的 20 个分区：板块资料与资金、成份股数据与财务对比、指数概况与跟踪标的、大盘两融与新股分析。",
+      "return_model": "F10Response",
+      "doc": "methods/F10-板块与指数.md"
     },
     {
       "id": "helper-latest-stock-list",

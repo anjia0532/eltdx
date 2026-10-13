@@ -1,5 +1,19 @@
 # 变更记录
 
+## v3.4.0 - 2026-10-13
+
+### 新增
+
+- **7615 免登录 F10 接口合并为 7 个 section 驱动方法**：`F10Client` 新增 `shareholders`、`capital_structure`、`business_report`、`industry_analysis`、`trading_report`、`fund_report`、`market_report`，把个股 F10（`CWServ.tdxf10_gg_*`）、ETF / 场外基金（`CWServ.skef10_jj_*`）、板块 / 指数（`skef10_bk_*` / `skef10_zs_*`）和大盘（`skef10_dpzx_*`）的多页面分区收敛成 7 个入口，全部是纯 HTTP POST 到 `http://static.tdx.com.cn:7615/TQLEX`、不需要 7709 握手或登录。既有方法签名保持不变：`profit_forecast()` 新增 `section`（`ylyctj` / `ylycmx` / `yzyq` / `tzpjtj` / `ycpjyjbg`），`shareholder_change_plans()` 委托给 `shareholders(code, section="plan")`，`business_composition()` 委托给 `business_report(code, "composition", report_date=...)`。
+- **`eltdx f10` 子命令**：新增 `eltdx f10 <action> [CODE] --section ...`，action 覆盖上述 7 个方法与既有 F10 页面；`eltdx f10 sections` 列出全部合法 `--section`（含默认值），`eltdx f10 call --entry ... --params '[...]'` 可直接调用任意 Entry。
+- 文档新增 6 个接口详情页（股东研究 / 股本结构 / 行业分析 / 交易数据 / 基金与 ETF / 板块与指数），并给 `F10_7615.md` 补三节 Entry 对照表：个股其余 Entry、`skef10_jj_*`（7 个菜单页、13 个 Entry）、`skef10_bk_*` / `skef10_zs_*` / `skef10_dpzx_*` 的菜单与 Entry 对照。
+
+### 行为变更
+
+- **`client.money_flow.history()` 改走 7615，不再使用 7709 category 22**：签名变为 `history(code, *, days=60, start=0, count=None, include_raw=False, batch_size=75)`，底层请求 `CWServ.tdxf10_gg_sj` 的 `{"Params": ["zjlx_sj", code, str(days), code]}`（`days` 只接受 `3` / `5` / `10` / `20` / `60`），返回新的 `eltdx.models.money_flow.FundFlowRangeSeries`（已由 `eltdx.models` 导出），`start` / `count` 变成拿到响应后的客户端切片。旧的 7709 `0x052d` category 22 通路实测在 18 台可达主站（普通池 + 资金流向专用池）上一律返回 2 字节 `0000` 空 payload，已废弃；`period="flow"` 不再有效，`client.bars.get(..., period="flow")` 抛 `ValueError`。旧 DTO `FundFlowHistorySeries` / `FundFlowHistoryRecord` 仍在 Rust 侧导出，但已不是本方法的返回值。
+- `eltdx money-flow` 增加 `--days 3|5|10|20|60`：不传仍走 7709 `0x0ffc` 当日分档，传了走 7615 区间通道。
+- 接口目录的 7615 层从 22 项扩到 28 项（`docs/index.md` 的 7615 说明同步改成 27 个功能调用），功能目录新增 `交易数据`、`基金与市场` 两个分类。
+
 ## v3.3.1 - 2026-10-12
 
 ### 新增

@@ -34,6 +34,8 @@
 
 > `v2.0.0` 移除 `TdxClient` 的旧版扁平旧版入口，统一使用模块化 API 和 Helpers。升级前请阅读 [v2.0.0 迁移说明](docs/releases/v2.0.0.md)。
 
+> `v3.4.0` 把新发现的**免登录 7615 接口**合并封装：个股 F10 的股东研究、股本结构、经营分析、行业分析、交易数据、最新提示，以及 ETF / 基金、板块、指数、大盘指数 F10，全部收成 8 个按 `section` 分派的方法（旧方法只补 `section`，不新增同义方法）；`client.money_flow.history()` 改走 7615 并支持 3 / 5 / 10 / 20 / 60 日。详见 [v3.4.0 发布说明](docs/releases/v3.4.0.md)。
+
 1. 本项目仅以个人学习、协议研究和非商业研究为目的进行开发。
 2. 本项目基于互联网公开信息搜集开发。
 3. 项目本身、衍生产品及通过本项目获取的数据禁止用于任何商业行为、付费服务、生产服务、转售或其他营利用途，产生的任何数据、损失或法律责任由使用者自负。
@@ -74,6 +76,14 @@ eltdx 默认按“想拿什么数据”组织入口。普通调用优先使用�
 | 本地复权系数 | 基于权息记录为已有不复权 K 线提供本地计算和审计系数 | [`client.corporate.adjustment_factors()`](docs/methods/7709-本地复权系数.md) | `0x000f 本地计算` |
 | 特殊品种限制 | 特殊品种涨跌停限制表 | [`client.limits.special()`](docs/methods/7709-特殊品种涨跌停限制.md) | `7709 原生协议` |
 | F10 公司概况 | 发行上市信息、上市日期、发行价、募资额和承销商 | [`client.f10.company_profile()`](docs/methods/F10-公司概况.md) | `7615 原生 Entry` |
+| 股东研究 | 股东人数与股价比较、十大股东 / 十大流通股东、控股股东、机构持股和股东增减持 | [`client.f10.shareholders()`](docs/methods/F10-股东研究.md) | `7615 原生 Entry` |
+| 股本结构 | 股本结构、股本变动、股票回购和限售解禁明细 | [`client.f10.capital_structure()`](docs/methods/F10-股本结构.md) | `7615 原生 Entry` |
+| 行业分析 | 同业对比、分红排名、规模、估值、市场份额和可比公司 | [`client.f10.industry_analysis()`](docs/methods/F10-行业分析.md) | `7615 原生 Entry` |
+| 交易数据 | 融资融券、大宗交易、龙虎榜、沪深股通、涨跌停分析和主力盘口 | [`client.f10.trading_report()`](docs/methods/F10-交易数据.md) | `7615 原生 Entry` |
+| 基金 / ETF F10 | 基金经理、规模份额、净值回报、投资组合、持股、财务和销售信息 | [`client.f10.fund_report()`](docs/methods/F10-基金与ETF.md) | `7615 原生 Entry` |
+| 板块 / 指数 / 大盘 F10 | 板块资料与前十大资金、指数概况与跟踪标的、大盘两融和新股 | [`client.f10.market_report()`](docs/methods/F10-板块与指数.md) | `7615 原生 Entry` |
+| 最新提示 | F10 首屏提示、公司概要、大事、新闻、公告、研报、路演和投资者互动 | [`client.f10.digest()`](docs/methods/F10-公司资讯研报.md) | `7615 原生 Entry` |
+| 历史资金流向 | 近 3 / 5 / 10 / 20 / 60 日主力、超大单和大单净额序列 | [`client.money_flow.history()`](docs/methods/0x0ffc-资金流向日数据接口.md) | `7615 原生 Entry` |
 | 个股概念 | 某只股票所属的热点题材和入选原因 | [`client.helpers.stock_topics()`](docs/helpers/个股概念板块.md) | `7615` + `Helpers 封装` |
 | 股票信息汇总 | 行情、证券名称、股本、市值和换手率合并表 | [`client.helpers.stock_profile_table()`](docs/helpers/股票信息汇总.md) | `7709` + `Helpers 组合` |
 | 短线指标 | 竞价、开盘量比、流通股本、封单和几天几板等指标 | [`client.helpers.shortline_indicators()`](docs/helpers/短线指标.md) | `7709` + `Helpers 组合` |
@@ -127,6 +137,21 @@ pip install -e ".[dev,mcp]"
 eltdx-smoke --help
 eltdx-f10-smoke --help
 ```
+
+常用命令行入口（完整清单见 [CLI 文档](docs/CLI.md)）：
+
+```bash
+eltdx quote sz000001                                   # 实时快照
+eltdx kline sz000001 --period day --count 5 -o table    # K 线
+eltdx money-flow 000001 --days 60 -o table              # 近 60 日资金流向（7615 通道）
+eltdx f10 sections                                      # 列出 7615 F10 全部合法 --section
+eltdx f10 shareholders 688004 --section count           # 股东人数与股价比较
+eltdx f10 fund 510300 --section dividends               # ETF 基金分红
+eltdx f10 market 880472 --section board_flow            # 板块资金
+eltdx f10 call --entry CWServ.tdxf10_gg_gdyj --params '["688004","gdrs","","","1","1","20"]'
+```
+
+`eltdx f10` 的个股、ETF / 基金、板块、指数、大盘 action 共用同一套方法和 `--section`；`-o table / csv / jsonl` 会把 TQLEX 回包展开成数据行。
 
 MCP 工具服务启动后会占用当前终端作为 stdio 服务：
 
@@ -253,14 +278,16 @@ client.bars.get("sz000001", period="day", all_pages=True, page_size=800)
 
 ## F10 资料接口
 
+7615 F10 走纯 HTTP POST 网关，**不需要登录、也不需要 7709 握手**。个股、ETF / 场外基金、板块、指数和大盘指数**共用同一套方法**，由 `section` 参数分派（合法取值见 `eltdx f10 sections` 或各方法文档），因此不存在「每种标的类型一套 API」的碎片化。
+
 | 功能           | 调用方法                                                    | 底层 Entry                                                                              | 返回内容 / 用途                                    | 文档                                  |
 | ------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------- | ----------------------------------- |
 | 高级调用（需手动指定 Entry 和参数） | `client.f10.call(entry, body/params)`                   | [`7615/TQLEX`](docs/F10_7615.md#tqlex-gateway)                                        | 用户主动指定 Entry 和参数；用于调试或调用 SDK 尚未封装的 Entry，不会自动执行 | [文档](docs/methods/F10-通用Entry调用.md) |
 | 股票基础信息       | `client.f10.stock_info()`                               | [`CWServ.tdxf10_gg_comreq`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-comreq)           | 返回股票名称、代码、市场；也用于主营构成报告期、题材 ID 等辅助查询          | [文档](docs/methods/F10-股票基础信息.md)    |
 | 涨跌停列表         | `client.f10.limit_up_down_list()`                       | [`CWServ.cfg_fx_lbtt`](docs/F10_7615.md#entry-cwserv-cfg-fx-lbtt)                     | 返回指定日期 / 日期范围的逐股涨停、连板、涨停原因和封单明细；可选市场概况   | [文档](docs/methods/F10-涨跌停列表.md)       |
 | 公司概况         | `client.f10.company_profile()`                          | [`CWServ.tdxf10_gg_gsgk`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-gsgk)               | 返回发行上市信息，如上市日期、发行方式、发行价、募资额、承销商等             | [文档](docs/methods/F10-公司概况.md)      |
-| 主营构成         | `client.f10.business_composition()`                     | [`CWServ.tdxf10_gg_jyfx`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-jyfx)               | 返回主营收入、成本、毛利、收入占比、毛利率；不传报告期时自动取最新期           | [文档](docs/methods/F10-主营构成.md)      |
-| 股东增减持        | `client.f10.shareholder_change_plans()`                 | [`CWServ.tdxf10_gg_gdyj`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-gdyj)               | 返回公告日、股东名称、变动方向、拟变动数量 / 比例、计划起止日期等           | [文档](docs/methods/F10-股东增减持.md)     |
+| 主营构成         | `client.f10.business_report()` / `business_composition()` | [`CWServ.tdxf10_gg_jyfx`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-jyfx)               | 返回主营收入、成本、毛利、收入占比、毛利率；`business_report` 还能取主营业务、前五名客户 / 供应商等分区 | [文档](docs/methods/F10-主营构成.md)      |
+| 股东增减持        | `client.f10.shareholders()` / `shareholder_change_plans()` | [`CWServ.tdxf10_gg_gdyj`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-gdyj)               | 返回公告日、股东名称、变动方向、拟变动数量 / 比例、计划起止日期等（`section="plan"`） | [文档](docs/methods/F10-股东增减持.md)     |
 | 分红融资         | `client.f10.dividend_financing()`                       | [`CWServ.tdxf10_gg_fhrz`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-fhrz)               | 返回分红方案、股权登记日、除权派息日、股息率、股利支付率、融资相关数据          | [文档](docs/methods/F10-分红融资.md)      |
 | 增发获配         | `client.f10.allotment_dates()` / `allotment_details()`  | [`CWServ.tdxf10_gg_fhrz_zfhpmx`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-fhrz-zfhpmx) | 先取增发日期，再按日期取获配机构、获配数量、获配金额、锁定期等明细            | [文档](docs/methods/F10-增发获配.md)      |
 | 财务报表         | `client.f10.finance_report()`                           | [`CWServ.tdxf10_gg_cwfx`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-cwfx)               | 返回多期财务报表；默认资产负债表，含货币资金、资产总计、负债合计、股东权益等       | [文档](docs/methods/F10-财务报表.md)      |
@@ -277,6 +304,14 @@ client.bars.get("sz000001", period="day", all_pages=True, page_size=800)
 | 沪深股通持仓       | `client.f10.northbound_holding()`                       | [`CWServ.tdxf10_gg_zlcc`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-zlcc)               | 返回沪股通 / 深股通持股比例、持股数量、变动股数、收盘价等序列             | [文档](docs/methods/F10-沪深股通持仓.md)    |
 | 详情正文         | `client.f10.detail()`                                   | [`CWServ.tdxf10_gg_idreq`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-idreq)             | 按记录 ID 返回正文标题和正文内容；常接热点题材事件、违规处理等详情          | [文档](docs/methods/F10-详情正文.md)      |
 | 新闻 / 公告 / 路演 | `client.f10.news()` / `announcements()` / `roadshows()` | [`CWSearch.tzx_rcache`](docs/F10_7615.md#entry-cwsearch-tzx-rcache)                   | 返回新闻、公告、路演列表；含标题、日期、来源、公告类型、PDF 地址等          | [文档](docs/methods/F10-新闻公告路演.md)    |
+| 股东研究          | `client.f10.shareholders()`                             | [`CWServ.tdxf10_gg_gdyj`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-gdyj)               | 11 个 section：股东人数与股价比较、十大股东 / 十大流通股东、控股股东、机构持股、机构持仓明细和股东增减持计划 | [文档](docs/methods/F10-股东研究.md)      |
+| 股本结构          | `client.f10.capital_structure()`                        | [`CWServ.tdxf10_gg_gbjg`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-gbjg)               | 股本结构、股本变动、股票回购、限售流通与解禁明细（`restricted_detail` 需 `date`） | [文档](docs/methods/F10-股本结构.md)      |
+| 经营分析          | `client.f10.business_report()`                          | [`CWServ.tdxf10_gg_jyfx`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-jyfx)               | 主营业务、主营构成、前五名客户 / 供应商、产品价格、财务指标大幅变动说明          | [文档](docs/methods/F10-主营构成.md)      |
+| 行业分析          | `client.f10.industry_analysis()`                        | [`CWServ.tdxf10_gg_hyfx`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-hyfx)               | 同业对比、分红排名、规模、估值、行业新闻 / 研报、市场份额、行业汇总和可比公司       | [文档](docs/methods/F10-行业分析.md)      |
+| 交易数据          | `client.f10.trading_report()`                           | [`CWServ.tdxf10_gg_jyds`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-jyds)               | 融资融券（近期 / 近 6 个月）、大宗交易、龙虎榜、沪深股通、涨跌停分析和主力盘口      | [文档](docs/methods/F10-交易数据.md)      |
+| 最新提示          | `client.f10.digest()`                                   | [`CWServ.tdxf10_gg_zxts`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-zxts)               | F10 首屏提示、公司概要、公司大事、新闻、公告、研报、路演和投资者互动           | [文档](docs/methods/F10-公司资讯研报.md)   |
+| 基金 / ETF F10    | `client.f10.fund_report()`                              | [`CWServ.skef10_jj_jjzl`](docs/F10_7615.md#entry-cwserv-skef10-jj-jjzl)               | 30 个 section：基金经理、规模份额、净值回报、投资组合、持股情况、财务和销售信息     | [文档](docs/methods/F10-基金与ETF.md)     |
+| 板块 / 指数 / 大盘 F10 | `client.f10.market_report()`                        | [`CWServ.skef10_bk_getinfo`](docs/F10_7615.md#entry-cwserv-skef10-bk-getinfo)         | 20 个 section：板块资料 / 资金 / 成份股、指数概况 / 跟踪标的 / 资金、大盘两融和新股 | [文档](docs/methods/F10-板块与指数.md)     |
 
 常规 F10 返回 `F10Response`；`client.f10.limit_board_ladder()` 返回 `LimitBoardLadder`。常用结果分别在 `response.rows` 或模型的 `rows`，完整说明见 [F10_7615.md](docs/F10_7615.md)。
 
@@ -428,7 +463,7 @@ python scripts/smoke/export_auction_925_daily.py --code sz000001 --start 2026-04
 | 底层协议和 F10 Entry | [7709 命令](docs/COMMANDS_7709.md) · [7615 F10](docs/F10_7615.md) |
 | 连接、测速、并发和故障排查 | [调试指南](docs/DEBUG_GUIDE.md) · [架构](docs/ARCHITECTURE.md) |
 | MCP 安装、工具和资源 | [MCP 文档](docs/MCP.md) |
-| 当前版本、变更和旧 API 迁移 | [v3.3.1](docs/releases/v3.3.1.md) · [变更记录](docs/CHANGELOG.md) · [迁移说明](docs/MIGRATION_FROM_OLD.md) |
+| 当前版本、变更和旧 API 迁移 | [v3.4.0](docs/releases/v3.4.0.md) · [变更记录](docs/CHANGELOG.md) · [迁移说明](docs/MIGRATION_FROM_OLD.md) |
 
 ## 常用问题
 
