@@ -240,6 +240,7 @@ class TdxClient:
                 if isinstance(self.transport, PooledSocketTransport)
                 else None
             ),
+            f10_factory=self._provide_f10_client,
             candidate_hosts=self._dedicated_hosts,
         )
         self.trades = TradeApi(self.transport)
@@ -327,6 +328,16 @@ class TdxClient:
     ) -> PooledSocketTransport:
         """Backward-compatible name for the dedicated 7709 market pool."""
         return self._build_dedicated_market_transport(host)
+
+    def _provide_f10_client(self) -> F10Client:
+        """惰性返回 7615 F10 通道客户端，供 ``MoneyFlowApi.history`` 使用。
+
+        ``self.f10`` 在 ``MoneyFlowApi`` 之后才构造，所以只能惰性取；这里弱引用的
+        是 bound method（``weakref.WeakMethod``），而不是临时 lambda —— 临时 lambda
+        建完弱引用就会立刻被回收，弱引用随即失效。
+        """
+
+        return self.f10
 
     def __enter__(self) -> TdxClient:
         self.connect()
