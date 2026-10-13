@@ -1,5 +1,19 @@
 # 变更记录
 
+## v3.4.1 - 2026-10-13
+
+### 文档
+
+- README 新增「扩展行情、场外基金、MAC 与本地行情文件」章节：补齐 7727 扩展行情（`ExTdxClient`）、场外基金净值（`MacExClient` / `eltdx fund`）、MAC 协议（`MacClient` / `eltdx mac`）、vipdoc 本地行情文件（`eltdx.offline` / `eltdx offline`）与公司信息文本 F10（`0x02cf` + `0x02d0`），含 `ELTDX_EX_HOSTS` 主机表覆盖层、并发探活与命令级失败判定等实测结论。
+- README 功能地图新增 14 行（扩展行情 / 场外基金 / MAC / 本地文件 / 公司信息文本 F10 / 交易日 / 当日资金流向等），行情接口表新增 `0x02cf` / `0x02d0` / `0x02c5` 三行，K 线章节补 `bar_time` 语义，快速开始补 `eltdx ex` / `fund` / `mac` / `offline` 示例，文档表补扩展行情 / 本地文件 / 从 easy_tdx 迁移三个入口。
+- `v3.4.0` 变更记录补入此前遗漏的条目：`digest()` 方法、`industry_analysis` 的 `comparable` / `comparable_profile`、`company_news(section="finance_review")`、`-o table / csv / jsonl` 展开 TQLEX 结果集、`eltdx f10 detail` 改为两个位置参数、`fund_report(section="finance")` 默认取表由 `cwzb` 改为 `zcfzb`。
+
+### 修复内容
+
+- README 的「21 个 7709 命令」修正为 **25**；`ARCHITECTURE.md` 的 registry 命令计数由 22 修正为 **25**（两处）。实测命令注册表 `eltdx.protocol.COMMANDS` 与 `tests/contracts/manifests/command_contracts.json` 均为 25，且 25 个命令全部为 `retry_safe=true`。
+
+本版**无代码行为变化**，只改文档、README、变更记录与版本号（`Cargo.toml` / `Cargo.lock` / `interface-catalog-data.js` / 版本断言 / 发布校验脚本的目标版本）。
+
 ## v3.4.0 - 2026-10-13
 
 ### 新增
