@@ -4,15 +4,24 @@
 
 ### 新增
 
-- **7615 免登录 F10 接口合并为 7 个 section 驱动方法**：`F10Client` 新增 `shareholders`、`capital_structure`、`business_report`、`industry_analysis`、`trading_report`、`fund_report`、`market_report`，把个股 F10（`CWServ.tdxf10_gg_*`）、ETF / 场外基金（`CWServ.skef10_jj_*`）、板块 / 指数（`skef10_bk_*` / `skef10_zs_*`）和大盘（`skef10_dpzx_*`）的多页面分区收敛成 7 个入口，全部是纯 HTTP POST 到 `http://static.tdx.com.cn:7615/TQLEX`、不需要 7709 握手或登录。既有方法签名保持不变：`profit_forecast()` 新增 `section`（`ylyctj` / `ylycmx` / `yzyq` / `tzpjtj` / `ycpjyjbg`），`shareholder_change_plans()` 委托给 `shareholders(code, section="plan")`，`business_composition()` 委托给 `business_report(code, "composition", report_date=...)`。
-- **`eltdx f10` 子命令**：新增 `eltdx f10 <action> [CODE] --section ...`，action 覆盖上述 7 个方法与既有 F10 页面；`eltdx f10 sections` 列出全部合法 `--section`（含默认值），`eltdx f10 call --entry ... --params '[...]'` 可直接调用任意 Entry。
-- 文档新增 6 个接口详情页（股东研究 / 股本结构 / 行业分析 / 交易数据 / 基金与 ETF / 板块与指数），并给 `F10_7615.md` 补三节 Entry 对照表：个股其余 Entry、`skef10_jj_*`（7 个菜单页、13 个 Entry）、`skef10_bk_*` / `skef10_zs_*` / `skef10_dpzx_*` 的菜单与 Entry 对照。
+- **7615 免登录 F10 接口合并为 8 个 section 驱动方法**：`F10Client` 新增 `shareholders`（11 个分区）、`capital_structure`（5）、`business_report`（6）、`industry_analysis`（10）、`trading_report`（11）、`fund_report`（30）、`market_report`（20）、`digest`（8），把个股 F10（`CWServ.tdxf10_gg_*`）、ETF / 场外基金（`CWServ.skef10_jj_*`）、板块 / 指数（`skef10_bk_*` / `skef10_zs_*`）、大盘（`skef10_dpzx_*`）的多页面分区收敛成 8 个入口。个股、ETF 基金、板块、指数、大盘**共用同一批方法**，靠 `section` 分派，不为每种标的类型另开 API；全部是纯 HTTP POST 到 `http://static.tdx.com.cn:7615/TQLEX`，不需要 7709 握手或登录。
+- 既有方法只补 `section`、不新增同义方法：`profit_forecast()` 新增 `ylyctj` / `ylycmx` / `yzyq` / `tzpjtj` / `ycpjyjbg`；`industry_analysis()` 新增 `comparable` / `comparable_profile`（走 `CWServ.tdxf10_gg_kbgs`）；`company_news()` 新增 `finance_review`（走 `CWServ.tdxf10_gg_cwfx_cbdp`）；`shareholder_change_plans()` 委托给 `shareholders(code, section="plan")`；`business_composition()` 委托给 `business_report(code, "composition", report_date=...)`。未知 `section` 一律抛 `ValueError` 并列出全部合法取值。
+- **`eltdx f10` 子命令**：新增 `eltdx f10 <action> [CODE] --section/--arg/--date/--report-date/--topic/--entry/--params/--page/--page-size`，25 个 action 覆盖上述方法与既有 F10 页面；`eltdx f10 sections` 不联网列出全部合法 `--section`（含默认值），`eltdx f10 call --entry ... --params '[...]'` 可直接调用任意 Entry。
+- 文档新增 6 个接口详情页（股东研究 / 股本结构 / 行业分析 / 交易数据 / 基金与 ETF / 板块与指数），`F10_7615.md` 补三节 Entry 对照表（个股其余 Entry、`skef10_jj_*` 的 7 个菜单页与 13 个 Entry、`skef10_bk_*` / `skef10_zs_*` / `skef10_dpzx_*` 的菜单与 Entry 对照），README 功能地图与新章节同步补齐。
 
 ### 行为变更
 
 - **`client.money_flow.history()` 改走 7615，不再使用 7709 category 22**：签名变为 `history(code, *, days=60, start=0, count=None, include_raw=False, batch_size=75)`，底层请求 `CWServ.tdxf10_gg_sj` 的 `{"Params": ["zjlx_sj", code, str(days), code]}`（`days` 只接受 `3` / `5` / `10` / `20` / `60`），返回新的 `eltdx.models.money_flow.FundFlowRangeSeries`（已由 `eltdx.models` 导出），`start` / `count` 变成拿到响应后的客户端切片。旧的 7709 `0x052d` category 22 通路实测在 18 台可达主站（普通池 + 资金流向专用池）上一律返回 2 字节 `0000` 空 payload，已废弃；`period="flow"` 不再有效，`client.bars.get(..., period="flow")` 抛 `ValueError`。旧 DTO `FundFlowHistorySeries` / `FundFlowHistoryRecord` 仍在 Rust 侧导出，但已不是本方法的返回值。
 - `eltdx money-flow` 增加 `--days 3|5|10|20|60`：不传仍走 7709 `0x0ffc` 当日分档，传了走 7615 区间通道。
+- `-o table / csv / jsonl` 会把 TQLEX 回包展开成数据行（多结果集按顺序拼接）；默认的 `-o json` 仍保留完整回包（`entry` / `request_body` / `result_sets` / `raw`），便于排查。
+- `eltdx f10 detail` 现在需要两个位置参数（`detail_type` 与 `record_id`）：`eltdx f10 detail xw 22075813`。
 - 接口目录的 7615 层从 22 项扩到 28 项（`docs/index.md` 的 7615 说明同步改成 27 个功能调用），功能目录新增 `交易数据`、`基金与市场` 两个分类。
+
+### 修复内容
+
+- `fund_report(section="finance")` 的默认取表由 `cwzb` 改为 `zcfzb`：实测 `cwzb` 对 ETF 返回 0 行，`zcfzb`（资产负债表）返回 28 行。
+- `bars.get(..., period="flow")` 的报错信息不再提及已废弃的 `0x052d` category 22 与 `count=`，改为指向 `money_flow.history(code, days=...)`。
+- README 补齐 3.3.0 / 3.3.1 已发布但从未记录的通路：扩展行情 7727、场外基金、MAC 协议、本地行情文件（vipdoc）、公司信息文本 F10（`0x02cf` / `0x02d0` / `0x02c5`）、`eltdx.Market` 枚举与 `bar_time`，并列出 `eltdx ex` / `fund` / `mac` / `offline` 命令行入口；同时修正 README 的「21 个 7709 命令」为 25、`ARCHITECTURE.md` 的 registry 计数 22 → 25。
 
 ## v3.3.1 - 2026-10-12
 

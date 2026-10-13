@@ -30,7 +30,7 @@
 
 > 如果需要多数据源可以关注新项目 [AxData](https://github.com/electkismet/AxData)：AxData 基于 eltdx 迭代开发，除通达信体系外，AxData 还通过插件机制整理接入交易所、巨潮、腾讯财经、新浪财经、东方财富、财联社、开盘红等公开源接口，并扩展了自由流通市值、开盘换手、开盘量比、开盘抢筹、竞价昨比、连板天梯、题材强度等更适合本地量化研究和短线数据分析的指标能力，但如果是用单一源的话，仍推荐eltdx，受制于架构axdata性能不如裸协议路径的eltdx。
 
-通达信在线行情协议 Python 库。可以拿 A 股的行情、分时、成交明细、K 线、竞价、公司信息、题材信息等信息，支持 MCP 工具。`3.0` 保留现有 Python API 和返回模型，将 21 个 7709 命令的构包、解析、连接池、pin、push、心跳和关闭核心统一迁入 Rust。
+通达信在线行情协议 Python 库。可以拿 A 股的行情、分时、成交明细、K 线、竞价、公司信息、题材信息等信息，支持 MCP 工具。`3.0` 保留现有 Python API 和返回模型，将 25 个 7709 命令的构包、解析、连接池、pin、push、心跳和关闭核心统一迁入 Rust。
 
 > `v2.0.0` 移除 `TdxClient` 的旧版扁平旧版入口，统一使用模块化 API 和 Helpers。升级前请阅读 [v2.0.0 迁移说明](docs/releases/v2.0.0.md)。
 
@@ -89,8 +89,15 @@ eltdx 默认按“想拿什么数据”组织入口。普通调用优先使用�
 | 短线指标 | 竞价、开盘量比、流通股本、封单和几天几板等指标 | [`client.helpers.shortline_indicators()`](docs/helpers/短线指标.md) | `7709` + `Helpers 组合` |
 | A 股常用榜单 | 每日股本、涨跌停价、实时榜单、连板天梯和题材强度 | [`client.helpers.realtime_rank()`](docs/helpers/A股常用封装.md) | `7709` + `Helpers 组合` |
 | 服务器文件 | 按分块自动下载并合并完整文件 | [`client.resources.download_file()`](docs/methods/7709-服务器文件下载.md) | `7709 原生协议` |
+| 扩展行情 | 期货 / 期权 / 港股等非 7709 标的的市场表、标的枚举、行情、K 线、分时和逐笔 | [`eltdx.ExTdxClient`](docs/EXTENDED_MARKET.md) | `7727 扩展行情` |
+| 场外基金净值 | 开放式 / 货币 / 香港基金的单位净值快照和净值日线 | [`eltdx.MacExClient`](docs/EXTENDED_MARKET.md) | `7727 MAC_EX` |
+| MAC 协议 | MAC 主站的报价、K 线、榜单、板块、龙虎榜和资金流向 | [`eltdx.MacClient`](docs/EXTENDED_MARKET.md) | `7709 MAC` |
+| 本地行情文件 | 通达信 `vipdoc` 的日线、分钟线、权息、历史财务和板块配置 | [`eltdx.offline`](docs/OFFLINE.md) | `本地文件` |
+| 公司信息文本 F10 | F10 文本的段落目录与正文 | [`client.company_info.content()`](docs/methods/0x02d0-公司信息内容接口.md) | `0x02cf` + `0x02d0` |
+| 交易日与日历 | 判断是否交易日、取上一个 / 下一个交易日、生成日期区间 | [`client.workdays.today()`](docs/METHOD_REFERENCE.md#clientworkdays) | `7709` + 本地日历 |
+| 当日资金流向 | 每只股票当日 16 档买入 / 卖出分档金额、主力净额与占比 | [`client.money_flow.daily()`](docs/methods/0x0ffc-资金流向日数据接口.md) | `0x0ffc` |
 | 连接与并发 | 主站测速、Rust 连接池、心跳、pin、push、缓存和 diagnostics | [`TdxClient()`](docs/METHOD_REFERENCE.md#tdxclient) | `Rust Engine` |
-| MCP 工具服务 | 将常用行情、F10、竞价和文档能力提供给 MCP 客户端 | [`eltdx-mcp`](docs/MCP.md#安装和启动) | `MCP` |
+| MCP 工具服务 | 把常用行情、F10、竞价和文档能力暴露给 MCP 客户端；F10 结果附带按 Entry / 请求分区解析的中文字段标签 | [`eltdx-mcp`](docs/MCP.md#安装和启动) | `MCP` |
 | 跨语言网关 | 通过 HTTP JSON、WebSocket RPC 和实时订阅供其他语言调用 | [`eltdx-http`](docs/HTTP_GATEWAY.md) | `FastAPI` |
 
 完整接口目录见 [GitHub Pages](https://electkismet.github.io/eltdx/)。调用方法和返回字段看 [METHOD_REFERENCE.md](docs/METHOD_REFERENCE.md)，常用问题入口看 [docs/helpers/README.md](docs/helpers/README.md)，完整 API 看 [API_REFERENCE.md](docs/API_REFERENCE.md)，字段总表看 [FIELD_REFERENCE.md](docs/FIELD_REFERENCE.md)，F10 资料看 [F10_7615.md](docs/F10_7615.md)，MCP 工具看 [MCP.md](docs/MCP.md)。
@@ -149,9 +156,13 @@ eltdx f10 shareholders 688004 --section count           # 股东人数与股价�
 eltdx f10 fund 510300 --section dividends               # ETF 基金分红
 eltdx f10 market 880472 --section board_flow            # 板块资金
 eltdx f10 call --entry CWServ.tdxf10_gg_gdyj --params '["688004","gdrs","","","1","1","20"]'
+eltdx ex count --market 33                              # 扩展行情 7727
+eltdx fund nav 016947                                   # 场外基金单位净值
+eltdx mac server-info                                   # MAC 协议
+eltdx offline day --file path/to/sz000001.day --count 5 # 本地行情文件
 ```
 
-`eltdx f10` 的个股、ETF / 基金、板块、指数、大盘 action 共用同一套方法和 `--section`；`-o table / csv / jsonl` 会把 TQLEX 回包展开成数据行。
+`eltdx f10` 的个股、ETF / 基金、板块、指数、大盘 action 共用同一套方法和 `--section`；`-o table / csv / jsonl` 会把 TQLEX 回包展开成数据行。扩展行情 / 场外基金 / MAC / 本地行情文件是**独立通路**，见下文。
 
 MCP 工具服务启动后会占用当前终端作为 stdio 服务：
 
@@ -239,6 +250,9 @@ print(f10.company_profile("000034").rows[0])
 | 本地复权系数 | `client.corporate.adjustment_factors()` | [`0x000f`](docs/COMMANDS_7709.md#cmd-0x000f) | 为已有本地不复权 K 线计算事件级前/后复权仿射系数 | [文档](docs/methods/7709-本地复权系数.md) |
 | 财务基础信息       | `client.corporate.finance_batch(codes)` | [`0x0010`](docs/COMMANDS_7709.md#cmd-0x0010)                                                | 批量返回流通股本、总股本、EPS、资产、负债、收入、利润等基础财务字段                            | [文档](docs/methods/7709-财务基础信息.md)     |
 | 特殊品种涨跌停限制    | `client.limits.special()`                                  | [`0x0452`](docs/COMMANDS_7709.md#cmd-0x0452)                                                | 返回特殊品种涨跌停限制表；需要按表扫描后本地索引到具体代码                                  | [文档](docs/methods/7709-特殊品种涨跌停限制.md)  |
+| 公司信息目录（F10 文本） | `client.company_info.category(code, market)` | [`0x02cf`](docs/COMMANDS_7709.md#cmd-0x02cf) | 列出该证券 F10 文本的段落目录：名称、文件名、偏移和长度 | [文档](docs/methods/0x02cf-公司信息目录接口.md) |
+| 公司信息正文（F10 文本） | `client.company_info.content(code, market, filename, offset, length)` | [`0x02d0`](docs/COMMANDS_7709.md#cmd-0x02d0) | 读取指定段落的 GBK 正文；与 7615 Entry 是两套独立数据源 | [文档](docs/methods/0x02d0-公司信息内容接口.md) |
+| 板块文件元数据 | `client.resources.block_meta(filename)` | [`0x02c5`](docs/COMMANDS_7709.md#cmd-0x02c5) | 返回板块文件的 size、md5 等元数据 | [文档](docs/methods/0x02c5-板块文件元数据接口.md) |
 | 服务器文件分块读取      | `client.resources.read()` | [`0x06b9`](docs/COMMANDS_7709.md#cmd-0x06b9) | 读取一个服务器文件块，返回原始 bytes 和长度头 | [文档](docs/methods/7709-服务器文件读取.md)    |
 | 服务器文件下载      | `client.resources.download_file()` | [`0x06b9`](docs/COMMANDS_7709.md#cmd-0x06b9) | 循环读取并合并完整服务器文件 | [文档](docs/methods/7709-服务器文件下载.md)    |
 | 服务器统计文件解析      | `client.resources.read_stats()` | [`0x06b9`](docs/COMMANDS_7709.md#cmd-0x06b9) | 下载并解析 `zhb.zip` 中的统计文件 | [文档](docs/methods/7709-服务器统计文件解析.md)    |
@@ -271,6 +285,13 @@ client.bars.get("sz000001", period="day", all_pages=True, page_size=800)
 | `adjust`      | `hfq` / `back`                            | 后复权                               |
 | `adjust`      | `fixed_qfq` / `fixed_hfq`                 | 定点前复权 / 定点后复权，需要配合 `anchor_date`  |
 | `anchor_date` | `YYYY-MM-DD`、`YYYYMMDD`、`date`            | 定点复权基准日期，仅定点复权时需要                 |
+| `bar_time`    | `start` / `end`                           | 分钟 K 线时间戳语义，默认 `start`（通达信原始口径）   |
+
+`bar_time` 决定**分钟级** K 线的时间戳语义（日线及以上不受影响）：默认 `"start"` 用 bar 开始时间，即通达信原始口径，上午最后一根 5 分钟线标 `11:25`；`"end"` 用 bar 右端点（= 开始 + 周期时长），与 Tushare / 同花顺对齐，上午最后一根标 `11:30`。
+
+```python
+client.bars.get("sz000001", period="5m", count=48, bar_time="end")
+```
 
 直接查询前复权和后复权 K 线，使用 `client.bars.get(..., adjust="qfq" / "hfq")`。已有不复权 K 线、需要本地计算或审计时，使用 `client.corporate.adjustment_factors()`；本地计算与服务端复权价格可能存在差异。
 
@@ -314,6 +335,95 @@ client.bars.get("sz000001", period="day", all_pages=True, page_size=800)
 | 板块 / 指数 / 大盘 F10 | `client.f10.market_report()`                        | [`CWServ.skef10_bk_getinfo`](docs/F10_7615.md#entry-cwserv-skef10-bk-getinfo)         | 20 个 section：板块资料 / 资金 / 成份股、指数概况 / 跟踪标的 / 资金、大盘两融和新股 | [文档](docs/methods/F10-板块与指数.md)     |
 
 常规 F10 返回 `F10Response`；`client.f10.limit_board_ladder()` 返回 `LimitBoardLadder`。常用结果分别在 `response.rows` 或模型的 `rows`，完整说明见 [F10_7615.md](docs/F10_7615.md)。
+
+## 扩展行情、场外基金、MAC 与本地行情文件
+
+`7709` 行情主站之外还有几条数据通路，`TdxClient` 并不覆盖它们：
+
+| 通路 | 入口 | 能拿什么 |
+| --- | --- | --- |
+| 扩展行情 `7727` | `eltdx.ExTdxClient` / `eltdx ex` / `eltdx macex` | 期货、期权、港股、基金等非 7709 标的：市场表、标的枚举、行情、K 线、分时、逐笔 |
+| 场外基金 | `eltdx.MacExClient` / `eltdx fund` | 开放式 / 货币 / 香港基金的代码名称、单位净值快照和净值日线 |
+| MAC 协议（7709 MAC 服务器） | `eltdx.MacClient` / `eltdx mac` | 报价、K 线、分时、逐笔、榜单、板块、龙虎榜、资金流向、服务器信息和文件下载 |
+| 本地行情文件 | `eltdx.offline` / `eltdx offline` | 通达信 `vipdoc` 落盘的日线、分钟线、权息、历史财务和板块配置，不需要网络 |
+| 公司信息文本 F10 | `client.company_info` | `0x02cf` 目录 + `0x02d0` 正文的 GBK 文本型 F10，数据源与 7615 Entry 不同 |
+
+### 扩展行情 7727
+
+```python
+from eltdx import ExTdxClient
+
+with ExTdxClient(timeout=8) as ex:
+    markets = ex.get_markets()                          # 服务端普遍不支持时自动回退本地枚举
+    quotes = ex.get_instrument_quote(33, "016947")                 # market 33 = 开放式基金
+    bars = ex.get_instrument_bars(category=8, market=33, code="016947", count=20)
+
+print(quotes)
+print(bars[-1])
+```
+
+- 主机表**不发版也能覆盖**：环境变量 `ELTDX_EX_HOSTS`（逗号分隔）> 用户配置 `<data_dir>/ex_servers.json` > 包内默认；`eltdx.ex.load_ex_hosts()` 返回最终生效值。
+- `connect()` 用**真实业务命令**并发探活，只把真正应答的主机排到前面；失败判定是**命令级**（拿到应答才算成功），失败主机被排除后请求自动落到其余健康主机，成功一次即恢复健康标记。实测内置 16 台主机中只有 **1 台**能应答枚举命令 `0x23f5`，它被 `DEFAULT_EX_HOSTS` 排到首位。
+- 需要显式管理选主结果时用 `ping_all()` / `from_best_host()` / `healthy_hosts` / `unhealthy_hosts` / `refresh_hosts()`。
+- 各主站的实际能力差异见 [EXTENDED_MARKET.md](docs/EXTENDED_MARKET.md)。
+
+### 场外基金（`eltdx fund`）
+
+**场外基金不在 7709 行情里**，只能走扩展行情，这也是 `fund` 子命令存在的原因。基金没有成交量，`vol` / `amount` 恒为 0，价格字段即**单位净值**。
+
+```bash
+eltdx fund list --market 33 --count 10 --output table
+eltdx fund nav 016947
+```
+
+### MAC 协议（`eltdx mac`）
+
+```python
+from eltdx import MacClient
+
+with MacClient(timeout=8) as mac:
+    quotes = mac.get_stock_quotes([(0, "000001")])
+    boards = mac.get_board_list(count=5)
+    ranking = mac.get_board_change_ranking(top_n=5)
+```
+
+`MacClient.from_best_host()` 会把探测到最快的主机放到候选首位；`ensure_connected()` 用一条极廉价的 `KlineOffsetCmd(0, 1)` **真实探测**连接——只看标志位发现不了「TCP 还在但服务端已经不理人」的半开连接。
+
+!!! warning "`mac kline` / `get_stock_kline()` 可能被服务端拒绝"
+    部分 MAC 服务器对 `symbol_bar` 只回 1 字节，会抛
+    `ProtocolError: symbol_bar header: 数据不足`。这是服务端行为，不是客户端缺陷。
+
+### 本地行情文件（vipdoc）
+
+`eltdx.offline` 直接读通达信落盘文件，**不需要网络**：`.day` 日线、`.lc1` / `.lc5` 分钟线、扩展市场日线、权息（`gbbq`）、历史财务和板块 / 行业配置。文件末尾不足一条记录的残尾会被忽略，通达信写盘中断留下的截断文件仍可读。
+
+```bash
+eltdx offline day --file path/to/sz000001.day --count 5 --output table
+eltdx offline day --vipdoc D:/new_tdx/vipdoc --market 0 --code 000001 --last
+eltdx offline gbbq --file path/to/gbbq
+```
+
+细节见 [OFFLINE.md](docs/OFFLINE.md)。
+
+### 公司信息文本 F10（`0x02cf` + `0x02d0`）
+
+`7709` 另有一条**文本型** F10 通路：`client.company_info.category(code, market)` 列目录，`client.company_info.content(...)` 读正文，拿到的是客户端 F10 里那段 GBK 文本。它与 7615 Entry 是**两套独立数据源**，不是同一份数据的两种封装。
+
+```python
+from eltdx import TdxClient
+
+with TdxClient(timeout=3) as client:
+    sections = client.company_info.category("600000", "sh")
+    first = sections[0]
+    text = client.company_info.content("600000", "sh", first.filename, first.start, first.length)
+```
+
+另外 `client.resources.block_meta(filename)`（`0x02c5`）返回板块文件元数据，`eltdx.Market` 枚举（`SZ=0` / `SH=1` / `BJ=2`）可与小写字符串 `"sz"` / `"sh"` / `"bj"` 互换传给任何 `market` 参数。
+
+!!! note "需要较新的 native 扩展"
+    `0x02c5` / `0x02cf` / `0x02d0` 三个命令要求 `_native` 是较新版本；
+    随旧版发布的 `_native` 会抛 `UnsupportedCommandError`，此时可先用 7615 的
+    `client.f10.*` 替代。用本仓库 Rust 源码编译的 `_native` 已包含这三个命令。
 
 ## 连接、并发和缓存
 
@@ -461,9 +571,11 @@ python scripts/smoke/export_auction_925_daily.py --code sz000001 --start 2026-04
 | 常用场景和可复制示例 | [Helpers](docs/helpers/README.md) · [示例](docs/EXAMPLES.md) |
 | 方法参数、返回字段和完整 API | [方法手册](docs/METHOD_REFERENCE.md) · [字段手册](docs/FIELD_REFERENCE.md) · [API 参考](docs/API_REFERENCE.md) |
 | 底层协议和 F10 Entry | [7709 命令](docs/COMMANDS_7709.md) · [7615 F10](docs/F10_7615.md) |
+| 扩展行情 7727、场外基金、MAC 协议 | [扩展行情](docs/EXTENDED_MARKET.md) · [命令行](docs/CLI.md) |
+| 本地行情文件（vipdoc） | [本地文件](docs/OFFLINE.md) |
 | 连接、测速、并发和故障排查 | [调试指南](docs/DEBUG_GUIDE.md) · [架构](docs/ARCHITECTURE.md) |
 | MCP 安装、工具和资源 | [MCP 文档](docs/MCP.md) |
-| 当前版本、变更和旧 API 迁移 | [v3.4.0](docs/releases/v3.4.0.md) · [变更记录](docs/CHANGELOG.md) · [迁移说明](docs/MIGRATION_FROM_OLD.md) |
+| 当前版本、变更和旧 API 迁移 | [v3.4.0](docs/releases/v3.4.0.md) · [变更记录](docs/CHANGELOG.md) · [旧版迁移](docs/MIGRATION_FROM_OLD.md) · [从 easy_tdx 迁移](docs/MIGRATION_FROM_EASY_TDX.md) |
 
 ## 常用问题
 
