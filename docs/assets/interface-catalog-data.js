@@ -1,7 +1,7 @@
 window.ELTDX_CATALOG = {
   "schema_version": 14,
   "release": {
-    "version": "3.4.2",
+    "version": "3.4.3",
     "status": "stable",
     "backend": "Rust native 7709 protocol and transport engine",
     "python_api": "compatible modular API and dataclasses",
@@ -1249,7 +1249,7 @@ window.ELTDX_CATALOG = {
       ],
       "protocol": "CWServ.skef10_bk_getinfo",
       "kind": "Entry 封装",
-      "summary": "板块 880xxx、指数 399001 与大盘 000001 共用的 20 个分区：板块资料与资金、成份股数据与财务对比、指数概况与跟踪标的、大盘两融与新股分析。",
+      "summary": "板块 880xxx、指数 399001 与大盘 000001 共用的 22 个分区：板块资料与资金、成份股数据与财务对比、指数概况与跟踪标的、大盘两融（活跃个股 / 日序列汇总 / 投资者统计）与新股分析。",
       "return_model": "F10Response",
       "doc": "methods/F10-板块与指数.md"
     },

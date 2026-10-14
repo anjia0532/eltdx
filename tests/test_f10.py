@@ -709,6 +709,8 @@ _NEW_F10_METHOD_SECTIONS = {
         "index_notices": ("CWServ.skef10_zs_jrts", ["001", "000034", "1", "20"]),
         "market_basic": ("CWServ.skef10_dpzx_jbxx", ["002", "000034"]),
         "market_margin": ("CWServ.skef10_dpzx_rzrq", ["001", "000034"]),
+        "market_margin_summary": ("CWServ.skef10_dpzx_rzrq", ["002", "000034"]),
+        "market_margin_investors": ("CWServ.skef10_dpzx_rzrq", ["003", "1m"]),
         "market_new_shares": ("CWServ.skef10_dpzx_xgfx", ["002"]),
         "market_capital": ("CWServ.skef10_dpzx_scgl", ["004"]),
     },
@@ -860,6 +862,20 @@ def test_market_report_code_sections_still_require_code() -> None:
         client.market_report("", "index_info")
 
     assert client.calls == []
+
+
+def test_market_report_index_margin_sections_share_one_entry() -> None:
+    """指数两融：002 是日序列汇总，003 是投资者情况统计。"""
+
+    client = _RecordingF10Client()
+
+    client.market_report("000001", "market_margin_summary")
+    client.market_report("000001", "market_margin_investors", arg="6m")
+
+    assert client.calls == [
+        ("CWServ.skef10_dpzx_rzrq", {"Params": ["002", "000001"]}),
+        ("CWServ.skef10_dpzx_rzrq", {"Params": ["003", "6m"]}),
+    ]
 
 
 @pytest.mark.parametrize("method", sorted(_NEW_F10_METHOD_SECTIONS))

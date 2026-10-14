@@ -114,7 +114,7 @@ F10 走 `7615/TQLEX` HTTP 网关，**不需要 7709 连接**；个股、ETF / �
 | `news` / `northbound` / `ranking` / `valuation` / `detail` | 公司资讯（含 `finance_review` 财报点评）/ 沪深股通 / 排名 / 估值 / 详情正文 |
 | `limit-board` | 涨跌停列表（`--date`） |
 | `fund` | ETF / 场外基金 30 个分区（`industry_allocation` / `bond_allocation` / `futures_allocation` 不传 `--date` 自动取最新报告期） |
-| `market` | 板块 / 指数 / 大盘 20 个分区（`market_new_shares` / `market_capital` 可省略 CODE） |
+| `market` | 板块 / 指数 / 大盘 22 个分区（`market_new_shares` / `market_capital` 可省略 CODE；指数两融用 `market_margin_summary` / `market_margin_investors`） |
 
 | 选项 | 说明 |
 | --- | --- |
