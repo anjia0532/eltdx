@@ -1,5 +1,20 @@
 # 变更记录
 
+## v3.4.2 - 2026-10-14
+
+### 修复内容
+
+- **`market_report()` 免代码分区**：`market_new_shares` / `market_capital` 现在可以省略 `code`（或传空串 `""`）。此前会因无条件 `_code6(code)` 抛 `ProtocolError: invalid code: ''`。其余分区传空串仍照原样抛 `ProtocolError`，避免静默发出空代码请求。
+- **`fund_report(section="scale_history")` 默认参数报错**：默认 `arg` 由 `"1"` 改为 `"0"`。实测 `{"Params": ["1", code, "", ""]}` 恒返回 `ErrorCode=-1005`（客户端那条 `["1", stock, sort, value]` 需要排序参数），而 `["0", code, "", ""]` 返回报告期规模份额序列（`510300` 50 行）。
+- **`fund_report(section="scale")` 返回退化表**：底层参数由 `["4", ...]`（实测只返回 `rq` 列、无数据）改为 `["0", ...]`，与 `scale_history` 一致，返回 `rq` / `qmjzc` / `T005` / `bdl` / `jzcbdl` 等完整列。
+- **`fund_report` 报告期分区自动取最新报告期**：`industry_allocation` / `bond_allocation` / `futures_allocation` 未传 `date` 时，先用对应的 `*bgq` 参数（`hyfbbgq` / `zczqbgq` / `ccqhmxbgq`）取最新报告期再查明细（与客户端一致）。此前不传 `date` 恒返回 0 行。
+- **CLI**：`eltdx f10 market` 允许省略 `CODE`（配合 `--section market_new_shares` / `market_capital`）。
+
+### 文档
+
+- `F10-基金与ETF.md` / `F10-板块与指数.md` / `API_REFERENCE.md` / `METHOD_REFERENCE.md` / `CLI.md` 同步上述行为；`F10-基金与ETF.md` 明确「`response.rows` 只给第一张表，多结果集分区（`etf` / `margin`）的数据在 `response.tables[1]`」。
+- `7709-K线周期线.md` 新增「分钟 K 的可取深度（实测）」：`1m` ≈ 23520 根、`5m` ≈ 23904 根，分钟线在 7709 上最多约 2.3～2.4 万根，受主站保留窗口限制。
+
 ## v3.4.1 - 2026-10-13
 
 ### 文档
