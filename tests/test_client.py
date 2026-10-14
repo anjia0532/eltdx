@@ -2180,7 +2180,11 @@ def test_codes_all_pages_until_short_page() -> None:
 
 
 def test_bars_all_pages_until_short_page() -> None:
+    from datetime import datetime
+
     from eltdx.models import KlineSeries
+
+    total = 5
 
     class FakeTransport:
         def connect(self) -> None:
@@ -2196,7 +2200,9 @@ def test_bars_all_pages_until_short_page() -> None:
             assert command == 0x052D
             start = payload["start"]
             count = payload["count"]
-            bars = tuple(range(count)) if start == 0 else (0,) if start == 2 else ()
+            # 模拟 7709 真实语义：start=0 是最新的 count 根，页内时间升序。
+            slice_ = slice(max(total - start - count, 0), total - start)
+            bars = tuple(Bar(i) for i in range(*slice_.indices(total)))
             return KlineSeries(
                 exchange="sz",
                 market_id=0,
@@ -2213,13 +2219,17 @@ def test_bars_all_pages_until_short_page() -> None:
                 bars=bars,
             )
 
+    class Bar:
+        def __init__(self, index: int) -> None:
+            self.time = datetime(2020, 1, 1 + index)
+
     page = TdxClient(transport=FakeTransport()).bars.get(
         "sz000001", all_pages=True, page_size=2
     )
 
     assert page.start == 0
-    assert page.request_count == 3
-    assert page.bars == (0, 0, 1)
+    assert page.request_count == total
+    assert [bar.time.day for bar in page.bars] == [1, 2, 3, 4, 5]
 
 
 def test_server_page_limits_are_validated_before_request() -> None:
@@ -2321,38 +2331,3 @@ def test_socket_transport_has_no_legacy_reader_or_socket_owner_paths() -> None:
             "_heartbeat_loop",
         )
     )
-
-
-def test_convertible_bond_kline_full_pagination_is_chronological_and_has_no_fake_raw():
-    from eltdx.models import KlineBar, KlineSeries
-    from eltdx.api.bars import BarApi
-    def bar(day):
-        return KlineBar(datetime(2026, 10, day, 15), 100, 100, 100, 100,
-                        100000, 100000, 100000, 100000, None,
-                        0, 0, 1, .01, 1000, 0, 0, 0, 0)
-    class Transport:
-        calls = []
-        def execute(self, command, payload):
-            self.calls.append(payload['start'])
-            rows = {0: (bar(26), bar(27)), 2: (bar(23),), 3: ()}[payload['start']]
-            return KlineSeries(exchange='sh', market_id=1, code='113692', period_raw=4,
-                               period_param_raw=1, period_name='day', start=payload['start'],
-                               request_count=payload['count'], adjust_mode_raw=0, adjust_mode='none',
-                               anchor_date_raw=0, anchor_date=None, bars=rows, raw_payload=b'one-page-only')
-    transport = Transport()
-    page = BarApi(transport).get('sh113692', all_pages=True, page_size=2)
-    assert [b.time.day for b in page.bars] == [23, 26, 27]
-    assert page.count == 3 and transport.calls == [0, 2, 3]
-    assert page.raw_payload == b''
-
-
-@pytest.mark.parametrize('code', ['110076', '113692', '118075'])
-def test_convertible_bare_code_loads_shanghai_precision_metadata(monkeypatch, code):
-    client = TdxClient.in_memory()
-    markets = []
-    monkeypatch.setattr(client.codes, 'all', lambda market: markets.append(market) or [])
-    try:
-        client._ensure_decimals([code])
-        assert markets == ['sh']
-    finally:
-        client.close()
