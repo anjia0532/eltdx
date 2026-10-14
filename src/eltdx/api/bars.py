@@ -38,6 +38,9 @@ class BarApi(ApiBase):
         """获取 K 线。
 
         Args:
+            all_pages 分页语义：7709 的 ``start`` 是「距最新的偏移」（start=0 最新）。
+                ``all_pages=True`` 自动翻页到空页，并按页反转合并为**时间升序**序列
+                （最旧在前、最新在后，与 ``delisted_bars.get`` 一致）；页内顺序保留服务端原样。
             bar_time: 时间戳语义。``"start"``（默认）= bar 开始时间（通达信原始，
                 上午最后一根 5min 标 ``11:25``、下午第一根标 ``13:00``）；``"end"`` =
                 bar 右端点（= 开始 + 周期时长，与 Tushare/同花顺对齐，上午最后一根标
@@ -99,7 +102,7 @@ class BarApi(ApiBase):
         next_start = start
         pages = 0
         first_page = None
-        bars = []
+        collected = []
         while True:
             page = self._get_page(
                 code,
@@ -116,12 +119,21 @@ class BarApi(ApiBase):
                 return page
             if first_page is None:
                 first_page = page
-            bars.extend(page.bars)
+            collected.append(page.bars)
             pages += 1
             if page.count == 0:
+                # 7709 的 start 是「距最新的偏移」：先请求的页更新、后请求的页更旧。
+                # 按页反转拼接，得到时间升序的整体序列（页内服务端已是升序）。
+                bars = [
+                    bar
+                    for page_bars in reversed(collected)
+                    for bar in page_bars
+                ]
                 return replace(first_page, request_count=len(bars), bars=tuple(bars))
             if max_pages is not None and pages >= max_pages:
-                raise RuntimeError("bars.get reached max_pages before the server returned an empty page")
+                raise RuntimeError(
+                    "bars.get reached max_pages before the server returned an empty page"
+                )
             next_start += page.count
 
     def _get_page(

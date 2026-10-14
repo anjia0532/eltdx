@@ -1045,7 +1045,7 @@ response = client.f10.params("CWServ.tdxf10_gg_gsgk", "8", "000034", "")
 | `industry_analysis(code, section="peers", *, arg="")`   | `CWServ.tdxf10_gg_hyfx`（`comparable` / `comparable_profile` 走 `CWServ.tdxf10_gg_kbgs`） | 同业对比、同业分红排名、同业规模、同业估值、行业新闻、行业研报、市场份额、行业汇总、可比公司列表、可比公司资料（10 个分区） |
 | `trading_report(code, section="margin", *, arg="", date=None, page=1, page_size=20)` | `CWServ.tdxf10_gg_jyds`（`margin_history` 走 `CWServ.tdxf10_gg_sj`） | 近期 / 近 6 个月两融、大宗交易、龙虎榜、沪深股通、涨跌停分析、可转债、主力盘口、研报席位、科创板标记（11 个分区） |
 | `fund_report(code, section="basic", *, arg="", date=None, page=1, page_size=20)` | `CWServ.skef10_jj_*`                                     | ETF 与场外基金共用的 30 个分区：经理、管理人、概况、席位、规模份额、净值回报、分红、资产与行业配置、重仓股、持股情况、财务、销售、评级 |
-| `market_report(code="", section="board_info", *, arg="", date=None, page=1, page_size=20)` | `CWServ.skef10_bk_*` / `skef10_zs_*` / `skef10_dpzx_*`  | 板块 / 指数 / 大盘共用的 20 个分区：板块资料与资金、成份股数据与财务对比、指数概况与跟踪标的、大盘两融与新股分析 |
+| `market_report(code="", section="board_info", *, arg="", date=None, page=1, page_size=20)` | `CWServ.skef10_bk_*` / `skef10_zs_*` / `skef10_dpzx_*`  | 板块 / 指数 / 大盘共用的 22 个分区：板块资料与资金、成份股数据与财务对比、指数概况与跟踪标的、大盘两融（活跃个股 / 日序列汇总 / 投资者统计）与新股分析 |
 | `ranking_detail(code, section="scpmdela")`             | `CWServ.tdxf10_gg_zxts_rqpm`                             | 市场 / 行业排名明细                               |
 | `governance(code, section="wgcl")`                     | `CWServ.tdxf10_gg_zbyz`                                  | 违规处理、担保明细等治理数据                            |
 | `hot_topics(code, section="zttzbkz")`                  | `CWServ.tdxf10_gg_rdtc`                                  | 题材名称、关联度、入选日期、入选原因、详情 ID                  |

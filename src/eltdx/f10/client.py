@@ -384,6 +384,12 @@ class F10Client:
         资金流向不在此方法内，统一由 :meth:`eltdx.api.money_flow.MoneyFlowApi.history` 提供。
         ``date`` 当前没有 section 使用，仅为与其它报表方法保持签名一致。
 
+        **注意（指数两融请用 market_report）**：``margin`` / ``margin_history`` 是**个股**两融
+        区间通道。拿它查指数（如 ``sh000905`` / ``sh000001``）服务端会按数字代码返回**深市同名
+        个股**——实测 ``000905`` → 厦门港务、``000001`` → 平安银行（各约 122 行），不是指数数据。
+        指数两融日序列请用 :meth:`market_report` 的 ``market_margin_summary``（``["002", code]``，
+        ``000001`` 实测 8676 行、2010-03-31 起）或 ``market_margin_investors``（``["003", window]``）。
+
         返回模型：:class:`eltdx.f10.models.F10Response`。
         """
 
@@ -513,9 +519,19 @@ class F10Client:
         ``index_flow`` 指数资金动向（``arg`` 默认 ``"004_1"``）；
         ``index_flow_members`` 成份股资金（``arg`` 默认 ``"001"``）；
         ``index_notices`` 今日提示（``arg`` 默认 ``"001"``）；
-        ``market_basic`` 大盘指数基本信息；``market_margin`` 大盘两融；
+        ``market_basic`` 大盘指数基本信息；``market_margin`` 大盘两融**活跃个股列表**
+        （Entry ``CWServ.skef10_dpzx_rzrq``，Params ``["001", code]``，``000001`` 实测 1676 行）；
+        ``market_margin_summary`` 大盘两融**日序列汇总**（同一 Entry，Params ``["002", code]``，
+        ``000001`` 实测 8676 行、2010-03-31 起；``N010`` 是三市标记 ``012001`` 沪 / ``012002`` 深 /
+        ``012046`` 北 / ``total`` 汇总，需按它过滤）；
+        ``market_margin_investors`` 两融投资者情况统计（Params ``["003", window]``，``arg`` 取
+        ``1m`` / ``3m`` / ``6m`` / ``1y``，实测 15 / 60 / 120 / 242 行）；
         ``market_new_shares`` 新股分析；``market_capital`` 大盘市场概览
         （``arg`` 默认 ``"004"``）。
+
+        指数两融**有**序列：用 ``market_margin_summary``。不要用 :meth:`trading_report` 的
+        ``margin_history`` 查指数——那是**个股**区间通道，服务端按数字代码返回深市同名个股
+        （实测 ``000905`` → 厦门港务、``000001`` → 平安银行，各约 122 行）。
 
         ``market_new_shares`` 与 ``market_capital`` 不需要 ``code``（可省略或传空串）；
         ``page`` / ``page_size`` 仅对集合类 section 有效。
@@ -549,6 +565,8 @@ class F10Client:
             "index_notices": (f"{zs}jrts", (arg or "001", code6, page_text, size_text)),
             "market_basic": (f"{dpzx}jbxx", ("002", code6)),
             "market_margin": (f"{dpzx}rzrq", ("001", code6)),
+            "market_margin_summary": (f"{dpzx}rzrq", ("002", code6)),
+            "market_margin_investors": (f"{dpzx}rzrq", ("003", arg or "1m")),
             "market_new_shares": (f"{dpzx}xgfx", ("002",)),
             "market_capital": (f"{dpzx}scgl", (arg or "004",)),
         }
