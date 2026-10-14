@@ -537,6 +537,12 @@ def _record_f10(monkeypatch: pytest.MonkeyPatch) -> _RecordingF10:
             ("880472",),
             {"section": "board_flow", "arg": "", "date": None, "page": 1, "page_size": 20},
         ),
+        (
+            ["f10", "market", "--section", "market_new_shares"],
+            "market_report",
+            ("",),
+            {"section": "market_new_shares", "arg": "", "date": None, "page": 1, "page_size": 20},
+        ),
         (["f10", "detail", "xw", "22075813"], "detail", ("xw", "22075813"), {}),
         (
             ["f10", "call", "--entry", "CWServ.tdxf10_gg_gdyj", "--params", '["688004","gdrs"]'],

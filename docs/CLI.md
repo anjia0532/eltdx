@@ -113,8 +113,8 @@ F10 走 `7615/TQLEX` HTTP 网关，**不需要 7709 连接**；个股、ETF / �
 | `score` / `topics` / `topic-compare` | 个股总评 / 热点题材 / 题材内对比 |
 | `news` / `northbound` / `ranking` / `valuation` / `detail` | 公司资讯（含 `finance_review` 财报点评）/ 沪深股通 / 排名 / 估值 / 详情正文 |
 | `limit-board` | 涨跌停列表（`--date`） |
-| `fund` | ETF / 场外基金 30 个分区 |
-| `market` | 板块 / 指数 / 大盘 20 个分区 |
+| `fund` | ETF / 场外基金 30 个分区（`industry_allocation` / `bond_allocation` / `futures_allocation` 不传 `--date` 自动取最新报告期） |
+| `market` | 板块 / 指数 / 大盘 20 个分区（`market_new_shares` / `market_capital` 可省略 CODE） |
 
 | 选项 | 说明 |
 | --- | --- |
@@ -132,6 +132,7 @@ eltdx f10 digest 688004 --section events --output table
 eltdx f10 trading 688004 --section limit_up --output jsonl
 eltdx f10 fund 510300 --section dividends
 eltdx f10 market 880472 --section board_flow --arg 001_1
+eltdx f10 market --section market_new_shares        # 无需 CODE
 eltdx f10 call --entry CWServ.tdxf10_gg_gdyj --params '["688004","gdrs","","","1","1","20"]'
 ```
 

@@ -791,7 +791,12 @@ def cmd_f10(args: argparse.Namespace) -> int:
     if action == "limit-board":
         return emit(args, client.limit_up_down_list(args.date or None))
 
-    code = _f10_single_code(args)
+    if action == "market":
+        # ``market_new_shares`` / ``market_capital`` 不需要代码，允许省略。
+        market_codes = _codes(args.code)
+        code = market_codes[0] if market_codes else ""
+    else:
+        code = _f10_single_code(args)
     if action == "stock-info":
         return emit(args, client.stock_info(code))
     if action == "profile":
