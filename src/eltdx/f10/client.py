@@ -28,6 +28,19 @@ DEFAULT_LIMIT_BOARD_LADDER_BASE_URL = "http://hot.icfqs.com:7615/TQLEX"
 DEFAULT_QSID = "tdx"
 LIMIT_BOARD_LADDER_ENTRY = "CWServ.cfg_fx_lbtt"
 
+#: ``fund_report`` 里需要报告期（``date``）的分区 → ``skef10_jj_tzzh`` 的报告期列表参数。
+#: 未显式传 ``date`` 时，用对应的 ``*bgq`` 参数取最新报告期（与客户端一致）。
+_FUND_REPORT_PERIOD_ENTRIES: dict[str, str] = {
+    "industry_allocation": "hyfbbgq",
+    "bond_allocation": "zczqbgq",
+    "futures_allocation": "ccqhmxbgq",
+}
+
+#: ``market_report`` 里不需要 ``code`` 的分区（省略或传空串均可）。
+_MARKET_REPORT_CODELESS_SECTIONS: frozenset[str] = frozenset(
+    {"market_new_shares", "market_capital"}
+)
+
 
 class F10Client:
     """High-level wrapper around the 7615 F10 / TQLEX gateway.
@@ -420,7 +433,8 @@ class F10Client:
         ``categories`` 分类同类衍生表（``arg`` 默认 ``"bgqzf"``）。
 
         ``date`` 用于 ``industry_allocation`` / ``bond_allocation`` /
-        ``futures_allocation``；``etf`` / ``margin`` 未给 ``date`` 时用 ``"3M"``。
+        ``futures_allocation``（未给时自动取最新报告期）；``etf`` / ``margin`` 未给
+        ``date`` 时用 ``"3M"``。
 
         返回模型：:class:`eltdx.f10.models.F10Response`。
         """
@@ -437,14 +451,18 @@ class F10Client:
         cgqk = f"{jj}cgqk"
         xsxx = f"{jj}xsxx"
         etfzj = f"{jj}etfzj"
+        if not date_text and section in _FUND_REPORT_PERIOD_ENTRIES:
+            date_text = _latest_report_period(
+                self.params(tzzh, _FUND_REPORT_PERIOD_ENTRIES[section], code6, "")
+            )
         table: dict[str, tuple[str, tuple[Any, ...]]] = {
             "name": (f"{jj}idreq", ("name", code6)),
             "managers": (jjzl, ("1", code6, "", page_text, page_text, size_text)),
             "company": (jjzl, ("2", code6, "", page_text, page_text, size_text)),
             "basic": (jjzl, ("4", code6, "", page_text, page_text, size_text)),
             "seats": (jjzl, ("5", code6, arg, page_text, page_text, size_text)),
-            "scale": (gmfe, ("4", code6, "", "")),
-            "scale_history": (gmfe, (arg or "1", code6, "", date_text)),
+            "scale": (gmfe, ("0", code6, "", "")),
+            "scale_history": (gmfe, (arg or "0", code6, "", date_text)),
             "nav": (jzhb, ("0", code6, "0", "")),
             "nav_period": (jzhb, ("1", code6, "0", "")),
             "nav_rank": (jzhb, ("3", code6, "0", "")),
@@ -474,7 +492,7 @@ class F10Client:
 
     def market_report(
         self,
-        code: str,
+        code: str = "",
         section: str = "board_info",
         *,
         arg: str = "",
@@ -499,13 +517,14 @@ class F10Client:
         ``market_new_shares`` 新股分析；``market_capital`` 大盘市场概览
         （``arg`` 默认 ``"004"``）。
 
-        ``market_new_shares`` 与 ``market_capital`` 不需要 ``code``；
+        ``market_new_shares`` 与 ``market_capital`` 不需要 ``code``（可省略或传空串）；
         ``page`` / ``page_size`` 仅对集合类 section 有效。
 
         返回模型：:class:`eltdx.f10.models.F10Response`。
         """
 
-        code6 = _code6(code)
+        code_less = section in _MARKET_REPORT_CODELESS_SECTIONS
+        code6 = _code6(code) if (code or not code_less) else ""
         page_text = str(page)
         size_text = str(page_size)
         bk = "CWServ.skef10_bk_"
@@ -945,6 +964,15 @@ def _first_value(response: F10Response, field_name: str) -> Any | None:
         if field_name in row:
             return row[field_name]
     return None
+
+
+def _latest_report_period(response: F10Response) -> str:
+    """从 ``*bgq`` 报告期列表里取最新报告期（首行 ``rq``）；为空时返回空串。"""
+
+    rows = response.rows
+    if not rows:
+        return ""
+    return str(rows[0].get("rq") or "")
 
 
 def _normalize_limit_board_dates(

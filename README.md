@@ -575,7 +575,7 @@ python scripts/smoke/export_auction_925_daily.py --code sz000001 --start 2026-04
 | 本地行情文件（vipdoc） | [本地文件](docs/OFFLINE.md) |
 | 连接、测速、并发和故障排查 | [调试指南](docs/DEBUG_GUIDE.md) · [架构](docs/ARCHITECTURE.md) |
 | MCP 安装、工具和资源 | [MCP 文档](docs/MCP.md) |
-| 当前版本、变更和旧 API 迁移 | [v3.4.1](docs/releases/v3.4.1.md) · [变更记录](docs/CHANGELOG.md) · [旧版迁移](docs/MIGRATION_FROM_OLD.md) · [从 easy_tdx 迁移](docs/MIGRATION_FROM_EASY_TDX.md) |
+| 当前版本、变更和旧 API 迁移 | [v3.4.2](docs/releases/v3.4.2.md) · [变更记录](docs/CHANGELOG.md) · [旧版迁移](docs/MIGRATION_FROM_OLD.md) · [从 easy_tdx 迁移](docs/MIGRATION_FROM_EASY_TDX.md) |
 
 ## 常用问题
 

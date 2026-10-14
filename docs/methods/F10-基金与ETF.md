@@ -28,19 +28,19 @@ hide:
 | `company` | 基金管理人 | — |
 | `basic` | 基本概况 | — |
 | `seats` | 交易席位 | `arg` |
-| `scale` | 规模与份额 | — |
-| `scale_history` | 份额/规模历史 | `arg` 默认 `1`，可配合 `date` |
+| `scale` | 规模与份额（报告期序列） | — |
+| `scale_history` | 份额/规模历史 | `arg` 默认 `0`，可配合 `date` |
 | `nav` | 单位净值序列 | — |
 | `nav_period` | 区间收益 | — |
 | `nav_rank` | 同类排名 | — |
 | `dividends` | 基金分红 | — |
 | `asset_allocation` | 资产配置 | — |
-| `industry_allocation` | 行业分布 | `date` |
+| `industry_allocation` | 行业分布 | `date`（不传自动取最新报告期） |
 | `holdings_compare` | 重仓股变动 | — |
 | `holdings_rank` | 重仓排名 | — |
 | `holding_summary` | 基金持仓汇总 | — |
-| `bond_allocation` | 债券配置 | `date` |
-| `futures_allocation` | 期货持仓明细 | `date` |
+| `bond_allocation` | 债券配置 | `date`（不传自动取最新报告期） |
+| `futures_allocation` | 期货持仓明细 | `date`（不传自动取最新报告期） |
 | `holdings` | 持股情况 | — |
 | `holdings_detail` | 持股明细 | — |
 | `holdings_changes` | 持有基金明细 | — |
@@ -79,7 +79,7 @@ print(finance.rows[0]["rq"])               # 报告期
 | `code` | 基金 / ETF 代码 |
 | `section` | 分区，见上表，默认 `basic` |
 | `arg` | 分区附加参数：`seats`、`scale_history`、`finance`、`ratings`、`categories` 使用 |
-| `date` | `industry_allocation` / `bond_allocation` / `futures_allocation` 的报告期；`etf` / `margin` 未传时用 `3M` |
+| `date` | `industry_allocation` / `bond_allocation` / `futures_allocation` 的报告期（未传时自动取最新报告期）；`etf` / `margin` 未传时用 `3M` |
 | `page` / `page_size` | 页码 / 每页条数，`managers` / `company` / `basic` / `seats` 使用 |
 
 ## 请求对照
@@ -90,8 +90,8 @@ print(finance.rows[0]["rq"])               # 报告期
 # company             -> CWServ.skef10_jj_jjzl  {"Params": ["2", "510300", "", "1", "1", "20"]}
 # basic               -> CWServ.skef10_jj_jjzl  {"Params": ["4", "510300", "", "1", "1", "20"]}
 # seats               -> CWServ.skef10_jj_jjzl  {"Params": ["5", "510300", "", "1", "1", "20"]}
-# scale               -> CWServ.skef10_jj_gmfe  {"Params": ["4", "510300", "", ""]}
-# scale_history       -> CWServ.skef10_jj_gmfe  {"Params": ["1", "510300", "", ""]}
+# scale               -> CWServ.skef10_jj_gmfe  {"Params": ["0", "510300", "", ""]}
+# scale_history       -> CWServ.skef10_jj_gmfe  {"Params": ["0", "510300", "", ""]}
 # nav                 -> CWServ.skef10_jj_jzhb  {"Params": ["0", "510300", "0", ""]}
 # nav_period          -> CWServ.skef10_jj_jzhb  {"Params": ["1", "510300", "0", ""]}
 # nav_rank            -> CWServ.skef10_jj_jzhb  {"Params": ["3", "510300", "0", ""]}
@@ -154,11 +154,13 @@ f10.fund_report("510300", "nav").rows[0]
 # {"rq": 20261013, "vl": 4.3479}
 ```
 
-`section="etf"` / `section="margin"`：
+`section="etf"` / `section="margin"`（多结果集：`table0` 是「是否 ETF」门控，`table1` 才是数据）：
 
 ```python
-f10.fund_report("510300", "etf").rows[0]
-# {"sfetf": "是"}      # 非 ETF 基金返回「否」
+response = f10.fund_report("510300", "etf")
+response.rows[0]              # {"sfetf": "是"}：第一张表 = 门控，非 ETF 基金返回「否」
+len(response.tables[1].rows)  # 242：资金流向日序列
+# margin 同理：tables[1] 为 59 行两融日序列
 ```
 
 ## 字段对照
@@ -168,7 +170,7 @@ f10.fund_report("510300", "etf").rows[0]
 | `name` | `T003` 名称、`T002` 代码、`T006` 关联代码、`SC` 市场 |
 | `managers` | `T003` 基金经理、`T011` 任职日期、`T018` 任职天数、`T022` 任职回报%、`rec_id` 详情 ID |
 | `company` | `T024` 公司全称、`T002` 简称、`T009` 法定代表人、`T015` 成立日期、`T013` 注册资本（万元）、`T016` 网址 |
-| `basic`、`scale`、`scale_history` | `rq` / `T002` 报告期 |
+| `basic`、`scale`、`scale_history` | `basic` 用 `T002` 报告期；`scale` / `scale_history` 用 `rq` 报告期 + `qmjzc` 期末净资产(亿)、`T005` 期末总份额、`bdl`/`jzcbdl` 变动率 |
 | `nav` | `rq` 净值日期、`vl` 单位净值 |
 | `nav_period` | `rq` 日期、`T003` 单位净值、`T004`/`T005` 累计净值、`T008` 涨跌幅%、`T016` 其它口径 |
 | `nav_rank` | `cd` 对比代码、`T002`～`T009` 各区间收益 |
@@ -186,11 +188,15 @@ f10.fund_report("510300", "etf").rows[0]
 | `ratings` | `N001` 评级日期、`N002`～`N004` 各机构评级 |
 | `categories` | `T001` 年度、`T002`/`T004`/`T006` 区间收益、`T003`/`T005`/`T007` 同类排名 |
 
-各分区返回的表数不定（多为 1～2 张，`sales_info` 可达 7 张），全部表可用：
+各分区返回的表数不定（多为 1～2 张，`sales_info` 可达 7 张）。**注意 `response.rows` 只给第一张表**；
+多结果集 Entry（如 `etf` / `margin` 的 `table0` 是门控、`table1` 才是数据）请遍历 `response.tables`：
 
 ```python
 for table in response.tables:
     print(table.key, table.columns, table.rows[:2])
+
+# 取「非门控」数据表
+data_rows = response.tables[1].rows        # etf -> 242 行；margin -> 59 行
 ```
 
 适合做 ETF / 基金筛选、净值跟踪、持仓穿透和费率对比。
