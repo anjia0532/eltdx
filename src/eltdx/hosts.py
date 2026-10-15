@@ -24,7 +24,8 @@ SERVER_RANKING_FILE = "tdx_server_ranking.json"
 SERVER_RANKING_SCHEMA_VERSION = 1
 DEFAULT_PROBE_TIMEOUT = 1.2
 DEFAULT_PROBE_WORKERS = 32
-DEFAULT_PROBE_HOSTS = True
+# Host probing is opt-in so constructing a client does not fan out connections.
+DEFAULT_PROBE_HOSTS = False
 
 _RANKING_WRITE_LOCK = Lock()
 

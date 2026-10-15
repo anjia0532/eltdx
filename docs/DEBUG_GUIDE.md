@@ -26,11 +26,11 @@ for item in refresh_server_ranking(timeout=1.2):
     print(item.host, item.ok, item.latency_ms, item.error)
 ```
 
-该调用会测速包内全部43台候选服务器并更新当前用户的 `tdx_server_ranking.json`。大部分主站失败时检查网络、防火墙、代理和 7709 端口；也可以显式传 `host` / `hosts`。当前测速只说明 TCP connect 成功，不保证业务响应。
+该调用会测速配置中的候选服务器并更新当前用户的 `tdx_server_ranking.json`。大部分主站失败时检查网络、防火墙、代理和 7709 端口；也可以显式传 `host` / `hosts`。当前测速只说明 TCP connect 成功，不保证业务响应。
 
 默认候选主站来自包内 `tdx_server.json`；文件不可用时才使用内置列表。用户测速排名与安装包名单分开保存，因此重新安装或升级不会主动清空排名。
 
-默认构造 `TdxClient` 时，会先探测普通 43 台和集合竞价、资金流向专用 35 台候选服务器并缓存排名；构造耗时可能包含探测失败地址的 `probe_timeout` 等待，尚未建立业务连接或完成握手。`probe_hosts=False` 可跳过这一阶段。同一客户端后续不会自动重测；手动刷新磁盘排名只影响之后新建的客户端或 transport，不替换现有客户端的排名快照。
+默认构造 `TdxClient` 时不会探测候选服务器；设置 `probe_hosts=True` 后才会在构造阶段测速并缓存排名。构造耗时可能包含探测失败地址的 `probe_timeout` 等待，测速本身尚未建立业务连接或完成握手。同一客户端后续不会自动重测；手动刷新磁盘排名只影响之后新建的客户端或 transport，不替换现有客户端的排名快照。
 
 ## Timeout 阶段
 

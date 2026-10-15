@@ -56,7 +56,7 @@ with TdxClient(timeout=3) as client:
 需要指定主站、连接池或启动前测速时：
 
 ```python
-with TdxClient(host="116.205.183.150:7709", timeout=3) as client:
+with TdxClient(host="HOST:PORT", timeout=3) as client:
     quote = client.helpers.full_quotes("sz000001")
 
 with TdxClient.from_hosts(pool_size=2, probe_hosts=True, timeout=3) as client:

@@ -23,6 +23,7 @@ def native_engine(
     *,
     pool_size: int = 2,
     timeout: float = 1.0,
+    connect_concurrency: int | None = None,
 ):
     values = [hosts] if isinstance(hosts, str) else list(hosts)
     return _native.NativeEngine(
@@ -30,6 +31,7 @@ def native_engine(
         timeout=timeout,
         pool_size=pool_size,
         server_count=min(len(values), pool_size),
+        connect_concurrency=connect_concurrency,
         heartbeat_interval=None,
         max_pending_requests=8,
         push_queue_size=16,
@@ -93,7 +95,7 @@ def test_public_runtime_gate_stays_unpublished_until_all_handshakes_succeed() ->
         wait_for_peer_close(connection)
 
     with ScriptedServer([delayed]) as first, ScriptedServer([delayed]) as second:
-        engine = native_engine([first.host, second.host])
+        engine = native_engine([first.host, second.host], connect_concurrency=2)
         results: list[BaseException | None] = []
         caller = threading.Thread(
             target=call_in_thread,

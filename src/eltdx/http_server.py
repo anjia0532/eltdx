@@ -25,6 +25,7 @@ from .client import TdxClient
 from .exceptions import EltdxError, TransportError
 from .protocol.unit import normalize_code
 from .serialization import to_jsonable
+from .transport._config import DEFAULT_SERVER_COUNT
 
 LOGGER = logging.getLogger(__name__)
 
@@ -327,7 +328,7 @@ def create_app(
     hosts: Sequence[str] | None = None,
     timeout: float = 8.0,
     pool_size: int | None = None,
-    server_count: int = 2,
+    server_count: int = DEFAULT_SERVER_COUNT,
     connections_per_server: int | None = None,
     heartbeat_interval: float | None = 30.0,
 ) -> Any:
@@ -606,7 +607,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--timeout", type=float, default=8.0)
     parser.add_argument("--pool-size", type=int, default=None)
-    parser.add_argument("--server-count", type=int, default=2)
+    parser.add_argument("--server-count", type=int, default=DEFAULT_SERVER_COUNT)
     parser.add_argument("--connections-per-server", type=int, default=None)
     parser.add_argument("--log-level", default="info")
     args = parser.parse_args(argv)

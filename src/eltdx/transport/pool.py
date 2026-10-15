@@ -267,10 +267,9 @@ class PooledSocketTransport:
         self._connect_concurrency_per_host = optional_positive_int(
             "connect_concurrency_per_host", connect_concurrency_per_host
         )
-        effective_connect_concurrency = self._connect_concurrency or min(
-            self._pool_size,
-            max(4, min(_available_parallelism() * 2, 32)),
-        )
+        # Establish connections sequentially by default. Callers can opt into
+        # a larger value with connect_concurrency.
+        effective_connect_concurrency = self._connect_concurrency or 1
         if self._connect_concurrency_per_host is not None and (
             self._connect_concurrency_per_host > effective_connect_concurrency
             or self._connect_concurrency_per_host > self._max_connections_per_host
@@ -394,13 +393,8 @@ class PooledSocketTransport:
                 self._pool_size,
                 self._server_count,
                 self._max_connections_per_host,
-                self._connect_concurrency
-                or min(
-                    self._pool_size,
-                    max(4, min(_available_parallelism() * 2, 32)),
-                ),
-                self._connect_concurrency_per_host
-                or min(2, self._max_connections_per_host),
+                self._connect_concurrency or 1,
+                self._connect_concurrency_per_host or 1,
                 0,
                 self._global_raw_bytes or _automatic_raw_bytes(self._pool_size),
                 0,

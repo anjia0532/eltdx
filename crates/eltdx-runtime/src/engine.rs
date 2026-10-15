@@ -181,20 +181,16 @@ impl EngineConfig {
                 "max_connections_per_host must hold the configured distribution without exceeding the Tokio capacity limit",
             ));
         }
-        let automatic_connect_concurrency = available_workers
-            .saturating_mul(2)
-            .clamp(4, 32)
-            .min(pool_size)
-            .max(1);
-        let connect_concurrency = connect_concurrency.unwrap_or(automatic_connect_concurrency);
+        // Connection establishment is sequential unless the caller opts in.
+        let connect_concurrency = connect_concurrency.unwrap_or(1);
         if connect_concurrency == 0 || connect_concurrency > pool_size {
             return Err(RuntimeError::invalid_argument(
                 "ValueError",
                 "connect_concurrency must be between 1 and pool_size, or None",
             ));
         }
-        let connect_concurrency_per_host =
-            connect_concurrency_per_host.unwrap_or(max_connections_per_host.min(2));
+        let connect_concurrency_per_host = connect_concurrency_per_host
+            .unwrap_or(max_connections_per_host.min(2).min(connect_concurrency));
         if connect_concurrency_per_host == 0
             || connect_concurrency_per_host > max_connections_per_host
             || connect_concurrency_per_host > connect_concurrency
@@ -5950,11 +5946,8 @@ mod tests {
         assert_eq!(config.runtime_workers(), 160_usize.min(available));
         assert_eq!(config.server_count(), 4);
         assert_eq!(config.max_connections_per_host(), 40);
-        assert_eq!(
-            config.connect_concurrency(),
-            available.saturating_mul(2).clamp(4, 32).min(160)
-        );
-        assert_eq!(config.connect_concurrency_per_host(), 2);
+        assert_eq!(config.connect_concurrency(), 1);
+        assert_eq!(config.connect_concurrency_per_host(), 1);
         assert_eq!(config.global_raw_bytes(), 160 * MAX_RAW_STAGING_BUFFER_SIZE);
         assert_eq!(config.global_decoded_bytes(), 160 * MAX_DECODED_QUEUE_BYTES);
         Ok(())

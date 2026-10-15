@@ -96,7 +96,12 @@ def test_constructor_probes_both_host_groups_once_without_connecting(
     monkeypatch.setattr(hosts_module, "probe_host", probe)
     monkeypatch.setattr(pool_module, "native_module", lambda: SimpleNamespace(NativeEngine=FakeEngine))
     monkeypatch.setattr(pool_module, "response_from_dto", lambda value: value)
-    client = factory(hosts=ordinary if custom_hosts else None, probe_timeout=0.3, probe_workers=3)
+    client = factory(
+        hosts=ordinary if custom_hosts else None,
+        probe_hosts=True,
+        probe_timeout=0.3,
+        probe_workers=3,
+    )
     assert sorted(probes) == sorted(candidates)
     ranked = tuple(reversed(candidates))
     ordinary_rank = tuple(host for host in ranked if host in ordinary)
@@ -171,9 +176,9 @@ def test_each_new_client_refreshes_rankings_and_retains_unreachable_hosts(monkey
         return HostProbeResult(host=host, ok=True, latency_ms=len(candidates) - candidates.index(host))
 
     monkeypatch.setattr(hosts_module, "probe_host", probe)
-    first = TdxClient()
+    first = TdxClient(probe_hosts=True)
     reachable = False
-    second = TdxClient()
+    second = TdxClient(probe_hosts=True)
     assert len(probes) == 2 * len(candidates)
     assert first.transport.hosts == second.transport.hosts
     assert first._dedicated_hosts == second._dedicated_hosts
@@ -199,9 +204,9 @@ def test_custom_transport_skips_host_preparation(monkeypatch):
     client.close()
 
 
-def test_bare_pool_keeps_lazy_probing():
+def test_bare_pool_skips_probing_by_default():
     pool = PooledSocketTransport()
-    assert not pool._hosts_probed
+    assert pool._hosts_probed
     assert pool._engine is None
     pool.close()
 
@@ -427,16 +432,16 @@ def test_public_pool_defaults_are_consistent() -> None:
     client = TdxClient(heartbeat_interval=None)
     direct = PooledSocketTransport(["127.0.0.1:9"], heartbeat_interval=None)
 
-    assert client.pool_size == 8
-    assert client.server_count == 2
-    assert client.connections_per_server == 4
-    assert client.transport.pool_size == 8
-    assert client.transport.server_count == 2
-    assert direct.pool_size == 4
+    assert client.pool_size == 1
+    assert client.server_count == 1
+    assert client.connections_per_server == 1
+    assert client.transport.pool_size == 1
+    assert client.transport.server_count == 1
+    assert direct.pool_size == 1
     assert direct.server_count == 1
-    assert direct.connections_per_server == 4
+    assert direct.connections_per_server == 1
     assert client.transport.push_queue_bytes == 64 * 1024 * 1024
-    assert client.probe_hosts is True
+    assert client.probe_hosts is False
 
 
 def test_client_keeps_the_v2_positional_configuration_prefix() -> None:
