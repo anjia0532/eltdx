@@ -42,7 +42,7 @@
 
 普通受支持平台通过 `cp310-abi3` wheel 安装，不需要 Rust；没有匹配 wheel 时从 sdist 构建需要 Rust 1.89。3.0 不提供纯 Python 7709 fallback，详见 [架构](ARCHITECTURE.md) 和 [排错指南](DEBUG_GUIDE.md)。
 
-底层协议字段、payload 结构、抓包样本和字段中文对照，以仓库内协议文档为准。
+底层协议字段、payload 结构、原始报文样本和字段中文对照，以仓库内协议文档为准。
 
 `7615` 的 F10 / HTTP 接口已经作为 `eltdx.f10` 接入；使用者可以从 `TdxClient.f10` 或 `F10Client` 调用。
 

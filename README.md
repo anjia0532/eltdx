@@ -15,7 +15,7 @@
   <a href="https://pypi.org/project/eltdx/"><img alt="PyPI eltdx" src="https://img.shields.io/pypi/v/eltdx?label=PyPI&amp;color=0969da"></a>
   <a href="https://electkismet.github.io/eltdx/"><img alt="文档站" src="https://img.shields.io/github/actions/workflow/status/electkismet/eltdx/pages.yml?branch=main&amp;label=%E6%96%87%E6%A1%A3"></a>
   <img alt="Python 3.10+" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&amp;logoColor=white">
-  <a href="./LICENSE"><img alt="Research-Only License" src="https://img.shields.io/badge/协议-Research--Only-6f42c1"></a>
+  <a href="./LICENSE"><img alt="Non-Commercial Research License" src="https://img.shields.io/badge/许可-非商业研究-6f42c1"></a>
 </p>
 
 <a href="https://electkismet.github.io/eltdx/">
@@ -34,17 +34,16 @@
 
 > `v2.0.0` 移除 `TdxClient` 的旧版扁平旧版入口，统一使用模块化 API 和 Helpers。升级前请阅读 [v2.0.0 迁移说明](docs/releases/v2.0.0.md)。
 
-1. 本项目仅以个人学习、协议研究和非商业研究为目的进行开发。
-2. 本项目基于互联网公开信息搜集开发。
-3. 项目本身、衍生产品及通过本项目获取的数据禁止用于任何商业行为、付费服务、生产服务、转售或其他营利用途，产生的任何数据、损失或法律责任由使用者自负。
-4. 对第三方服务器或服务的访问，用户需自行遵守相关法律法规及服务协议。
-5. 请勿将本项目用于侵犯他人权益、违反监管规定或滥用第三方服务的行为。
+1. 本项目仅以个人学习、协议兼容性与数据解析研究为目的进行开发。
+2. 项目本身、衍生产品及通过本项目获取的数据禁止用于任何商业行为、付费服务、生产服务、转售或其他营利用途，产生的任何数据、损失或法律责任由使用者自负。
+3. 对第三方服务器或服务的访问，用户需自行遵守相关法律法规及服务协议。
+4. 请勿将本项目用于侵犯他人权益、违反监管规定或滥用第三方服务的行为。
 
 感谢 [injoyai/tdx](https://github.com/injoyai/tdx) 及 [rainx/pytdx](https://github.com/rainx/pytdx) 的启发。
 
 ## 功能地图
 
-eltdx 默认按“想拿什么数据”组织入口。普通调用优先使用模块化 API 和 Helpers；只有做协议研究时，才需要直接对照 `7709` 命令或 `7615` Entry。下表的代表调用均来自当前接口文档，点击方法名可直接查看参数、返回字段和同类方法。
+eltdx 默认按“想拿什么数据”组织入口。普通调用优先使用模块化 API 和 Helpers；需要核对底层字段时，再对照 `7709` 命令或 `7615` Entry。下表的代表调用均来自当前接口文档，点击方法名可直接查看参数、返回字段和同类方法。
 
 <p align="center">
   <strong>Python / MCP</strong>
@@ -466,4 +465,4 @@ print(auction.open_price, auction.open_change_pct, auction.open_amount)
 
 ## 许可证
 
-本项目仅允许个人学习、协议研究和非商业研究使用，禁止一切商业使用和滥用。详细条款见 [LICENSE](LICENSE)。
+本项目仅允许个人学习、协议兼容性与数据解析研究使用，禁止商业使用和滥用。详细条款见 [LICENSE](LICENSE)。

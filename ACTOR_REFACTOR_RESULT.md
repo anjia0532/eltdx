@@ -337,7 +337,7 @@ sdist 365,290 bytes, SHA256
 ## Historical Stress, Ownership, and Resources
 
 The retained raw artifact is
-`C:\Users\ax\Desktop\eltdx\artifacts\actor-lock-l03rr2-stress-abd58c3.json`,
+`<external-artifacts>/actor-lock-l03rr2-stress-abd58c3.json`,
 736,900 bytes, SHA256
 `CB82B74C2C69A674144DE9B8D120690E830475E6A144EAAA219FB255337C2FF2`.
 It records exact clean source `abd58c3`, workload SHA256
@@ -511,7 +511,7 @@ No result was discarded, replaced or resampled.
 
 The immutable canonical campaign directory is intentionally retained outside
 the Git worktree at
-`C:\Users\ax\Desktop\eltdx\artifacts\fifo-v2-7923287-a`: 11 files totaling
+`<external-artifacts>/fifo-v2-7923287-a`: 11 files totaling
 100,391,782 bytes. Its declaration, eight ordered raw trials, bundle and report
 hashes match the table above; the independent replay is retained alongside the
 directory and matches its listed hash. This is deliberate evidence, not an
@@ -601,7 +601,7 @@ are not pooled or averaged: all 18 A-to-A/B-to-B p50 and p99 comparisons pass
 
 The earlier quick A/B pair is retained with `invalid-` prefixes because its
 baseline/current workload hashes differed. A later `l03rr` attempt is also
-retained with `invalid-concurrent-` prefixes because an unauthorized review
+retained with `invalid-concurrent-` prefixes because an unapproved review
 stress process overlapped sampling; the entire uncontaminated `l03rr2` schedule
 above was rerun from trial zero. The valid pre-fix diagnostic
 `9a60e769` versus `8b685420` found concurrency-100 ratios 0.611/0.537/0.365;
@@ -623,7 +623,7 @@ has the following isolated local evidence on Windows 11 / CPython 3.12.6:
 | Package and documentation | Rebuilt from the final documentation commit before delivery |
 
 The retained stress artifact is
-`C:\Users\ax\Desktop\eltdx\artifacts\actor-retirement-r06-stress-721cbe8.json`,
+`<external-artifacts>/actor-retirement-r06-stress-721cbe8.json`,
 SHA256 `46122307BD0EC52D2026A1FFB580721546331EFF12618D1E065F9DB2F05EF652`.
 It records 10,000 generation changes in 22.089949s and 100,000 mixed requests
 at pool 4/concurrency 100 in 96.992518s. Both workloads have exact unique
@@ -634,7 +634,7 @@ Actor-owned resource is closed, all 100 idle plus 100 loaded close samples are
 terminal/clean, and eight measured Windows resource counts are exactly 201.
 
 The prospective performance directory is
-`C:\Users\ax\Desktop\eltdx\artifacts\retirement-perf-721cbe8-b`: 24 files,
+`<external-artifacts>/retirement-perf-721cbe8-b`: 24 files,
 176,164,179 bytes. Its retained canonical `manifest.sha256` contains 23 sorted
 `name:lowercase_sha256\n` records and has SHA256
 `A5BE46272293B2228A75C0631E21DC0BB6DA57F83976A7BF532FE3246D33B902`.
@@ -675,10 +675,10 @@ after which this manifest plus Git history is authoritative.
 | --- | --- | --- |
 | F09 RED proof | 3 new race tests fail on old code: stale-None returns `None`, diagnostics returns `RUNNING`, slow epoch path returns `None` | `19d6d74`; command: `python -m pytest -q tests/test_transport_retirement_regressions.py::test_guard_failure_linearizes_after_none_snapshot_when_fatal_publishes tests/test_transport_lifecycle_regressions.py::test_diagnostics_does_not_report_running_after_fatal_publication tests/test_transport_retirement_regressions.py::test_guard_failure_slow_path_rechecks_new_epoch_and_ignores_old_reason` |
 | F09 targeted RED/REEN | 5 focused tests plus P2 call-graph tests PASS; targeted transport suites `231 passed in 9.56s` | `45e6703`; Guard -> resolver and Push condition -> resolver lock order preserved |
-| New race tests, 20 independent processes | 60/60 test cases PASS; `failed=0` | `C:\Users\ax\Desktop\eltdx\eltdx-src\artifacts\actor-f09-20proc-45e6703.log`, SHA256 `49400E70509F823A86DE2B5186F573733676E9F4F63574223E39E85CB2B08F62` |
+| New race tests, 20 independent processes | 60/60 test cases PASS; `failed=0` | `<repository-root>/artifacts\actor-f09-20proc-45e6703.log`, SHA256 `49400E70509F823A86DE2B5186F573733676E9F4F63574223E39E85CB2B08F62` |
 | Complete pytest | `646 passed in 245.37s (0:04:05)` on Windows Python 3.12.6; no xfail or flaky retry | command: `python -m pytest -q` |
-| 10k generations / 100k requests stress | PASS; unique 10,000/100,000; duplicate/missing/unexpected/cross-request/cross-generation all 0; max active 4; leases/waiters/pins/frames/bytes/Actor threads 0; resources `190,190,190,190,190,190,190,190`, plateau=true | `C:\Users\ax\Desktop\eltdx\eltdx-src\artifacts\actor-stress-f09-f117871.json`, SHA256 `F3A574D9E1DDEEC690C24CDB967AE732863243D2FCDCDC02268B034EF78CAECD` |
-| Paired performance campaign | **FAIL, user-approved exception**; exact 8-cell ABBA+BAAB, no integrity errors/retries; sequential ratio `0.918421`, saturated ratio `0.926675`; no new exception added | `C:\Users\ax\Desktop\eltdx\eltdx-src\artifacts\perf-f09-f117871\campaign_bundle.json`; bundle SHA256 `043D6306C303481E8AB2052AFCF180CB3BD32EBC3DC5DD9D26F68C83963EEB87`; `manifest.sha256` SHA256 `9942EB0AC0BF8F2AE65A9CD1224DAAB08C8DACD5B481D2C0708B36D66422521A`; declaration SHA256 `7ec426845f5dd3c73d69c781ac11c49836955e333507128a19d973ef5fe540e5`; verifier report SHA256 `4DCFF1CF6C5A6AABA07E256492138EFEECFAC5679C8BA9BA33C5EC2B7E85951B` |
+| 10k generations / 100k requests stress | PASS; unique 10,000/100,000; duplicate/missing/unexpected/cross-request/cross-generation all 0; max active 4; leases/waiters/pins/frames/bytes/Actor threads 0; resources `190,190,190,190,190,190,190,190`, plateau=true | `<repository-root>/artifacts\actor-stress-f09-f117871.json`, SHA256 `F3A574D9E1DDEEC690C24CDB967AE732863243D2FCDCDC02268B034EF78CAECD` |
+| Paired performance campaign | **FAIL, user-approved exception**; exact 8-cell ABBA+BAAB, no integrity errors/retries; sequential ratio `0.918421`, saturated ratio `0.926675`; no new exception added | `<repository-root>/artifacts\perf-f09-f117871\campaign_bundle.json`; bundle SHA256 `043D6306C303481E8AB2052AFCF180CB3BD32EBC3DC5DD9D26F68C83963EEB87`; `manifest.sha256` SHA256 `9942EB0AC0BF8F2AE65A9CD1224DAAB08C8DACD5B481D2C0708B36D66422521A`; declaration SHA256 `7ec426845f5dd3c73d69c781ac11c49836955e333507128a19d973ef5fe540e5`; verifier report SHA256 `4DCFF1CF6C5A6AABA07E256492138EFEECFAC5679C8BA9BA33C5EC2B7E85951B` |
 | Package artifacts | PASS; `python -m build` and `python -m twine check dist/*` | wheel SHA256 `CA693A5C9D280341120102DBF7276031E1C908219E407894670320D99C7A16E7`; sdist SHA256 `41D39944B00BF135BC02C7A3604A5B108C7B822DCB7A3BD12829D9AAFA7ED67F` |
 | MkDocs strict | PASS; 126 files, 5,685,815 bytes | command: `python -m mkdocs build --strict`, local `site/` artifact |
 
@@ -737,10 +737,10 @@ delivery commit is `SELF` and does not change runtime or measurement source.
 | New tests, 20 independent processes | final R5 `80/80` cases PASS in 20 processes; R4 `80/80` and earlier runs retained | R5 four boundary nodes, no failed process; R4 log SHA256 `5C403A6BD8E404D9C4405F8C0986E2968F8169F8299D20C4C9F502282980A0F3` |
 | Targeted Push/Guard/heartbeat/retirement/lifecycle/stress | `263 passed in 239.78s (0:03:59)` | exact R5 test source `027935a`, runtime source `f12701f`; no retry |
 | Complete pytest from zero | `652 passed in 246.80s (0:04:06)` | Windows 11, Python 3.12.6; exact final test set, no result splicing or retry |
-| 10k generations / 100k requests stress | PASS; unique 10,000/100,000; duplicate/missing/unexpected/cross-request/cross-generation all 0; max active 4; leases/waiters/pins/frames/bytes/Actor threads 0; owned resources closed; resources `192,192,192,192,192,192,192,192`, plateau=true | clean exact source `1dd1dcd`; `C:\Users\ax\Desktop\eltdx\eltdx-src\artifacts\actor-stress-f10-r5-1dd1dcd.json`, 744,495 bytes, SHA256 `9B7CF774E8E488715EF6C0DD5397EDB5E854B1B78EA0399783D985386C59DF39` |
+| 10k generations / 100k requests stress | PASS; unique 10,000/100,000; duplicate/missing/unexpected/cross-request/cross-generation all 0; max active 4; leases/waiters/pins/frames/bytes/Actor threads 0; owned resources closed; resources `192,192,192,192,192,192,192,192`, plateau=true | clean exact source `1dd1dcd`; `<repository-root>/artifacts\actor-stress-f10-r5-1dd1dcd.json`, 744,495 bytes, SHA256 `9B7CF774E8E488715EF6C0DD5397EDB5E854B1B78EA0399783D985386C59DF39` |
 | Heartbeat hard gate | PASS; both business-window totals 0; throughput ratio `0.998671`; 35,232 unique responses and all ownership counters 0 | R5 stress artifact; 32 unique timed phase IDs, exact start/target counters, phase-wide send/finish/snapshot fence |
 | Close/resource hard gates | PASS; idle/loaded p99 `2.9323/2.7259ms`; idle CPU ratio 0; every measured resource sample 192 | R5 stress artifact |
-| Paired performance campaign | **FAIL, user-approved exception**; exact 8-cell ABBA+BAAB, attempt=1, `errors=[]`; sequential ratio `0.943299`, saturated ratio `0.942391`; sequential p50/p99 PASS, no-backlog p50 PASS and p99 FAIL | canonical 11-file set in `C:\Users\ax\Desktop\eltdx\eltdx-src\artifacts\perf-f10-043966e`, 99,990,158 bytes; declaration canonical SHA256 `cbb644f1104a606bc4c4103b3fe01c8fec872ad26bb448d8fd67f1a099c5973d`; bundle SHA256 `B1E4930BE5CF4A7CB421C015DE48AD4E2521860D67865E7C53C7D85266DBE3D3`; verification report SHA256 `64FD696DE85154ECD3B0C5A0FBF614DBB38D25AC23C474B462409985C98F5D8E`; canonical manifest SHA256 `6560AA2A95B0A476AD5A97006F907672CE797298FDC8963B3C51126EE48B0F16`; later independent report is external review output and excluded from this canonical set |
+| Paired performance campaign | **FAIL, user-approved exception**; exact 8-cell ABBA+BAAB, attempt=1, `errors=[]`; sequential ratio `0.943299`, saturated ratio `0.942391`; sequential p50/p99 PASS, no-backlog p50 PASS and p99 FAIL | canonical 11-file set in `<repository-root>/artifacts\perf-f10-043966e`, 99,990,158 bytes; declaration canonical SHA256 `cbb644f1104a606bc4c4103b3fe01c8fec872ad26bb448d8fd67f1a099c5973d`; bundle SHA256 `B1E4930BE5CF4A7CB421C015DE48AD4E2521860D67865E7C53C7D85266DBE3D3`; verification report SHA256 `64FD696DE85154ECD3B0C5A0FBF614DBB38D25AC23C474B462409985C98F5D8E`; canonical manifest SHA256 `6560AA2A95B0A476AD5A97006F907672CE797298FDC8963B3C51126EE48B0F16`; later independent report is external review output and excluded from this canonical set |
 | Package artifacts | PASS; `python -m build` and `python -m twine check` | final R5 wheel 313,645 bytes, SHA256 `F899A9CC317DA91E12ACBBB72DC655E89967162FDFC5A5D9B1006FF5F85BA307`; sdist 381,212 bytes, SHA256 `18CFE96867C03D3DF2938EEAF677236A46966131C6874F587154DCFE8BEBA486` |
 | MkDocs strict | PASS in 2.52s; 126 files, 5,685,815 bytes | R5 site artifact under `artifacts/site-f10-r5-1dd1dcd` |
 
@@ -772,15 +772,15 @@ is not substituted for the F09 results above.
 
 | Gate | Result | Artifact / identity |
 | --- | --- | --- |
-| Deterministic retirement regressions | 43 passed; 20 independent processes each passed all 43 | RED `ee077cc`/`12ea212`; log `C:\Users\ax\Desktop\eltdx\artifacts\actor-retirement-20proc-3589a09.log`, SHA256 `70F1ABA6EEB3C5EC8556CDCE6AF135AFCF82B57E363936B6E8E7B1E8EFA98DC1` |
+| Deterministic retirement regressions | 43 passed; 20 independent processes each passed all 43 | RED `ee077cc`/`12ea212`; log `<external-artifacts>/actor-retirement-20proc-3589a09.log`, SHA256 `70F1ABA6EEB3C5EC8556CDCE6AF135AFCF82B57E363936B6E8E7B1E8EFA98DC1` |
 | PushBuffer and full transport matrix | 431 passed in 15.82s | exact local source `3589a09` |
 | Complete pytest | 641 passed in 254.29s (0:04:14) | no failures, xfail, rerun policy, or unaccounted skip in the run |
-| 10k generations / 100k requests stress | PASS; unique 10,000/100,000, duplicate/missing/unexpected/cross-request/cross-generation all 0; max business active 4 | `C:\Users\ax\Desktop\eltdx\artifacts\actor-retirement-stress-3589a09.json`, SHA256 `656AB99DAA6859DF763954529D048210AC293FDBC8AF2CE9CA4BEAAC6EED47EC` |
+| 10k generations / 100k requests stress | PASS; unique 10,000/100,000, duplicate/missing/unexpected/cross-request/cross-generation all 0; max business active 4 | `<external-artifacts>/actor-retirement-stress-3589a09.json`, SHA256 `656AB99DAA6859DF763954529D048210AC293FDBC8AF2CE9CA4BEAAC6EED47EC` |
 | Stress close/resource hard gates | PASS; leases/waiters/pins/frames/bytes 0, Actor resources closed, Actor threads 0, measured resources `188,188,188,188,188,188,188,188` | implementation SHA exact; `worktree_dirty=false`; workload SHA `487b3131af237b5843fe04046d51b60f136d6e22815297e29347286f93c3ea0a` |
-| Prospective seven-pair performance | PASS; 14 attempt-1 trials, 1,750,000 raw rows, integrity errors `[]`, no retries or overlap | `C:\Users\ax\Desktop\eltdx\artifacts\retirement-perf-f08-3589a09`, 20 files / 176,145,371 bytes; manifest SHA256 `29B12B410E5790BF2E0679BB8CBE6D3079E73788A0D95D8657FC08E9346BE910` |
+| Prospective seven-pair performance | PASS; 14 attempt-1 trials, 1,750,000 raw rows, integrity errors `[]`, no retries or overlap | `<external-artifacts>/retirement-perf-f08-3589a09`, 20 files / 176,145,371 bytes; manifest SHA256 `29B12B410E5790BF2E0679BB8CBE6D3079E73788A0D95D8657FC08E9346BE910` |
 | Performance gates | PASS; sequential ratio `0.9980727800`, saturated ratio `0.9988405873`, saturated p50/p99 `0.9999679624/1.0138644663`, no-backlog p99 delta `-61,200ns` <= `1,000,000ns` | baseline `45d8bc80f65eb57ee4ff5fab9a420d80aa705c6a`; current `3589a09095c21908dd738e266e295393b91548e8`; declaration SHA `fa5e80b616ff299b89261ba1c2fd6a86417d6428c30e6ae56a35ad7c9c16f636` |
 | Package artifacts | PASS; `twine check` passed wheel and sdist | wheel SHA256 `40BB44ABCB3B30F6EB3158F9912C0CE3161796BD196A92435338C5D28CC93E54`; sdist SHA256 `EE06E7E607ED325BB08849F3C923B8BF115D24AED1E5795A410C30CB4F7634E0` |
-| MkDocs strict | PASS | site artifact `C:\Users\ax\Desktop\eltdx\artifacts\site-3589a09` (126 files, 5,685,815 bytes) |
+| MkDocs strict | PASS | site artifact `<external-artifacts>/site-3589a09` (126 files, 5,685,815 bytes) |
 
 The historical Actor-vs-legacy formal campaign remains **FAIL, user-approved exception**.
 The current prospective campaign passed every frozen gate and does

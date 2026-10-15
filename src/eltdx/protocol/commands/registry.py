@@ -1,7 +1,7 @@
 """7709 command registry.
 
-The registry is the bridge from the human-readable API to the binary command
-numbers documented in ``C:\\Users\\ax\\Desktop\\eltdx\\7709``.
+The registry maps public API names to command identifiers used by the binary
+transport and the accompanying protocol reference.
 """
 
 from __future__ import annotations

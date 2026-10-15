@@ -1,7 +1,7 @@
 # eltdx 7709 单线程非阻塞 Actor 改造方案
 
 > 状态：实施规范（authoritative implementation spec）
-> 适用仓库：`C:\Users\ax\Desktop\eltdx\eltdx-src`
+> 适用仓库：`<repository-root>`
 > 形成方案时的基准提交：`71089c0a2867a75dc79aa2c340213f4e3845b6e3`
 > 目标分支：`actor-transport-refactor`
 > 规范版本：1.4
@@ -1347,7 +1347,7 @@ campaign 结果。以下旧实现对比已经执行；必须继续完整报告�
 - push/admission/RX buffer 的观测最大值和配置上限
 - skipped/xfail/flaky 审计结果
 - base..HEAD diff 审阅结论
-- 仍存在的限制、剩余风险和明确未授权操作（未 merge/tag/release）
+- 仍存在的限制、剩余风险和明确未执行操作（未 merge/tag/release）
 - 账本删除 commit 和“后续恢复应以本 manifest + Git 为准”的声明
 
 Delivery identity clarification: `SELF` is resolved by the newest first-parent

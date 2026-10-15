@@ -212,7 +212,7 @@ client.bars.get("sz000001", period="day", include_raw=True)
 client.trades.history("sz000001", "2026-05-20", include_raw=True)
 ```
 
-大多数返回模型已经保留 `raw_payload` 或单条记录的 `record_hex`，用于抓包对照和协议解析排查。
+大多数返回模型已经保留 `raw_payload` 或单条记录的 `record_hex`，用于原始报文对照和协议解析排查。
 `include_raw=False`（默认）时仍保留这些字段的位置，但值为空（`b""` 或 `""`）；设为 `True` 才填充原始内容。
 
 ### JSON 输出
