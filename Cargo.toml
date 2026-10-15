@@ -10,7 +10,7 @@ members = [
 version = "3.2.3"
 edition = "2021"
 rust-version = "1.89"
-license = "MIT"
+license-file = "LICENSE"
 repository = "https://github.com/electkismet/eltdx"
 
 [workspace.dependencies]
