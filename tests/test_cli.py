@@ -30,6 +30,16 @@ def test_single_code_rejects_multiple() -> None:
         cli._single_code(["sz000001", "sh600519"])
 
 
+def test_codes_accepts_bare_string_from_optional_positional() -> None:
+    """``nargs="?"`` 位置参数是裸字符串，必须当一个代码，不能按字符展开。"""
+    assert cli._codes("sh000016") == ["sh000016"]
+    assert cli._codes("sz000001,sh600519") == ["sz000001", "sh600519"]
+    assert cli._codes(None) == []
+    assert cli._single_code("sh000016") == "sh000016"
+    with pytest.raises(ValueError):
+        cli._single_code(None)
+
+
 def test_mac_stocks_accepts_three_notations() -> None:
     assert cli._mac_stocks(["SZ 000001,SH 600000"]) == [(0, "000001"), (1, "600000")]
     assert cli._mac_stocks(["sz000001"]) == [(0, "000001")]
@@ -565,3 +575,95 @@ def test_money_flow_rejects_unsupported_days() -> None:
     with pytest.raises(SystemExit) as excinfo:
         cli.main(["money-flow", "000001", "--days", "7"])
     assert excinfo.value.code == 2
+
+# ── kline：`nargs="?"` 的裸字符串代码 ───────────────────────────────────
+
+
+class _RecordingBars:
+    def __init__(self) -> None:
+        self.calls: list[tuple] = []
+
+    def get(self, code: object, **kwargs: object) -> list:
+        self.calls.append((code, kwargs))
+        return []
+
+
+def _record_bars(monkeypatch: pytest.MonkeyPatch) -> _RecordingBars:
+    bars = _RecordingBars()
+
+    class _FakeTdx:
+        def __init__(self) -> None:
+            self.bars = bars
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(cli, "_tdx", lambda args: _FakeTdx())
+    return bars
+
+
+def test_kline_single_positional_code_is_not_split_into_characters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """回归：`eltdx kline sh000016 --period day` 曾把代码按字符拆成 8 个。"""
+    bars = _record_bars(monkeypatch)
+    assert cli.main(["kline", "sh000016", "--period", "day", "--count", "5"]) == 0
+    (code, kwargs), = bars.calls
+    assert code == "sh000016"
+    assert kwargs["period"] == "day"
+    assert kwargs["count"] == 5
+
+
+def test_kline_accepts_code_after_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    bars = _record_bars(monkeypatch)
+    assert cli.main(["kline", "--period", "day", "sh000016"]) == 0
+    assert [code for code, _ in bars.calls] == ["sh000016"]
+
+
+def test_kline_rejects_multiple_codes(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    bars = _record_bars(monkeypatch)
+    assert cli.main(["kline", "sh000016", "sz000001"]) == 1
+    assert "只接受一个代码" in capsys.readouterr().err
+    assert bars.calls == []
+
+# ── ex：`nargs="*"` 的代码列表不能裸传给单码接口 ────────────────────────
+
+
+class _RecordingEx:
+    def __init__(self) -> None:
+        self.calls: list[tuple] = []
+
+    def get_instrument_quote(self, market: int, code: object) -> list:
+        self.calls.append(("quote", market, code))
+        return []
+
+    def get_instrument_bars(
+        self, category: int, market: int, code: object, start: int, count: int
+    ) -> list:
+        self.calls.append(("bars", category, market, code, start, count))
+        return []
+
+    def close(self) -> None:
+        return None
+
+
+def test_ex_passes_code_as_single_string(monkeypatch: pytest.MonkeyPatch) -> None:
+    """回归：`eltdx ex quote --market 33 IFL0` 曾把 ``['IFL0']`` 裸传给只收 str 的接口。"""
+    fake = _RecordingEx()
+    monkeypatch.setattr(cli, "_ex", lambda args: fake)
+    assert cli.main(["ex", "quote", "--market", "33", "IFL0"]) == 0
+    assert fake.calls == [("quote", 33, "IFL0")]
+    assert cli.main(["ex", "bars", "--market", "33", "--category", "2", "IFL0"]) == 0
+    assert fake.calls[-1] == ("bars", 2, 33, "IFL0", 0, 20)
+
+
+def test_ex_rejects_multiple_codes(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake = _RecordingEx()
+    monkeypatch.setattr(cli, "_ex", lambda args: fake)
+    assert cli.main(["ex", "quote", "--market", "33", "IFL0", "IFL1"]) == 1
+    assert "只接受一个代码" in capsys.readouterr().err
+    assert fake.calls == []
