@@ -25,23 +25,51 @@ F10_REQUIRED_MESSAGE = (
 )
 
 
+#: 单只标的一次故障转移最多试用的备用主机数（避免新股在几十台主机上全试一遍）。
+_MAX_PROBES_PER_CODE = 3
+#: 整批预算按前 N 只标的计算：更靠后的票即使全空也不再重试，天然给连接数封顶。
+_BUDGET_CODE_CAP = 8
+
+
 class _EmptyFailover:
     """单次 ``daily()`` 调用内共享的空数据故障转移状态。
 
-    存在的意义是**给重试次数封顶**：服务器「对任何标的都返回空」是**主机级**故障，
-    不是标级故障，所以一次 ``daily()`` 里探测一轮就够了；否则一批 75 只票、每只都空时
-    会去开 ``75 × 候选主机数`` 条连接。
+    存在的意义是**给重试次数封顶**：一批 75 只票若每只都在几十台候选主机上逐台重试，
+    会开 ``75 × 候选主机数`` 条连接。
+
+    !!! warning "封顶口径：按「次数」封顶，不按「结论」封顶"
+        「某台主机对这只票返回空」是**标级**事实，推不出「它对别的票也返回空」。
+        早期实现用一个 ``settled`` 布尔量表达「本轮已探完」，于是首只股票（新股、
+        停牌）在所有候选主机上都空时，整批剩下的股票**连备用主机都不再试** —— 直接漏数据。
+        改成按主机记账也不对：h2 对票 A 空不代表对票 B 空，第二只票照样会被跳过。
+
+        现在的封顶是**次数预算**：
+
+        * 每只票最多试 ``_MAX_PROBES_PER_CODE`` 台（``probes_left`` 为全局预算，
+          ``cursor`` 让每只票的起点轮转，避免所有票都去死磕同一台主机）；
+        * 预算耗尽后不再重试，直接返回空响应。
+
+        这样「重试次数有上界」和「不因个别标的为空而漏掉其它标的的数据」同时成立。
 
     ``lock`` 保证多线程批量查询时只有一个线程真正去逐台探测。
     """
 
-    __slots__ = ("lock", "settled", "transport", "host")
+    __slots__ = ("lock", "transport", "host", "probes_left", "cursor")
 
-    def __init__(self) -> None:
+    def __init__(self, budget: int) -> None:
         self.lock = Lock()
-        self.settled = False
         self.transport = None
         self.host: str | None = None
+        self.probes_left = budget
+        self.cursor = 0
+
+    def take(self) -> bool:
+        """原子地取一个探测配额；返回 ``False`` 表示预算已耗尽。"""
+
+        if self.probes_left <= 0:
+            return False
+        self.probes_left -= 1
+        return True
 
 
 class MoneyFlowApi(ApiBase):
@@ -125,7 +153,7 @@ class MoneyFlowApi(ApiBase):
     ):
         _validate_batch_size(batch_size)
         if isinstance(code, str):
-            failover = _EmptyFailover()
+            failover = _EmptyFailover(_MAX_PROBES_PER_CODE)
             return self._single(code, include_raw=include_raw, failover=failover)
 
         codes = [normalize_code(item) for item in code]
@@ -133,8 +161,10 @@ class MoneyFlowApi(ApiBase):
             raise ValueError("codes must not be empty")
         workers = _batch_workers(self._transport, len(codes), batch_size)
         blocks: list[MoneyFlowBlock] = []
-        # 整批共享一个 failover：第一只空票触发探测，其余票复用结论。
-        failover = _EmptyFailover()
+        # 整批共享一个**次数预算**：重试总数有上界，但绝不因为「第一只票全空」就
+        # 认定后续票也不用试备用主机（那是标级事实，不能跨票推广）。
+        budget = min(len(codes), _BUDGET_CODE_CAP) * _MAX_PROBES_PER_CODE
+        failover = _EmptyFailover(budget)
         with ThreadPoolExecutor(max_workers=workers) as executor:
             for start in range(0, len(codes), workers):
                 chunk = codes[start : start + workers]
@@ -292,7 +322,11 @@ class MoneyFlowApi(ApiBase):
 
         **关键语义（与 easy_tdx 一致）**：新股 / 真无数据的标的在所有主机上都是空的，
         此时必须**返回空而不是抛错**，否则会把「本来就没数据」误报成故障。所以本方法
-        探测完所有候选主机后返回 ``None``，由调用方原样返回那个空响应。
+        试完可用主机后返回 ``None``，由调用方原样返回那个空响应。
+
+        封顶由 :class:`_EmptyFailover` 的**次数预算**保证（不是「整批只探一轮」的结论），
+        因此首只标的全空不会连带让后面的标的跳过备用主机。候选主机按 ``cursor`` 轮转
+        起点，避免整批票都去死磕 ``candidate_hosts[0]``。
 
         ``query`` 接收一个 transport 并返回「非空结果」或 ``None``（空数据）。
         """
@@ -305,14 +339,17 @@ class MoneyFlowApi(ApiBase):
             or self._resolve_transport_factory() is None
         ):
             return None
+        candidates = self._candidate_hosts
+        total = len(candidates)
         with failover.lock:
-            if failover.settled:
-                if failover.transport is None:
-                    # 本轮已确认「所有候选主机都空」，不再为后续标的重复开连接。
-                    return None
+            if failover.transport is not None:
+                # 本批已经找到过「真有数据」的主机，直接复用，不再开新连接。
                 return query(failover.transport)
-            failover.settled = True
-            for host in self._candidate_hosts:
+            start = failover.cursor % total
+            for step in range(min(_MAX_PROBES_PER_CODE, total)):
+                if not failover.take():
+                    return None
+                host = candidates[(start + step) % total]
                 if host == self._preferred_host:
                     continue  # 已知它对当前数据也空，跳过
                 transport = self._open_host_transport(host)
@@ -325,21 +362,36 @@ class MoneyFlowApi(ApiBase):
                     _close_quietly(transport)
                     continue
                 if result is not None:
-                    self._adopt(host, transport)
-                    failover.transport = transport
-                    failover.host = host
+                    adopted = self._adopt(host, transport)
+                    if adopted:
+                        failover.transport = transport
+                        failover.host = host
+                    else:
+                        # 已有首选连接（并发下被别的线程抢先认下）：查询结果照常返回，
+                        # 但这条连接不归本对象所有，必须由我们关掉，否则泄漏。
+                        _close_quietly(transport)
                     return result
+                # 这台对当前标的是空的：换下一台。**不**把它当作「所有主机都空」的结论，
+                # 下一只标的重试时仍会从轮转后的起点继续试。
                 _close_quietly(transport)
+            # 起点推进一格，让下一只标的换一批主机试。
+            failover.cursor = (start + 1) % total
             return None
 
-    def _adopt(self, host: str, transport) -> None:
-        """记住这台有数据的主机（仅进程内，不落盘；``close()`` 会释放）。"""
+    def _adopt(self, host: str, transport) -> bool:
+        """记住这台有数据的主机（仅进程内，不落盘；``close()`` 会释放）。
+
+        Returns:
+            ``True`` 表示本对象接管了 ``transport``（调用方不要再关它）；
+            ``False`` 表示已有首选连接、本连接**未被接管**，调用方必须自行关闭。
+        """
 
         with self._transport_lock:
             if self._preferred_transport is not None:
-                return
+                return False
             self._preferred_transport = transport
             self._preferred_host = host
+            return True
 
     def _open_host_transport(self, host: str):
         factory = self._resolve_transport_factory()
