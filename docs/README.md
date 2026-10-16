@@ -8,7 +8,8 @@
 | --- | --- | --- |
 | 1 | [PRODUCT.md](PRODUCT.md) | 看这个库能查什么、适合怎么用 |
 | 2 | [TDX_TQ_CAPABILITY_MAP.md](TDX_TQ_CAPABILITY_MAP.md) | 对照通达信 TQ：覆盖了什么、哪些必须用客户端 |
-| 3 | [releases/v3.4.5.md](releases/v3.4.5.md) | 看指数成份股、跟踪产品、新股、订阅推送、板块分红成份与美股纠错更新 |
+| 3 | [releases/v3.4.6.md](releases/v3.4.6.md) | 修复 CLI 位置参数解析：kline 代码逐字符展开、ex 裸传代码列表 |
+| 4 | [releases/v3.4.5.md](releases/v3.4.5.md) | 看指数成份股、跟踪产品、新股、订阅推送、板块分红成份与美股纠错更新 |
 | 5 | [releases/v3.4.3.md](releases/v3.4.3.md) | 修正 K 线翻页顺序、新增指数两融分区 |
 | 6 | [releases/v3.1.7.md](releases/v3.1.7.md) | 修正深交所创业板代码段识别 |
 | 7 | [releases/v3.1.2.md](releases/v3.1.2.md) | 看集合竞价、资金流向专用主站池和启动测速更新 |
