@@ -29,6 +29,8 @@ from eltdx.mac.adjust import (
     has_bad_prices,
 )
 from eltdx.mac.bitmap import (
+    BITMAP_SIZE,
+    FIELD_BIT_LIMIT,
     FieldBit,
     PresetField,
     build_bitmap,
@@ -202,6 +204,117 @@ def test_get_active_fields_synthetic_bytes() -> None:
 
 def test_bitmap_debug_all_ones() -> None:
     assert bytes(build_bitmap(PresetField.DEBUG)) == b"\xff" * 20
+
+
+# --------------------------------------------------------------------------- #
+# 高位字段（>=128）编码：协议实测字段位为 0..150
+# --------------------------------------------------------------------------- #
+
+#: 实测（2026-10-16）：字段位合法范围 0–150，位 151–159 为保留区。
+#: 早期实现按「16 字节字段位图 + 4 字节控制区」编码，`>=128` 的字段一律
+#: OverflowError，导致 HANDICAP / BOARD_STATS / ALL 三个公开预设完全不可用。
+_HIGH_BIT_FIELDS = [f for f in FieldBit if f.value >= 128]
+assert _HIGH_BIT_FIELDS  # 确实存在高位字段，否则这组测试失去意义
+
+
+def test_build_bitmap_encodes_high_bit_fields() -> None:
+    """位 >=128 的字段必须能被编码进 20 字节位图，而不是抛 OverflowError。"""
+
+    bm = build_bitmap([FieldBit.BID3_PRICE])  # 0x80
+    assert len(bm) == BITMAP_SIZE
+    value = int.from_bytes(bytes(bm), "little")
+    assert value == 1 << 0x80
+
+
+@pytest.mark.parametrize(
+    "preset_name",
+    ["HANDICAP", "BOARD_STATS", "ALL", "COMMON", "BASIC", "QUOTE", "VOLUME", "ENHANCED"],
+)
+def test_every_preset_is_encodable(preset_name: str) -> None:
+    """所有公开预设都必须能编码 —— 回归 HANDICAP/BOARD_STATS/ALL 的 OverflowError。"""
+
+    preset = getattr(PresetField, preset_name)
+    bm = build_bitmap(preset)
+    assert len(bm) == BITMAP_SIZE
+
+
+def test_handicap_preset_covers_all_five_levels() -> None:
+    """HANDICAP 的买三~买五/卖三~卖五落在 0x80 以上，正是原先崩溃的那批位。"""
+
+    value = int.from_bytes(bytes(build_bitmap(PresetField.HANDICAP)), "little")
+    for field in (FieldBit.BID3_PRICE, FieldBit.BID5_PRICE, FieldBit.ASK3_PRICE, FieldBit.ASK5_PRICE):
+        assert value >> field.value & 1
+
+
+def test_field_bit_limit_matches_max_field_bit() -> None:
+    """字段位上界 = 最大 FieldBit + 1（实测 151），保留区从 151 开始。"""
+
+    assert FIELD_BIT_LIMIT == max(int(f) for f in FieldBit) + 1
+    assert max(int(f) for f in FieldBit) == 0x96
+
+
+def test_reserved_bits_do_not_occupy_slots() -> None:
+    """位 151–159 是保留区，不占记录槽位。
+
+    回归：若不屏蔽，一个保留位置位就会凭空多出一个槽位，把后续字段整体推错 ——
+    与「未知字段错位」同一类故障。
+    """
+
+    bitmap = bytearray(BITMAP_SIZE)
+    bitmap[FieldBit.PERCENT_BASE.value // 8] |= 1 << (FieldBit.PERCENT_BASE.value % 8)
+    assert count_set_bits(bytes(bitmap)) == 1
+
+    for reserved in (151, 152, 159):
+        bitmap[reserved // 8] |= 1 << (reserved % 8)
+    assert count_set_bits(bytes(bitmap)) == 1
+    assert [slot for slot, _, _ in iter_set_bits(bytes(bitmap))] == [0]
+
+
+def test_high_bit_field_occupies_a_slot_in_response() -> None:
+    """响应里高位字段（0x80）同样占一个槽位，解析不得错位。"""
+
+    bits = [FieldBit.BID_PRICE.value, FieldBit.BID3_PRICE.value]  # 0x11, 0x80
+    bitmap = bytearray(20)
+    for b in bits:
+        bitmap[b // 8] |= 1 << (b % 8)
+    body = bytes(bitmap) + struct.pack("<IH", 1, 1)
+    body += struct.pack("<H22s44s", 0, b"600000", "浦发银行".encode("gbk"))
+    body += struct.pack("<f", 11.11) + struct.pack("<f", 3.33)
+    res = SymbolQuotesCmd([(0, "600000")]).parse_response(body)
+    assert len(res) == 1
+    assert res[0].fields["bid_price"] == pytest.approx(11.11)
+    assert res[0].fields["bid3_price"] == pytest.approx(3.33)
+
+
+def test_symbol_quotes_wire_uses_full_20_byte_bitmap() -> None:
+    """0x122B 的 body 就是「20 字节位图 + 总数 + 股票」，不多不少。
+
+    回归：把 20 字节当成「16 位图 + 4 控制」再追加控制区会让 body 多出 4 字节。
+    """
+
+    cmd = SymbolQuotesCmd([(0, "000001")], PresetField.BASIC)
+    req = cmd.build_request()
+    body = req[12:]
+    assert len(body) == 20 + 2 + 24
+    assert body[:20] == bytes(build_bitmap(PresetField.BASIC))
+
+
+def test_board_members_rejects_high_bit_fields() -> None:
+    """0x122C 的位图只有 16 字节（末 4 字节被 exclude_flags 占用），
+    请求高位字段必须显式报错，而不能静默截断。"""
+
+    with pytest.raises(ValueError, match="超出 16 字节位图"):
+        BoardMembersQuotesCmd(21001, fields=PresetField.HANDICAP).build_request()
+
+
+def test_board_members_low_bit_fields_still_work() -> None:
+    """0x122C 用位 0–127 内的字段时行为不变：16 字节位图 + 4 字节控制区。"""
+
+    cmd = BoardMembersQuotesCmd(21001, fields=[FieldBit.CLOSE])
+    body = cmd.build_request()[12:]
+    # 23 字节参数 + 16 字节位图 + 4 字节控制区
+    assert len(body) == 23 + 16 + 4
+    assert body[23:39] == bytes(build_bitmap([FieldBit.CLOSE], width=16))
 
 
 def test_preset_field_combine_dedup() -> None:
