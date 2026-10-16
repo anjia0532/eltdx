@@ -13,7 +13,14 @@ from typing import TypeVar, cast
 
 from .._command import BaseCommand
 from ._binary import require_bytes, unpack_from
-from .bitmap import Fields, PresetField, build_bitmap, count_set_bits, iter_set_bits
+from .bitmap import (
+    RESP_BITMAP_SIZE,
+    Fields,
+    PresetField,
+    build_bitmap,
+    count_set_bits,
+    iter_set_bits,
+)
 from .codec import build_mac_request
 from .enums import Adjust, BoardType, FilterType, Period, SortOrder, SortType
 from .models import (
@@ -81,16 +88,15 @@ class SymbolQuotesCmd(BaseCommand[list[MacQuoteField]]):
         return build_mac_request(self.MSG_ID, bytes(body))
 
     def parse_response(self, body: bytes) -> list[MacQuoteField]:
-        pos = 0
-        field_bitmap = body[pos : pos + 20]
-        pos += 20
-
+        pos = RESP_BITMAP_SIZE
         (_total_stocks, row_count) = unpack_from("<IH", body, pos, "symbol_quotes header")
         pos += 6
 
         # 行宽按**全部置位位**算，未知字段在线上也占 4 字节槽位；不能只数已知字段。
-        slots = list(iter_set_bits(field_bitmap[:16]))
-        row_len = 68 + 4 * count_set_bits(field_bitmap[:16])
+        # 位图读完整 20 字节：实测字段位为 0–150，其中 128–150 也在 [16:20] 内。
+        resp_bitmap = body[:RESP_BITMAP_SIZE]
+        slots = list(iter_set_bits(resp_bitmap))
+        row_len = 68 + 4 * count_set_bits(resp_bitmap)
 
         results: list[MacQuoteField] = []
         for _ in range(row_count):
@@ -129,11 +135,23 @@ class SymbolQuotesCmd(BaseCommand[list[MacQuoteField]]):
         return results
 
 
+#: 0x122C 的字段位图只有 16 字节（128 位），其后 4 字节是控制区而非字段位。
+#: 实测（2026-10-16）：请求体末 4 字节取 0 / 0x08 / 1 三种值，响应行宽恒为
+#: ``68 + 4×字段区置位数``，不受影响 —— 确认它们不参与字段槽位分配。
+BOARD_MEMBERS_BITMAP_SIZE = 16
+
+
 class BoardMembersQuotesCmd(BaseCommand[list[MacQuoteField]]):
     """板块成分报价查询（0x122C）。
 
     响应格式与 :class:`SymbolQuotesCmd`（0x122B）相同：
     20 字节位图 + 总数 + 行数 + N 条记录，每条 68 字节头 + 活跃字段 x 4 字节。
+
+    !!! note "本命令的请求位图只有 16 字节"
+        与 0x122B 不同，0x122C 的请求体是「16 字节字段位图 + 4 字节控制区」，
+        控制区承载 ``exclude_flags``，不参与字段槽位分配，因此该命令只能请求
+        位 0–127 的字段。请求 :attr:`~PresetField.HANDICAP` 等含 ``>=128`` 位的
+        预设会被显式拒绝（见 :func:`~eltdx.mac.bitmap.build_bitmap`）。
     """
 
     MSG_ID = 0x122C
@@ -166,18 +184,20 @@ class BoardMembersQuotesCmd(BaseCommand[list[MacQuoteField]]):
             int(self._sort_order),
             0,
         )
-        bitmap = build_bitmap(self._fields)
-        body += bytes(bitmap[:16])
+        # 位图只有 16 字节：高位字段会在这里被显式拒绝，而不是被静默截断。
+        bitmap = build_bitmap(self._fields, width=BOARD_MEMBERS_BITMAP_SIZE)
+        body += bytes(bitmap)
         b1 = sum(int(f.value) for f in self._exclude_flags)
         body += struct.pack("<BBBB", 0, b1, 0, 1)
         return build_mac_request(self.MSG_ID, body)
 
     def parse_response(self, body: bytes) -> list[MacQuoteField]:
-        resp_bitmap = body[:20]
-        (_total, row_count) = unpack_from("<IH", body, 20, "board_members header")
+        resp_bitmap = body[:RESP_BITMAP_SIZE]
+        (_total, row_count) = unpack_from("<IH", body, RESP_BITMAP_SIZE, "board_members header")
 
-        active_slots = list(iter_set_bits(resp_bitmap[:16]))
-        row_len = 68 + count_set_bits(resp_bitmap[:16]) * 4
+        # 响应位图读完整 20 字节（与 0x122B 一致），否则服务端回显的高位字段会被漏掉。
+        active_slots = list(iter_set_bits(resp_bitmap))
+        row_len = 68 + count_set_bits(resp_bitmap) * 4
 
         results: list[MacQuoteField] = []
         for i in range(row_count):

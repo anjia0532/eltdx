@@ -208,6 +208,13 @@ FIELD_POSTPROCESS: dict[int, object] = {
 CTRL_BYTE = 0  # 控制字节起始位(152)
 CTRL_EXTENDED = 1  # 非0=扩展模式(含北交所等)，0=标准模式(仅A股)
 
+#: 字段位图字节数。实测（2026-10-16）协议字段位为 0..150，落在 20 字节内。
+BITMAP_SIZE = 20
+#: 响应位图固定前缀长度（= :data:`BITMAP_SIZE`），其后是总数与行数。
+RESP_BITMAP_SIZE = 20
+#: 控制区字节数，仅在位图宽度为 :data:`BITMAP_SIZE` 时附加在位图之后。
+CONTROL_SIZE = 4
+
 
 class PresetField(Enum):
     """预定义字段集合，支持 ``+`` / ``|`` 链式组合。"""
@@ -409,28 +416,75 @@ def normalize_fields(fields: "Fields") -> FieldSelection:
 
 def build_bitmap(
     fields: "Fields",
-    exclude_flags: int = 0,
+    *,
+    width: int = BITMAP_SIZE,
 ) -> bytearray:
-    """将字段选择转换为 20 字节请求位图。
+    """将字段选择编码为 ``width`` 字节的**字段位图**。
 
-    前 16 字节（位 0-127）为字段位图，后 4 字节为控制区。
+    Args:
+        fields: 字段选择。
+        width: 位图字节数。默认 ``20``（160 位）；``0x122C`` 这类把末 4 字节
+            用作 ``exclude_flags`` 的命令传 ``16``。
+
+    !!! note "协议实测（2026-10-16，MAC 主机 121.36.248.138）"
+        逐位探测 0x122B 的结果：
+
+        ==================  ==========  ==================================
+        请求置位            记录槽位   说明
+        ==================  ==========  ==================================
+        0 / 4 / 128 / 129   各 +1       字段位，各占 4 字节槽
+        151 / 152 / 159     不变       保留位，服务端忽略
+        ==================  ==========  ==================================
+
+        即**字段位范围是 0–150**（恰为 :class:`FieldBit` 最大值 ``0x96``），
+        位 151–159 为保留区（``CTRL_BYTE`` 落在位 152）。所以 0x122B 的请求位图
+        就是 **20 字节 / 160 位**，不需要额外附加控制区。
+
+        !!! warning "早期实现为什么错"
+            旧版把这个 20 字节当成「16 字节字段位图 + 4 字节控制区」，
+            于是 ``build_bitmap`` 用 ``bitmap_int.to_bytes(16, "little")`` 编码 ——
+            任何 ``>=128`` 的字段直接抛
+            ``OverflowError: int too big to convert``。
+            ``PresetField.HANDICAP``（含 BID3/4/5、ASK3/4/5）、
+            ``BOARD_STATS``、``ALL`` 一用就炸，而它们引用的
+            ``BID3_PRICE(0x80)`` 等位本来就是合法的字段位。
+
+    Raises:
+        ValueError: 选中了超出 ``width * 8`` 的字段位，或 ``width`` 非法。
     """
 
+    if not 1 <= width <= BITMAP_SIZE:
+        raise ValueError(f"width must be between 1 and {BITMAP_SIZE}, got {width}")
     if isinstance(fields, PresetField) and fields is PresetField.DEBUG:
-        return bytearray(b"\xff" * 20)
+        return bytearray(b"\xff" * width)
     selection = normalize_fields(fields)
+    limit = width * 8
     bitmap_int = 0
     for bit in selection:
+        if bit.value >= limit:
+            raise ValueError(
+                f"字段 {bit.name}(0x{bit.value:02X}) 超出 {width} 字节位图"
+                f"（最多 {limit} 位，即 0..{limit - 1}）"
+            )
         bitmap_int |= 1 << bit.value
-    ba = bytearray(bitmap_int.to_bytes(16, "little"))
-    ba.extend(exclude_flags.to_bytes(4, "little"))
-    return ba
+    return bytearray(bitmap_int.to_bytes(width, "little"))
 
 
 def build_exclude_flags(exclude_flags: int = 0) -> bytes:
-    """构建 4 字节控制区。"""
+    """构建 0x122C 请求体末尾的 4 字节排除标志区。
 
-    return exclude_flags.to_bytes(4, "little")
+    只有板块成分报价（0x122C）使用它 —— 该命令把位图之后的 4 字节用作
+    ``exclude_flags``，因此**不支持位 128 及以上**的字段（实例化
+    ``BoardMembersQuotesCmd`` 时若选中高位字段会被显式拒绝）。
+    0x122B 没有这块控制区，其 20 字节位图全部是字段位。
+    """
+
+    return exclude_flags.to_bytes(CONTROL_SIZE, "little")
+
+
+#: 合法字段位的上界（不含）。实测字段位为 0–150，位 151–159 是保留区
+#: （``CTRL_BYTE`` 落在位 152），服务端既不回显也不为其分配记录槽位。
+FIELD_BIT_LIMIT = max(int(bit) for bit in FieldBit) + 1
 
 
 def iter_set_bits(bitmap_bytes: bytes) -> Iterator[tuple[int, FieldBit | None, str | None]]:
@@ -443,9 +497,12 @@ def iter_set_bits(bitmap_bytes: bytes) -> Iterator[tuple[int, FieldBit | None, s
         邻居槽位的值 —— 静默返回错价（实测 ``close`` 读出未知位的 ``9.99``）。
 
     未知位产出 ``(序号, None, None)``，调用方据此跳过取值但**必须**计入偏移。
+
+    位 151–159 是保留区（实测不占槽位），会被忽略 —— 否则一个保留位置位就会
+    凭空多出一个槽位，把所有字段整体推错。
     """
 
-    bitmap_int = int.from_bytes(bitmap_bytes, "little")
+    bitmap_int = _field_bits(bitmap_bytes)
     slot = 0
     while bitmap_int:
         lowbit = bitmap_int & -bitmap_int
@@ -459,10 +516,20 @@ def iter_set_bits(bitmap_bytes: bytes) -> Iterator[tuple[int, FieldBit | None, s
         slot += 1
 
 
-def count_set_bits(bitmap_bytes: bytes) -> int:
-    """统计置位位数 —— 即单条记录占用的字段槽位个数（每槽位 4 字节）。"""
+def _field_bits(bitmap_bytes: bytes) -> int:
+    """取出位图里**合法字段位**的部分，屏蔽 151–159 保留区。"""
 
-    return int.from_bytes(bitmap_bytes, "little").bit_count()
+    mask = (1 << FIELD_BIT_LIMIT) - 1
+    return int.from_bytes(bitmap_bytes, "little") & mask
+
+
+def count_set_bits(bitmap_bytes: bytes) -> int:
+    """统计字段置位数 —— 即单条记录占用的槽位个数（每槽位 4 字节）。
+
+    保留位（151–159）不计入。
+    """
+
+    return _field_bits(bitmap_bytes).bit_count()
 
 
 def get_active_fields(bitmap_bytes: bytes) -> list[tuple[FieldBit, str]]:
@@ -478,14 +545,18 @@ def get_active_fields(bitmap_bytes: bytes) -> list[tuple[FieldBit, str]]:
 
 
 __all__ = [
+    "BITMAP_SIZE",
+    "CONTROL_SIZE",
     "CTRL_BYTE",
     "CTRL_EXTENDED",
     "FIELD_BITMAP_MAP",
+    "FIELD_BIT_LIMIT",
     "FIELD_POSTPROCESS",
     "FieldBit",
     "FieldSelection",
     "Fields",
     "PresetField",
+    "RESP_BITMAP_SIZE",
     "build_bitmap",
     "build_exclude_flags",
     "count_set_bits",
