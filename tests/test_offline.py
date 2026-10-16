@@ -423,3 +423,116 @@ class TestBlockAndIndustry:
         assert mapping["600519"] == ("制造业", "食品饮料")
         assert mapping["000001"] == ("金融业", "银行")
         assert "notacode" not in mapping
+
+
+# ---------------------------------------------------------------------------
+# 写入侧残尾拒绝（对齐闸门）
+# ---------------------------------------------------------------------------
+
+
+class TestAppendRejectsPartialTail:
+    """追加写入必须先确认文件按记录长度对齐。
+
+    回归：``open("ab")`` 从残尾之后开始写，新记录立刻错位，之后每条记录都从错误
+    偏移被读出，而写入函数仍照常返回「写入 N 条」。实测末条读出 ``date=891618943``
+    而非 ``20260102`` —— 静默写坏，没有任何异常。
+
+    注意与 ``TestDailyRoundTrip.test_truncated_file_keeps_complete_records`` 的分工：
+    **读取**容忍残尾（能读多少读多少），**写入**拒绝残尾（避免制造错位）。
+    """
+
+    def _corrupt_tail(self, filepath: Path) -> int:
+        """在正常文件后追加 1 字节残尾，返回写入前的大小。"""
+
+        with filepath.open("ab") as handle:
+            handle.write(b"\x7f")
+        return filepath.stat().st_size
+
+    def test_daily_append_rejects_partial_tail(self, tmp_path: Path) -> None:
+        from eltdx.exceptions import ResourceFormatError
+
+        filepath = tmp_path / "sh600000.day"
+        write_daily_bar(filepath, [_make_daily_bar(day=6)])
+        size_before = self._corrupt_tail(filepath)
+
+        with pytest.raises(ResourceFormatError, match="残尾"):
+            write_daily_bar(filepath, [_make_daily_bar(day=7)])
+
+        # 拒绝写入 = 文件一个字节都不能变
+        assert filepath.stat().st_size == size_before
+
+    def test_ex_daily_append_rejects_partial_tail(self, tmp_path: Path) -> None:
+        from eltdx.exceptions import ResourceFormatError
+
+        filepath = tmp_path / "ds_day.bin"
+        write_ex_daily_bar(filepath, [_make_ex_bar(day=6)])
+        size_before = self._corrupt_tail(filepath)
+
+        with pytest.raises(ResourceFormatError, match="残尾"):
+            write_ex_daily_bar(filepath, [_make_ex_bar(day=7)])
+
+        assert filepath.stat().st_size == size_before
+
+    def test_min_append_rejects_partial_tail(self, tmp_path: Path) -> None:
+        from eltdx.exceptions import ResourceFormatError
+
+        filepath = tmp_path / "sh600000.lc1"
+        write_min_bar(filepath, [_make_min_bar(hour=9, minute=31)])
+        size_before = self._corrupt_tail(filepath)
+
+        with pytest.raises(ResourceFormatError, match="残尾"):
+            write_min_bar(filepath, [_make_min_bar(hour=9, minute=32)])
+
+        assert filepath.stat().st_size == size_before
+
+    def test_5min_append_rejects_partial_tail(self, tmp_path: Path) -> None:
+        from eltdx.exceptions import ResourceFormatError
+
+        from eltdx.offline import write_5min_bar
+
+        filepath = tmp_path / "sh600000.5"
+        write_5min_bar(filepath, [_make_min_bar(hour=9, minute=35)])
+        size_before = self._corrupt_tail(filepath)
+
+        with pytest.raises(ResourceFormatError, match="残尾"):
+            write_5min_bar(filepath, [_make_min_bar(hour=9, minute=40)])
+
+        assert filepath.stat().st_size == size_before
+
+    def test_append_after_manual_truncation_works_again(self, tmp_path: Path) -> None:
+        """报错文案指引的修复动作（截断到记录边界）确实能恢复写入。"""
+
+        from eltdx.exceptions import ResourceFormatError
+
+        filepath = tmp_path / "sh600000.day"
+        write_daily_bar(filepath, [_make_daily_bar(day=6)])
+        self._corrupt_tail(filepath)
+        with pytest.raises(ResourceFormatError):
+            write_daily_bar(filepath, [_make_daily_bar(day=7)])
+
+        # 截断回最后一条完整记录（32 字节）
+        with filepath.open("r+b") as handle:
+            handle.truncate(32)
+
+        assert write_daily_bar(filepath, [_make_daily_bar(day=7)]) == 1
+        bars = read_daily_bar(filepath)
+        assert [b.day for b in bars] == [6, 7]
+
+    def test_empty_and_missing_files_are_writable(self, tmp_path: Path) -> None:
+        """空文件与不存在文件都是天然对齐的，不该被拦。"""
+
+        empty = tmp_path / "empty.day"
+        empty.write_bytes(b"")
+        assert write_daily_bar(empty, [_make_daily_bar(day=6)]) == 1
+
+        fresh = tmp_path / "fresh.day"
+        assert write_daily_bar(fresh, [_make_daily_bar(day=6)]) == 1
+        assert len(read_daily_bar(fresh)) == 1
+
+    def test_aligned_multi_record_file_is_not_rejected(self, tmp_path: Path) -> None:
+        """正常的多记录文件（含刚写完的）必须一路放行。"""
+
+        filepath = tmp_path / "sh600000.day"
+        assert write_daily_bar(filepath, [_make_daily_bar(day=4), _make_daily_bar(day=5)]) == 2
+        assert write_daily_bar(filepath, [_make_daily_bar(day=6)]) == 1
+        assert len(read_daily_bar(filepath)) == 3
