@@ -51,6 +51,15 @@ FINANCIAL_LIST_PATH = "tdxfin/gpcw.txt"
 
 _REPORT_DATE_RE = re.compile(r"(\d{8})")
 
+# 财报 zip 的限额，与 :mod:`eltdx.stats` 的 MAX_STATS_* 同思路：
+# 压缩体积、条目数、解压后单文件大小都要在**解压/读取之前**校验，
+# 否则一个几 KB 的异常 zip 可以先撑爆内存再报错。
+MAX_FINANCIAL_ZIP_BYTES = 64 * 1024 * 1024
+MAX_FINANCIAL_ZIP_ENTRIES = 64
+#: 单个财报 ``.dat`` 的解压后上限。历史全市场财报约几十万条记录，
+#: 给到 256 MiB 仍有充足余量。
+MAX_FINANCIAL_DAT_BYTES = 256 * 1024 * 1024
+
 
 def list_archive_files(client: object) -> list[FinancialFileInfo]:
     """获取可用的历史专业财报文件列表。
@@ -94,19 +103,40 @@ def download_records(client: object, filename: str) -> list[FinancialRecord]:
         :class:`FinancialRecord` 列表（报告期取自文件名中的 8 位日期）。
 
     Raises:
-        ResourceFormatError: zip 非法或其中不存在 ``.dat`` 文件。
+        ResourceFormatError: zip 非法、超出解压限额，或其中不存在 ``.dat`` 文件。
     """
 
     zip_bytes = download_archive(client, filename)
     if not zip_bytes:
         return []
 
+    if len(zip_bytes) > MAX_FINANCIAL_ZIP_BYTES:
+        raise ResourceFormatError(
+            f"财报 zip 超出压缩体积上限 {MAX_FINANCIAL_ZIP_BYTES} 字节: {filename} "
+            f"(实际 {len(zip_bytes)} 字节)"
+        )
+
     try:
         with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
-            dat_names = [name for name in archive.namelist() if name.endswith(".dat")]
-            if not dat_names:
+            infos = archive.infolist()
+            if len(infos) > MAX_FINANCIAL_ZIP_ENTRIES:
+                raise ResourceFormatError(
+                    f"财报 zip 条目过多: {len(infos)} > {MAX_FINANCIAL_ZIP_ENTRIES}"
+                )
+            dat_infos = [info for info in infos if info.filename.endswith(".dat")]
+            if not dat_infos:
                 raise ResourceFormatError(f"财报 zip 中未找到 .dat 文件: {filename}")
-            dat_data = archive.read(dat_names[0])
+            info = dat_infos[0]
+            # 在**解压前**校验声明的解压后大小：一个几 KB 的 zip 可以声明（并实际
+            # 压缩）几百 MB，不设限就会在校验之前把内存吃光。
+            if info.flag_bits & 0x1:
+                raise ResourceFormatError(f"财报 zip 条目已加密: {info.filename}")
+            if info.file_size > MAX_FINANCIAL_DAT_BYTES:
+                raise ResourceFormatError(
+                    f"财报 .dat 解压后超出上限 {MAX_FINANCIAL_DAT_BYTES} 字节: "
+                    f"{info.filename} (声明 {info.file_size} 字节)"
+                )
+            dat_data = archive.read(info.filename)
     except zipfile.BadZipFile as exc:
         raise ResourceFormatError(f"无效的财报 zip 文件: {filename}") from exc
 

@@ -33,6 +33,7 @@ from eltdx.ex.commands.get_transaction import (
 )
 from eltdx.ex.commands.login import MacExLoginCmd
 from eltdx.ex.frame import HEADER_SIZE, decompress_body, encode_header, parse_header
+from eltdx.protocol.decompress import MAX_FRAME_UNZIPPED_BYTES
 from eltdx.ex.models import ExInstrumentInfo, ExMarketInfo, ExTransactionRecord
 from eltdx.ex.transport import sync as sync_mod
 from eltdx.ex.transport.sync import ExTdxConnection
@@ -533,3 +534,70 @@ def test_raw_defaults_to_empty_bytes() -> None:
     assert ExInstrumentInfo(1, 2, "000001", "n", "d")._raw == b""
     assert ExMarketInfo(31, 1, "香港", "HK")._raw == b""
 
+
+
+def test_decompress_body_rejects_zip_bomb_before_allocating() -> None:
+    """扩展行情帧同样要有解压输出上限。
+
+    8 KiB 压缩体声明解出 8 MiB，旧实现会先把 8 MiB 分配出来才报错。
+    """
+
+    bomb = zlib.compress(b"\x00" * (8 * 1024 * 1024), 9)
+    header = parse_header(
+        encode_header(
+            seq_id=0, method=0, zipsize=len(bomb), unzipsize=MAX_FRAME_UNZIPPED_BYTES
+        )
+    )
+    with pytest.raises(ProtocolError, match="解压超限"):
+        decompress_body(header, bomb)
+
+
+def test_decompress_body_accepts_body_just_under_limit() -> None:
+    body = b"\x01" * (MAX_FRAME_UNZIPPED_BYTES - 100)
+    compressed = zlib.compress(body, 9)
+    header = parse_header(
+        encode_header(seq_id=0, method=0, zipsize=len(compressed), unzipsize=len(body))
+    )
+    assert decompress_body(header, compressed) == body
+
+
+# --------------------------------------------------------------------------- #
+# 区间 K 线请求序号回绕（第 256 次崩溃回归）
+# --------------------------------------------------------------------------- #
+
+
+def test_history_range_seqid_wraps_after_255() -> None:
+    """回归：序号只占 1 字节，必须在 255 后回绕。
+
+    早期实现让类级 ``_seqid`` 单调递增并直接 ``struct.pack("<B", ...)``，第 257 次
+    构造请求就抛 ``struct.error``；因为状态在类上，新建客户端也恢复不了。
+    """
+
+    GetExHistoryInstrumentBarsRangeCmd._seqid = 253
+    seqids = [
+        GetExHistoryInstrumentBarsRangeCmd(47, "IFL0", 20240101, 20240131).build_request()[1]
+        for _ in range(6)
+    ]
+    assert seqids == [253, 254, 255, 1, 2, 3]
+
+
+def test_history_range_seqid_survives_many_calls() -> None:
+    """远超 256 次调用也不应报错，且序号始终落在 1..255。"""
+
+    GetExHistoryInstrumentBarsRangeCmd._seqid = 1
+    seqids = [
+        GetExHistoryInstrumentBarsRangeCmd(47, "IFL0", 20240101, 20240131).build_request()[1]
+        for _ in range(600)
+    ]
+    assert min(seqids) == GetExHistoryInstrumentBarsRangeCmd._SEQID_MIN
+    assert max(seqids) == GetExHistoryInstrumentBarsRangeCmd._SEQID_MAX
+
+
+def test_history_range_seqid_never_uses_zero() -> None:
+    """0 留作「无序号」哨兵，回绕时跳过。"""
+
+    GetExHistoryInstrumentBarsRangeCmd._seqid = GetExHistoryInstrumentBarsRangeCmd._SEQID_MAX
+    seqid = GetExHistoryInstrumentBarsRangeCmd(47, "IFL0", 1, 2).build_request()[1]
+    assert seqid == GetExHistoryInstrumentBarsRangeCmd._SEQID_MAX
+    seqid = GetExHistoryInstrumentBarsRangeCmd(47, "IFL0", 1, 2).build_request()[1]
+    assert seqid == 1

@@ -7,6 +7,11 @@ import zlib
 from dataclasses import dataclass
 
 from eltdx.exceptions import ProtocolError
+from eltdx.protocol.decompress import (
+    MAX_FRAME_UNZIPPED_BYTES,
+    DecompressLimitError,
+    decompress_limited,
+)
 
 HEADER_SIZE: int = 16
 _MAGIC: int = 7654321
@@ -43,7 +48,12 @@ def parse_header(buf: bytes) -> FrameHeader:
 
 
 def decompress_body(header: FrameHeader, raw_body: bytes) -> bytes:
-    """按需 zlib 解压响应 body；长度不符或解压失败抛 ProtocolError。"""
+    """按需 zlib 解压响应 body（**带输出上限**）；长度不符或解压失败抛 ProtocolError。
+
+    输出上限来自帧头 ``unzipsize`` 的 2 字节宽度（≤65535）：超过就一定不是合法
+    响应。用 :func:`~eltdx.protocol.decompress.decompress_limited` 在产出过程中
+    截断，避免异常压缩体造成过量内存分配。
+    """
 
     if len(raw_body) != header.zipsize:
         raise ProtocolError(f"响应 body 长度不符: header={header.zipsize}, actual={len(raw_body)}")
@@ -51,7 +61,9 @@ def decompress_body(header: FrameHeader, raw_body: bytes) -> bytes:
         body = raw_body
     else:
         try:
-            body = zlib.decompress(raw_body)
+            body = decompress_limited(raw_body, MAX_FRAME_UNZIPPED_BYTES)
+        except DecompressLimitError as exc:
+            raise ProtocolError(f"响应 body 解压超限: {exc}") from exc
         except zlib.error as e:
             raise ProtocolError(f"响应 body zlib 解压失败: {e}") from e
     if len(body) != header.unzipsize:
