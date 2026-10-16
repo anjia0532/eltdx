@@ -13,6 +13,7 @@ from datetime import date
 
 import pytest
 
+from eltdx.api import money_flow as api_module
 from eltdx.api.money_flow import MoneyFlowApi
 from eltdx.exceptions import TransportError
 from eltdx.models import MoneyFlowBatch, MoneyFlowBlock, MoneyFlowDaily
@@ -250,19 +251,76 @@ def test_client_without_candidate_hosts_never_fails_over() -> None:
 # ── 批量：探测次数必须有上界 ────────────────────────────────────────────────
 
 
-def test_batch_of_empty_codes_probes_hosts_only_once() -> None:
-    """一批 N 只空票只探测一轮，不是每只票都重探 —— 否则会开 N×主机数 条连接。"""
+def test_batch_probe_count_is_bounded() -> None:
+    """整批探测次数有上界，不会开 N×主机数 条连接。
+
+    封顶单位是**次数**而不是「整批只探一轮」：每只票最多试 ``_MAX_PROBES_PER_CODE`` 台，
+    整批预算为 ``min(票数, _BUDGET_CODE_CAP) × _MAX_PROBES_PER_CODE``。
+    """
+
+    codes = [f"sz{i:06d}" for i in range(1, 41)]
+    factory = _Factory({host: EMPTY for host in HOSTS})
+    api = _api(factory)
+
+    result = api.daily(codes)
+
+    assert isinstance(result, MoneyFlowBatch)
+    assert result.blocks == ()
+    budget = min(len(codes), api_module._BUDGET_CODE_CAP) * api_module._MAX_PROBES_PER_CODE
+    assert len(factory.attempts) <= budget
+
+
+def test_batch_does_not_let_first_empty_code_block_later_codes() -> None:
+    """关键回归：首只票在所有主机都空，**不能**连带让后面的票跳过备用主机。
+
+    「某台主机对这只票返回空」是标级事实。早期实现用整批共享的 ``settled`` 布尔量，
+    首票探完即认定「全主机都空」，于是 ``sz000002`` 连 h2 都不试就被丢掉了。
+    """
+
+    factory = _Factory(
+        {
+            "h1:7709": lambda code: EMPTY,
+            # h2 只对 sz000002 有数据
+            "h2:7709": lambda code: _one_block() if code == "sz000002" else EMPTY,
+            "h3:7709": lambda code: EMPTY,
+        }
+    )
+    api = _api(factory)
+
+    result = api.daily(["sz000001", "sz000002"])
+
+    assert len(result.blocks) == 1
+    assert result.blocks[0].code == "000001"
+
+
+def test_batch_probe_start_rotates_across_codes() -> None:
+    """每只票的探测起点轮转，避免整批票都去死磕 candidate_hosts[0]。"""
 
     factory = _Factory({host: EMPTY for host in HOSTS})
     api = _api(factory)
 
-    result = api.daily(["sz000001", "sz000002", "sz000003", "sz000004"])
+    api.daily(["sz000001", "sz000002", "sz000003", "sz000004"])
 
-    assert isinstance(result, MoneyFlowBatch)
-    assert result.blocks == ()
-    # 4 只票都空，但每台候选主机只被建池一次
-    assert sorted(factory.attempts) == sorted(HOSTS)
-    assert len(factory.attempts) == len(HOSTS)
+    # 三台候选主机都应被覆盖到，且没有任何一台独占全部探测
+    assert set(factory.attempts) == set(HOSTS)
+    assert max(factory.attempts.count(host) for host in HOSTS) < len(factory.attempts)
+
+
+def test_extra_host_is_still_reached_by_later_codes() -> None:
+    """前两台都空时，轮转保证后面的票仍能试到第三台。"""
+
+    factory = _Factory(
+        {
+            "h1:7709": lambda code: EMPTY,
+            "h2:7709": lambda code: EMPTY,
+            "h3:7709": lambda code: _one_block() if code == "sz000005" else EMPTY,
+        }
+    )
+    api = _api(factory)
+
+    result = api.daily(["sz000005", "sz000006"])
+
+    assert len(result.blocks) == 1
 
 
 def test_batch_recovers_and_queries_remaining_codes_on_good_host() -> None:
@@ -292,6 +350,48 @@ def test_close_releases_dedicated_and_preferred_transports() -> None:
     assert preferred.closed is True
     assert api._preferred_transport is None
     assert api._preferred_host is None
+
+
+def test_new_backup_connection_is_closed_when_preferred_already_adopted() -> None:
+    """已有首选连接时，新探测到的备用连接既不被接管也必须被关闭。
+
+    回归：``_adopt()`` 早退时若不把所有权交回调用方，这条连接会一路泄漏到
+    ``close()`` 之后（``close()`` 只关 ``_preferred_transport``，不认识它）。
+    """
+
+    factory = _Factory(
+        {
+            # h1 只对 sz000001 有数据 → 第一次调用认下 h1
+            "h1:7709": lambda code: _one_block() if code == "sz000001" else EMPTY,
+            # h2 只对 sz000002 有数据 → 第二次调用需新开 h2
+            "h2:7709": lambda code: _one_block() if code == "sz000002" else EMPTY,
+            "h3:7709": EMPTY,
+        }
+    )
+    api = _api(factory)
+    api.daily("sz000001")
+    assert api._preferred_host == "h1:7709"
+
+    result = api.daily("sz000002")
+    assert isinstance(result, MoneyFlowBlock)
+    api.close()
+
+    leaked = [t.host for t in factory.created if not t.closed]
+    assert leaked == []
+
+
+def test_single_code_path_does_not_leak_probe_connections() -> None:
+    """单只全空标的：逐台探测建出来的池都必须关闭。"""
+
+    factory = _Factory({host: EMPTY for host in HOSTS})
+    api = _api(factory)
+
+    api.daily("sz000001")
+    api.close()
+
+    probe_transports = [t for t in factory.created if t.host is not None]
+    assert probe_transports  # 确实建过备用池
+    assert [t.host for t in probe_transports if not t.closed] == []
 
 
 def test_empty_result_is_a_single_block_when_one_block_present() -> None:
