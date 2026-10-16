@@ -433,19 +433,48 @@ def build_exclude_flags(exclude_flags: int = 0) -> bytes:
     return exclude_flags.to_bytes(4, "little")
 
 
-def get_active_fields(bitmap_bytes: bytes) -> list[tuple[FieldBit, str]]:
-    """从响应位图解析活跃字段（按位序升序），返回 ``(FieldBit, fmt)`` 列表。"""
+def iter_set_bits(bitmap_bytes: bytes) -> Iterator[tuple[int, FieldBit | None, str | None]]:
+    """按位序升序遍历所有**置位**槽位，产出 ``(槽位序号, 字段, 格式)``。
+
+    !!! warning "槽位序号必须按全部置位位计数，不能按已知字段计数"
+        线上响应可能置位本模块尚未定义的位。这些未知字段在线上**同样占用 4 字节
+        槽位**，所以记录宽度和每个已知字段的偏移都要按「这是第几个置位位」来算。
+        早期实现只返回已知字段，用它算行宽会让行宽偏小，后续已知字段读到的是
+        邻居槽位的值 —— 静默返回错价（实测 ``close`` 读出未知位的 ``9.99``）。
+
+    未知位产出 ``(序号, None, None)``，调用方据此跳过取值但**必须**计入偏移。
+    """
 
     bitmap_int = int.from_bytes(bitmap_bytes, "little")
-    active: list[tuple[FieldBit, str]] = []
+    slot = 0
     while bitmap_int:
         lowbit = bitmap_int & -bitmap_int
         bit_pos = lowbit.bit_length() - 1
         bitmap_int ^= lowbit
         field = FieldBit._value2member_map_.get(bit_pos)
-        if field is not None and isinstance(field, FieldBit):
-            active.append((field, field.fmt))
-    return active
+        if isinstance(field, FieldBit):
+            yield slot, field, field.fmt
+        else:
+            yield slot, None, None
+        slot += 1
+
+
+def count_set_bits(bitmap_bytes: bytes) -> int:
+    """统计置位位数 —— 即单条记录占用的字段槽位个数（每槽位 4 字节）。"""
+
+    return int.from_bytes(bitmap_bytes, "little").bit_count()
+
+
+def get_active_fields(bitmap_bytes: bytes) -> list[tuple[FieldBit, str]]:
+    """从响应位图解析活跃字段（按位序升序），返回 ``(FieldBit, fmt)`` 列表。
+
+    !!! warning "只用于「字段集合已知且完整」的场景"
+        未知置位字段会被丢弃，因此**不能**用它的长度去算记录行宽或字段偏移 ——
+        那正是 MAC 报价静默错位的根因。需要按槽位解析时用 :func:`iter_set_bits`
+        与 :func:`count_set_bits`。
+    """
+
+    return [(field, fmt) for _, field, fmt in iter_set_bits(bitmap_bytes) if field is not None]
 
 
 __all__ = [
@@ -459,6 +488,8 @@ __all__ = [
     "PresetField",
     "build_bitmap",
     "build_exclude_flags",
+    "count_set_bits",
     "get_active_fields",
+    "iter_set_bits",
     "normalize_fields",
 ]
