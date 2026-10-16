@@ -66,6 +66,7 @@ eltdx 默认按“想拿什么数据”组织入口。普通调用优先使用�
 | 板块行情与成分股 | 所有板块行情、指定板块有效成分股行情 | [`client.helpers.board_quotes()`](docs/helpers/板块行情.md) / [`client.helpers.board_member_quotes()`](docs/helpers/板块行情.md) | `0x06b9` + `0x044d` + `0x054c` |
 | 五档实时刷新 | 为代码列表建立或刷新实时五档 | [`client.quotes.get_depth()`](docs/methods/7709-增量刷新推送队列.md) | `7709 原生协议` |
 | push 队列 | 读取未匹配的实时更新帧 | [`client.quotes.poll_push()`](docs/methods/7709-增量刷新推送队列.md) | `7709 原生协议` |
+| 订阅式行情推送 | 订阅代码列表，行情每变动回调一次 | [`client.quotes.subscribe()`](docs/methods/7709-增量刷新推送队列.md) | `7709 原生协议` |
 | K 线与复权 | 分钟/日/周/月/季/年 K 线、自动分页、前/后/定点复权 | [`client.bars.get()`](docs/methods/7709-K线周期线.md) | `7709 原生协议` |
 | 退市 K 线 | 退市股票日线、不复权、批量查询、自动分页 | [`client.delisted_bars.get()`](docs/methods/7709-退市K线日线接口.md) | `0x052B 原生协议` |
 | 当日分时 | 当日每分钟价格、成交量和均价 | [`client.minutes.today()`](docs/methods/7709-当日分时.md) | `7709 原生协议` |
@@ -82,6 +83,8 @@ eltdx 默认按“想拿什么数据”组织入口。普通调用优先使用�
 | 交易数据 | 融资融券、大宗交易、龙虎榜、沪深股通、涨跌停分析和主力盘口 | [`client.f10.trading_report()`](docs/methods/F10-交易数据.md) | `7615 原生 Entry` |
 | 基金 / ETF F10 | 基金经理、规模份额、净值回报、投资组合、持股、财务和销售信息 | [`client.f10.fund_report()`](docs/methods/F10-基金与ETF.md) | `7615 原生 Entry` |
 | 板块 / 指数 / 大盘 F10 | 板块资料与前十大资金、指数概况与跟踪标的、大盘两融和新股 | [`client.f10.market_report()`](docs/methods/F10-板块与指数.md) | `7615 原生 Entry` |
+| 指数与新股 | 指数成份股清单、跟踪某个指数的全部产品、近期新股 | [`client.helpers.index_members()`](docs/helpers/指数与新股.md) | `7615` + `Helpers 封装` |
+| 板块分红成份 | 板块成份股的分红记录（方案、进度、公告 / 登记 / 除权日、报告期），按记录去重翻页 | [`client.helpers.board_members()`](docs/helpers/板块分红成份.md) | `7615` + `Helpers 封装` |
 | 最新提示 | F10 首屏提示、公司概要、大事、新闻、公告、研报、路演和投资者互动 | [`client.f10.digest()`](docs/methods/F10-公司资讯研报.md) | `7615 原生 Entry` |
 | 历史资金流向 | 近 3 / 5 / 10 / 20 / 60 日主力、超大单和大单净额序列 | [`client.money_flow.history()`](docs/methods/0x0ffc-资金流向日数据接口.md) | `7615 原生 Entry` |
 | 个股概念 | 某只股票所属的热点题材和入选原因 | [`client.helpers.stock_topics()`](docs/helpers/个股概念板块.md) | `7615` + `Helpers 封装` |
@@ -575,7 +578,7 @@ python scripts/smoke/export_auction_925_daily.py --code sz000001 --start 2026-04
 | 本地行情文件（vipdoc） | [本地文件](docs/OFFLINE.md) |
 | 连接、测速、并发和故障排查 | [调试指南](docs/DEBUG_GUIDE.md) · [架构](docs/ARCHITECTURE.md) |
 | MCP 安装、工具和资源 | [MCP 文档](docs/MCP.md) |
-| 当前版本、变更和旧 API 迁移 | [v3.4.3](docs/releases/v3.4.3.md) · [变更记录](docs/CHANGELOG.md) · [旧版迁移](docs/MIGRATION_FROM_OLD.md) · [从 easy_tdx 迁移](docs/MIGRATION_FROM_EASY_TDX.md) |
+| 当前版本、变更和旧 API 迁移 | [v3.4.5](docs/releases/v3.4.5.md) · [变更记录](docs/CHANGELOG.md) · [旧版迁移](docs/MIGRATION_FROM_OLD.md) · [从 easy_tdx 迁移](docs/MIGRATION_FROM_EASY_TDX.md) |
 
 ## 常用问题
 

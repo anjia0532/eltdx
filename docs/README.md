@@ -7,14 +7,17 @@
 | 顺序 | 文档 | 用途 |
 | --- | --- | --- |
 | 1 | [PRODUCT.md](PRODUCT.md) | 看这个库能查什么、适合怎么用 |
-| 2 | [releases/v3.1.7.md](releases/v3.1.7.md) | 修正深交所创业板代码段识别 |
-| 3 | [releases/v3.1.2.md](releases/v3.1.2.md) | 看集合竞价、资金流向专用主站池和启动测速更新 |
-| 4 | [releases/v3.1.1.md](releases/v3.1.1.md) | 看资金流向主站池和测试基线更新 |
-| 5 | [releases/v3.0.9.md](releases/v3.0.9.md) | 看成交明细批量查询更新 |
-| 3 | [releases/v3.0.7.md](releases/v3.0.7.md) | 看跨语言网关的 Python 3.10 兼容修复 |
-| 3 | [releases/v3.0.6.md](releases/v3.0.6.md) | 看 HTTP / WebSocket 网关和跨语言调用 |
-| 4 | [releases/v3.0.5.md](releases/v3.0.5.md) | 看股本变迁、复权系数和 MCP 批量能力 |
-| 5 | [releases/v3.0.4.md](releases/v3.0.4.md) | 看成交分页顺序修复和发布说明 |
+| 2 | [TDX_TQ_CAPABILITY_MAP.md](TDX_TQ_CAPABILITY_MAP.md) | 对照通达信 TQ：覆盖了什么、哪些必须用客户端 |
+| 3 | [releases/v3.4.5.md](releases/v3.4.5.md) | 看指数成份股、跟踪产品、新股、订阅推送、板块分红成份与美股纠错更新 |
+| 5 | [releases/v3.4.3.md](releases/v3.4.3.md) | 修正 K 线翻页顺序、新增指数两融分区 |
+| 6 | [releases/v3.1.7.md](releases/v3.1.7.md) | 修正深交所创业板代码段识别 |
+| 7 | [releases/v3.1.2.md](releases/v3.1.2.md) | 看集合竞价、资金流向专用主站池和启动测速更新 |
+| 8 | [releases/v3.1.1.md](releases/v3.1.1.md) | 看资金流向主站池和测试基线更新 |
+| 9 | [releases/v3.0.9.md](releases/v3.0.9.md) | 看成交明细批量查询更新 |
+| 10 | [releases/v3.0.7.md](releases/v3.0.7.md) | 看跨语言网关的 Python 3.10 兼容修复 |
+| 11 | [releases/v3.0.6.md](releases/v3.0.6.md) | 看 HTTP / WebSocket 网关和跨语言调用 |
+| 12 | [releases/v3.0.5.md](releases/v3.0.5.md) | 看股本变迁、复权系数和 MCP 批量能力 |
+| 13 | [releases/v3.0.4.md](releases/v3.0.4.md) | 看成交分页顺序修复和发布说明 |
 | 6 | [releases/v3.0.3.md](releases/v3.0.3.md) | 看 A 股常用接口、实时榜单和短线字段补齐 |
 | 7 | [releases/v3.0.2.md](releases/v3.0.2.md) | 看成交明细真实成交视图和返回样本文档 |
 | 8 | [releases/v3.0.1.md](releases/v3.0.1.md) | 看历史集合竞价过程、聚合口径和升级说明 |

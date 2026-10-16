@@ -30,10 +30,14 @@ from eltdx.models.money_flow import FundFlowRangeSeries
 
 
 def _raw_row(index: int = 0) -> dict[str, Any]:
-    """一条 ``CWServ.tdxf10_gg_sj`` 原始行（列名照抄服务端）。"""
+    """一条 ``CWServ.tdxf10_gg_sj`` 原始行（列名照抄服务端）。
+
+    服务端回包是日期**升序**（最旧在前）：``index=0`` 是窗口内最旧一天，
+    与 2026-10-15 实测一致（``days=10`` 首行 2026-09-23、末行 2026-10-14）。
+    """
 
     return {
-        "N001": 20261013 - index,
+        "N001": 20261009 + index,
         "N002": "000001",
         "N003": "平安银行",
         "N004": -149341409.0,
@@ -202,17 +206,32 @@ def test_history_accepts_the_prefixed_and_bare_code_forms() -> None:
 
 
 def test_history_slices_the_series_on_the_client() -> None:
-    rows = tuple(_raw_row(index) for index in range(5))
-    f10 = _FakeF10(rows)
+    server_rows = tuple(_raw_row(index) for index in range(5))
+    f10 = _FakeF10(server_rows)
     api = _api(f10)
 
-    assert api.history("000001").rows == rows
-    assert api.history("000001", start=2).rows == rows[2:]
-    assert api.history("000001", start=1, count=2).rows == rows[1:3]
-    assert api.history("000001", count=3).rows == rows[:3]
+    latest_first = tuple(reversed(server_rows))
+    assert api.history("000001").rows == latest_first
+    assert api.history("000001", start=2).rows == latest_first[2:]
+    assert api.history("000001", start=1, count=2).rows == latest_first[1:3]
+    assert api.history("000001", count=3).rows == latest_first[:3]
     assert api.history("000001", start=9).rows == ()
     # 切片只在客户端做：请求体里的 days 始终不变。
     assert {call[1][2] for call in f10.calls} == {"60"}
+
+
+def test_history_returns_rows_latest_first() -> None:
+    """服务端回包日期升序，输出必须反转为降序（最新在前）。"""
+
+    server_rows = tuple(_raw_row(index) for index in range(5))
+    f10 = _FakeF10(server_rows)
+
+    series = _api(f10).history("000001")
+
+    dates = [row["N001"] for row in series.rows]
+    assert dates == sorted(dates, reverse=True)
+    assert series.rows[0]["N001"] == 20261013
+    assert series.rows[-1]["N001"] == 20261009
 
 
 # ── 校验 ─────────────────────────────────────────────────────────────────────

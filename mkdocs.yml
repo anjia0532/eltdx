@@ -61,6 +61,8 @@ nav:
   - 接口目录: index.md
   - 使用指南:
       - 产品与能力: PRODUCT.md
+      - 通达信 TQ 能力对照: TDX_TQ_CAPABILITY_MAP.md
+      - v3.4.5 发布说明: releases/v3.4.5.md
       - v3.4.3 发布说明: releases/v3.4.3.md
       - v3.4.2 发布说明: releases/v3.4.2.md
       - v3.4.1 发布说明: releases/v3.4.1.md
@@ -107,10 +109,12 @@ nav:
       - 实时榜单: helpers/实时榜单.md
       - 板块行情: helpers/板块行情.md
       - 板块成分股行情: helpers/板块成分股行情.md
+      - 板块分红成份: helpers/板块分红成份.md
       - 买卖力道: helpers/买卖力道.md
       - 成交对比: helpers/成交对比.md
       - 连板天梯: helpers/连板天梯.md
       - 题材强度排行: helpers/题材强度排行.md
+      - 指数与新股: helpers/指数与新股.md
       - 全市场统计: helpers/全市场统计.md
       - 当日资金流: helpers/当日资金流.md
   - MCP: MCP.md

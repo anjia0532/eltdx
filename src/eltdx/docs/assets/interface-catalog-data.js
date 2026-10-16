@@ -1,7 +1,7 @@
 window.ELTDX_CATALOG = {
   "schema_version": 14,
   "release": {
-    "version": "3.4.3",
+    "version": "3.4.5",
     "status": "stable",
     "backend": "Rust native 7709 protocol and transport engine",
     "python_api": "compatible modular API and dataclasses",
@@ -34,7 +34,7 @@ window.ELTDX_CATALOG = {
         "label": "Helpers 封装",
         "tag_label": "Helpers",
         "stat_label": "Helpers 封装",
-        "description": "23 个 Helpers 封装，组合协议调用、解析、整理和本地计算。",
+        "description": "25 个 Helpers 封装，组合协议调用、解析、整理和本地计算。",
         "source": "Helper"
       }
     ],
@@ -153,7 +153,8 @@ window.ELTDX_CATALOG = {
           "7709-file-content",
           "helper-stock-profile",
           "helper-server-download",
-          "helper-server-stats"
+          "helper-server-stats",
+          "helper-index-members"
         ]
       }
     ]
@@ -325,7 +326,7 @@ window.ELTDX_CATALOG = {
       "title": "增量刷新 / 推送队列",
       "source": "7709",
       "category": "行情",
-      "api": "client.quotes.get_depth() / client.quotes.refresh() / client.quotes.poll_push() / client.quotes.drain_pushes()",
+      "api": "client.quotes.get_depth() / client.quotes.refresh() / client.quotes.poll_push() / client.quotes.drain_pushes() / client.quotes.subscribe()",
       "calls": [
         {
           "label": "五档快捷入口",
@@ -342,6 +343,10 @@ window.ELTDX_CATALOG = {
         {
           "label": "清空队列",
           "api": "client.quotes.drain_pushes(...)"
+        },
+        {
+          "label": "订阅回调",
+          "api": "client.quotes.subscribe(...)"
         }
       ],
       "aliases": [
@@ -349,11 +354,13 @@ window.ELTDX_CATALOG = {
         "get_depth",
         "poll_push",
         "drain_pushes",
+        "subscribe",
+        "subscribe_hq",
         "push queue"
       ],
       "protocol": "0x0547",
       "kind": "底层协议",
-      "summary": "按代码和游标刷新行情，单次最多 100 只；用于增量更新并配合推送队列。",
+      "summary": "按代码和游标刷新行情，单次最多 100 只；用于增量更新并配合推送队列；subscribe() 在刷新激活之上提供按代码派发的订阅回调。",
       "return_model": "QuoteRefreshPage",
       "doc": "methods/7709-增量刷新推送队列.md"
     },
@@ -1249,7 +1256,7 @@ window.ELTDX_CATALOG = {
       ],
       "protocol": "CWServ.skef10_bk_getinfo",
       "kind": "Entry 封装",
-      "summary": "板块 880xxx、指数 399001 与大盘 000001 共用的 22 个分区：板块资料与资金、成份股数据与财务对比、指数概况与跟踪标的、大盘两融（活跃个股 / 日序列汇总 / 投资者统计）与新股分析。",
+      "summary": "板块 880xxx、指数 399001 与大盘 000001 共用的 26 个分区：板块资料与资金、成份股数据与财务对比、指数概况、估值快照与跟踪标的、大盘两融（活跃个股 / 日序列汇总 / 投资者统计）与新股分析。",
       "return_model": "F10Response",
       "doc": "methods/F10-板块与指数.md"
     },
@@ -1356,6 +1363,19 @@ window.ELTDX_CATALOG = {
       "summary": "按板块代码读取原始成员，用当前 0x044d 证券名单核对有效性，再分批取得成分股行情。",
       "return_model": "BoardMemberQuoteTable",
       "doc": "helpers/板块成分股行情.md"
+    },
+    {
+      "id": "helper-board-members",
+      "title": "板块分红成份",
+      "source": "Helper",
+      "category": "基金与市场",
+      "api": "client.helpers.board_members(board_code, refresh=False)",
+      "aliases": ["board_members", "板块分红成份", "板块成份股分红"],
+      "protocol": "7615 F10",
+      "kind": "组合能力",
+      "summary": "按板块代码读取成份股的分红记录（方案、进度、公告/登记/除权日、报告期），按记录身份去重自动翻页；一行一条分红记录，同一证券可有多行。",
+      "return_model": "BoardMemberTable",
+      "doc": "helpers/板块分红成份.md"
     },
     {
       "id": "helper-buy-sell-strength",
@@ -1532,6 +1552,40 @@ window.ELTDX_CATALOG = {
       "return_model": "TdxStatsResource",
       "doc": "methods/7709-服务器统计文件解析.md",
       "doc_anchor": "stats-resource"
+    },
+    {
+      "id": "helper-index-members",
+      "title": "指数与新股",
+      "source": "Helper",
+      "category": "指数与新股",
+      "api": "client.helpers.index_members(code) / client.helpers.index_etfs(code) / client.helpers.ipo_calendar()",
+      "calls": [
+        {
+          "label": "指数成份股",
+          "api": "client.helpers.index_members(code)"
+        },
+        {
+          "label": "跟踪产品",
+          "api": "client.helpers.index_etfs(code)"
+        },
+        {
+          "label": "近期新股",
+          "api": "client.helpers.ipo_calendar()"
+        }
+      ],
+      "aliases": [
+        "index_members",
+        "index_etfs",
+        "ipo_calendar",
+        "指数成份股",
+        "指数权重",
+        "新股申购"
+      ],
+      "protocol": "7615 F10（CWServ.skef10_zs_cfgsj_cfgjcsj / skef10_zs_jbxx_gzbd / skef10_dpzx_xgfx）",
+      "kind": "组合能力",
+      "summary": "指数成份股清单、跟踪某个指数的全部产品（ETF / LOF / 场外基金）与近期新股列表；按代码缓存，服务端不返回成份权重。等价于 TQ get_index_stocks / get_trackzs_etf_info / get_ipo_info。",
+      "return_model": "IndexMemberTable / IndexTrackingTable / IpoCalendar",
+      "doc": "helpers/指数与新股.md"
     },
     {
       "id": "7709-block-meta",

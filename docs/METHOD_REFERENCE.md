@@ -35,8 +35,9 @@
 | `theme_strength_rank()` / `stock_theme_strength_rank()` | 按个股题材聚合连板强度 |
 | `board_quotes(category="概念")` | 指定分类的板块自身行情，默认概念板块 |
 | `board_member_quotes(board_code)` | 指定板块的当前有效成分股行情 |
+| `board_members(board_code)` | 指定板块成份股的**分红记录**（方案 / 进度 / 关键日期 / 报告期），7615 F10 通道，按记录去重翻页 |
 
-板块接口的资料准备、缓存和字段说明见[板块行情](helpers/板块行情.md)和[板块成分股行情](helpers/板块成分股行情.md)。
+板块接口的资料准备、缓存和字段说明见[板块行情](helpers/板块行情.md)、[板块成分股行情](helpers/板块成分股行情.md)和[板块分红成份](helpers/板块分红成份.md)。
 
 ## 客户端入口
 
@@ -432,6 +433,39 @@ page = client.quotes.refresh(["sz000001"], cursors={"sz000001": 0})
 | `poll_push()`    | 一条推送帧；没有则返回 `None` |
 | `drain_pushes()` | 当前队列里的全部推送帧        |
 | `parse=True`     | 尝试解析成业务模型          |
+
+<a id="method-quotes-subscribe"></a>
+
+### `client.quotes.subscribe(codes, callback, ...)` / `subscribe_hq(...)`
+
+订阅式实时行情回调，对齐通达信 TQ `subscribe_hq` 的心智模型：`refresh` 激活 +
+`poll_push` 轮询，服务端每推来一帧就按代码回调一次。
+
+```python
+def on_quote(record):
+    print(record.full_code, record.last_price, record.update_time_raw)
+
+sub = client.quotes.subscribe(["sh600000", "sz000001"], on_quote)
+sub.run()                       # 阻塞轮询；Ctrl+C 或 sub.stop() 退出
+
+# 自控循环：
+while running:
+    sub.run_once()              # 单轮 poll + 派发，返回派发记录数
+```
+
+| 参数                   | 含义                                              |
+| -------------------- | ----------------------------------------------- |
+| `codes`              | 单个代码或代码序列，也用作派发白名单（防串流）                            |
+| `callback`           | 每条 `QuoteRefreshRecord` 触发一次                   |
+| `timeout`            | 单次轮询的阻塞超时（秒），默认 `0.5`，兼顾响应 `stop()` 与 CPU 占用       |
+| `filter_codes`       | 只派发订阅代码的记录，默认 `True`                              |
+| `on_error`           | 轮询出错或回调抛错时的兜底；不提供则异常直接向上抛                          |
+| `reactivate_interval` | 定期重新激活订阅的间隔（秒）。推送兴趣可能随连接空闲过期，过期后周期性 `refresh` 续期 |
+
+句柄方法：`activate()` 重新激活并返回首帧快照；`run(duration=None, reactivate_interval=None)`
+阻塞轮询（激活时的首帧快照也会派发一次）；`run_once(timeout=None)` 单轮派发；
+`stop()` 请求停止（可从信号处理函数或其它线程调用）。属性 `codes` / `stopped` /
+`frames` / `dispatched` 用于诊断。
 
 ## K 线 / 周期线
 
@@ -878,7 +912,12 @@ window = client.money_flow.history("688004", days=60, start=0, count=5)
 batch = client.money_flow.history(["sz000001", "sh600000"], days=20, batch_size=75)
 ```
 
-`rows` **原样保留**服务端列，不做语义臆测：`N001` 日期、`N002` 代码、`N003` 名称、`N004` 主力净额、`N005` 超大单净买入、`N006` 大单净买入、`N007` 主买净额、`N009` 上市日期；其余 `N00x` 列语义未确认，同样原样保留。行序即服务端顺序。`include_raw=True` 时保留 `raw_payload`（网关响应重新序列化后的紧凑 JSON 字节）。
+`rows` **原样保留**服务端列，不做语义臆测：`N001` 日期、`N002` 代码、`N003` 名称、`N004` 主力净额、`N005` 超大单净买入、`N006` 大单净买入、`N007` 主买净额、`N009` 上市日期；其余 `N00x` 列语义未确认，同样原样保留。行序为**日期降序（最新在前）**——服务端原始回包是升序，v3.4.5 起客户端统一反转，与 `daily()`（`records[0]` 即最新交易日）及 F10 其它日期序列口径一致，`start` / `count`（距最新偏移）的语义也随之成立。`include_raw=True` 时保留 `raw_payload`（网关响应重新序列化后的紧凑 JSON 字节）。
+
+!!! warning "BREAKING（v3.4.5）：`rows` 行序反转"
+    v3.4.4 及以前 `rows[0]` 是**最旧**一条（服务端原始升序）；v3.4.5 起客户端统一
+    反转为**日期降序（最新在前）**。依赖旧行序的下游需要调整；取「最近 N 日」
+    现在用 `start=0, count=N`。
 
 #### 与 7709 category 22 的关系
 
@@ -1045,7 +1084,11 @@ response = client.f10.params("CWServ.tdxf10_gg_gsgk", "8", "000034", "")
 | `industry_analysis(code, section="peers", *, arg="")`   | `CWServ.tdxf10_gg_hyfx`（`comparable` / `comparable_profile` 走 `CWServ.tdxf10_gg_kbgs`） | 同业对比、同业分红排名、同业规模、同业估值、行业新闻、行业研报、市场份额、行业汇总、可比公司列表、可比公司资料（10 个分区） |
 | `trading_report(code, section="margin", *, arg="", date=None, page=1, page_size=20)` | `CWServ.tdxf10_gg_jyds`（`margin_history` 走 `CWServ.tdxf10_gg_sj`） | 近期 / 近 6 个月两融、大宗交易、龙虎榜、沪深股通、涨跌停分析、可转债、主力盘口、研报席位、科创板标记（11 个分区） |
 | `fund_report(code, section="basic", *, arg="", date=None, page=1, page_size=20)` | `CWServ.skef10_jj_*`                                     | ETF 与场外基金共用的 30 个分区：经理、管理人、概况、席位、规模份额、净值回报、分红、资产与行业配置、重仓股、持股情况、财务、销售、评级 |
-| `market_report(code="", section="board_info", *, arg="", date=None, page=1, page_size=20)` | `CWServ.skef10_bk_*` / `skef10_zs_*` / `skef10_dpzx_*`  | 板块 / 指数 / 大盘共用的 22 个分区：板块资料与资金、成份股数据与财务对比、指数概况与跟踪标的、大盘两融（活跃个股 / 日序列汇总 / 投资者统计）与新股分析 |
+| `market_report(code="", section="board_info", *, arg="", date=None, page=1, page_size=20)` | `CWServ.skef10_bk_*` / `skef10_zs_*` / `skef10_dpzx_*`  | 板块 / 指数 / 大盘共用的 26 个分区：板块资料与资金、成份股数据与财务对比、指数成份股清单、估值快照与跟踪产品、大盘两融（活跃个股 / 日序列汇总 / 投资者统计）与新股分析 |
+| `index_members(code, *, all_pages=True, page_size=100, max_pages=100)` | `CWServ.skef10_zs_cfgsj_cfgjcsj` | 指数成份股清单，返回 `IndexMemberTable`；**不含成份权重** |
+| `index_tracking_products(code, *, all_pages=True, page_size=100, max_pages=100)` | `CWServ.skef10_zs_jbxx_gzbd` | 跟踪某个指数的全部产品（ETF / LOF / 场外基金），返回 `IndexTrackingTable` |
+| `board_members(code, *, all_pages=True, page_size=100, max_pages=50)` | `CWServ.skef10_bk_getinfo`（`board_members` 分区） | 板块成份股的**分红记录**清单，返回 `BoardMemberTable`；一行一条分红记录（同一证券中报 / 年报各一行），`total` 是记录总数，证券清单用 `.stocks` / `.full_codes` |
+| `ipo_calendar()` | `CWServ.skef10_dpzx_xgfx` | 近期新股列表（申购日、发行价、募资额），返回 `IpoCalendar` |
 | `ranking_detail(code, section="scpmdela")`             | `CWServ.tdxf10_gg_zxts_rqpm`                             | 市场 / 行业排名明细                               |
 | `governance(code, section="wgcl")`                     | `CWServ.tdxf10_gg_zbyz`                                  | 违规处理、担保明细等治理数据                            |
 | `hot_topics(code, section="zttzbkz")`                  | `CWServ.tdxf10_gg_rdtc`                                  | 题材名称、关联度、入选日期、入选原因、详情 ID                  |
@@ -1135,5 +1178,7 @@ client.clear_cache()
 - [想查询某个股票都有哪些概念板块怎么办？](helpers/个股概念板块.md)
 - [想查询某个概念板块都有哪些股票怎么办？](helpers/概念板块成分股.md)
 - [想拿集合竞价数据怎么办？](helpers/竞价数据.md)
+- [想拿指数成份股、跟踪产品和新股列表怎么办？](helpers/指数与新股.md)
+- [想拿某个板块成份股的分红记录怎么办？](helpers/板块分红成份.md)
 - [想拿流通市值Z、开盘换手Z、竞价昨比、开盘昨封比、昨封比、封流比和几天几板怎么办？](helpers/短线指标.md)
 - [K 线、自动分页和服务端复权](methods/7709-K线周期线.md)
