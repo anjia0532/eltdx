@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import struct
+from .alignment import ensure_aligned_for_append
 from .min_bar import (
     _LC_MIN_FMT,
     _MIN_FMT,
@@ -61,9 +62,17 @@ def _append(
     filepath: str | Path,
     bars: list[MinBar],
     encode,
-    last_dt: tuple[int, int, int, int, int] | None,
+    last_dt_fn,
+    record_size: int,
+    kind: str,
 ) -> int:
     filepath = Path(filepath)
+    # 校验先于读末条时间：残尾文件上 ``_last_datetime`` 读出的是对齐边界上的伪末条，
+    # 若它恰好不小于所有待写 bar，``new_bars`` 会为空而把残尾静默留下。``last_dt_fn``
+    # 是惰性传入的，确保校验通过后才真正去读盘。
+    ensure_aligned_for_append(filepath, record_size, kind)
+
+    last_dt = last_dt_fn()
     new_bars = (
         [bar for bar in bars if bar.datetime_key > last_dt]
         if last_dt is not None
@@ -77,15 +86,37 @@ def _append(
 
 
 def append_min_bar(filepath: str | Path, bars: list[MinBar]) -> int:
-    """将分钟线 ``bars`` 追加写入 ``.lc1`` / ``.lc5`` 文件，自动跳过重复时间点。"""
+    """将分钟线 ``bars`` 追加写入 ``.lc1`` / ``.lc5`` 文件，自动跳过重复时间点。
 
-    return _append(filepath, bars, encode_min_bar, get_last_min_bar_datetime(filepath))
+    Raises:
+        ResourceFormatError: 文件末尾存在残尾记录时拒绝写入。
+    """
+
+    return _append(
+        filepath,
+        bars,
+        encode_min_bar,
+        lambda: get_last_min_bar_datetime(filepath),
+        _LC_MIN_FMT.size,
+        "分钟线",
+    )
 
 
 def append_5min_bar(filepath: str | Path, bars: list[MinBar]) -> int:
-    """将 5 分钟线 ``bars`` 追加写入 ``.5`` 文件，自动跳过重复时间点。"""
+    """将 5 分钟线 ``bars`` 追加写入 ``.5`` 文件，自动跳过重复时间点。
 
-    return _append(filepath, bars, encode_5min_bar, get_last_5min_bar_datetime(filepath))
+    Raises:
+        ResourceFormatError: 文件末尾存在残尾记录时拒绝写入。
+    """
+
+    return _append(
+        filepath,
+        bars,
+        encode_5min_bar,
+        lambda: get_last_5min_bar_datetime(filepath),
+        _MIN_FMT.size,
+        "5 分钟线",
+    )
 
 
 def write_min_bar(filepath: str | Path, bars: list[MinBar]) -> int:

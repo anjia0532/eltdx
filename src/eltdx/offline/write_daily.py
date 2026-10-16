@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from .alignment import ensure_aligned_for_append
 from .daily_bar import _DAILY_FMT, encode_daily_bar
 from .models import DailyBar
 
@@ -52,9 +53,19 @@ def append_daily_bar(
 
     Returns:
         实际写入的记录数。
+
+    Raises:
+        ResourceFormatError: 文件末尾存在残尾记录（长度不是 32 的整数倍）。
+            此时**拒绝写入**：直接追加会让此后每条记录错位，且不会有任何报错。
+            请先把文件截断到最后一条完整记录的结尾再写。
     """
 
     filepath = Path(filepath)
+    # 校验放在读取末条日期**之前**：残尾文件上 ``get_last_bar_date`` 会按对齐后的
+    # 边界读出一条伪末条，其日期可能恰好不小于所有待写 bar，导致 ``new_bars`` 为空
+    # 而直接 return 0 —— 那样残尾就被静默留下了，下次写入才爆出来。
+    ensure_aligned_for_append(filepath, _DAILY_FMT.size, "日线")
+
     last_date = get_last_bar_date(filepath)
     new_bars = (
         [bar for bar in bars if bar.date_int > last_date]

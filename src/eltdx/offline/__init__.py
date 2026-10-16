@@ -10,6 +10,7 @@
 * 历史财务：:func:`read_history_financial`
 """
 
+from .alignment import ensure_aligned_for_append
 from .block import read_block, read_customer_block
 from .daily_bar import (
     DailyBar,
@@ -114,4 +115,6 @@ __all__ = [
     "read_history_financial",
     "parse_financial_dat",
     "parse_financial_file_list",
+    # 写入对齐
+    "ensure_aligned_for_append",
 ]
