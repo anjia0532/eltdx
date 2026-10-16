@@ -11,6 +11,9 @@ import io
 import struct
 import zipfile
 
+import pytest
+
+from eltdx.exceptions import ResourceFormatError
 from eltdx.financial import (
     CALC_HOSTS,
     FinancialFileInfo,
@@ -191,3 +194,57 @@ class TestDownloadRecords:
     def test_calc_hosts_constant(self) -> None:
         assert isinstance(CALC_HOSTS, tuple)
         assert CALC_HOSTS and CALC_HOSTS[0] == "120.76.152.87"
+
+
+# ---------------------------------------------------------------------------
+# 财报 zip 解压限额（内存放大防护）
+# ---------------------------------------------------------------------------
+
+
+class TestDownloadRecordsZipLimits:
+    """财报 zip 的限额必须在**解压/读取之前**校验。
+
+    回归：``archive.read()`` 不看 ``file_size``，一个几 KB 的 zip 可以先撑爆内存
+    再报错。与 :mod:`eltdx.stats` 的 ``MAX_STATS_*`` 同思路。
+    """
+
+    def test_rejects_oversized_uncompressed_dat(self, monkeypatch) -> None:
+        import eltdx.financial as financial
+
+        monkeypatch.setattr(financial, "MAX_FINANCIAL_DAT_BYTES", 16)
+        client = _FakeClient(
+            {"tdxfin/gpcw20260331.zip": _build_zip(b"\x00" * 1024)}
+        )
+        with pytest.raises(ResourceFormatError, match="解压后超出上限"):
+            download_records(client, "tdxfin/gpcw20260331.zip")
+
+    def test_rejects_oversized_zip_payload(self, monkeypatch) -> None:
+        import eltdx.financial as financial
+
+        monkeypatch.setattr(financial, "MAX_FINANCIAL_ZIP_BYTES", 8)
+        client = _FakeClient(
+            {"tdxfin/gpcw20260331.zip": _build_zip(b"\x00" * 64)}
+        )
+        with pytest.raises(ResourceFormatError, match="压缩体积上限"):
+            download_records(client, "tdxfin/gpcw20260331.zip")
+
+    def test_rejects_too_many_entries(self, monkeypatch) -> None:
+        import eltdx.financial as financial
+
+        monkeypatch.setattr(financial, "MAX_FINANCIAL_ZIP_ENTRIES", 1)
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("a.dat", b"\x00" * 8)
+            archive.writestr("b.dat", b"\x00" * 8)
+        client = _FakeClient({"tdxfin/gpcw20260331.zip": buffer.getvalue()})
+        with pytest.raises(ResourceFormatError, match="条目过多"):
+            download_records(client, "tdxfin/gpcw20260331.zip")
+
+    def test_normal_zip_still_works(self) -> None:
+        """限额不能影响正常财报解析。"""
+
+        dat = _build_dat(stocks=[("600519", 1, [1.5, 2.5, 3.5])])
+        client = _FakeClient({"tdxfin/gpcw20260331.zip": _build_zip(dat)})
+        records = download_records(client, "tdxfin/gpcw20260331.zip")
+        assert len(records) == 1
+        assert records[0].code == "600519"

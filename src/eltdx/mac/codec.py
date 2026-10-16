@@ -22,6 +22,11 @@ import zlib
 from dataclasses import dataclass
 
 from ..exceptions import ProtocolError
+from ..protocol.decompress import (
+    MAX_FRAME_UNZIPPED_BYTES,
+    DecompressLimitError,
+    decompress_limited,
+)
 from ._binary import unpack_from
 
 _MAC_HEADER_FMT = "<BIBHH"
@@ -91,10 +96,15 @@ def parse_mac_header(buf: bytes | bytearray) -> MacFrameHeader:
 
 
 def decompress_mac_body(header: MacFrameHeader, raw_body: bytes) -> bytes:
-    """按需 zlib 解压响应 body。
+    """按需 zlib 解压响应 body，**带输出上限**。
 
-    ``zipsize == unzipsize`` 时直接返回原始字节，否则 zlib 解压；长度不符时
-    抛出 :class:`ProtocolError`。
+    ``zipsize == unzipsize`` 时直接返回原始字节，否则用有上限的方式解压
+    （``decompress_limited``）；长度不符时抛 :class:`ProtocolError`。
+
+    !!! warning "为什么不能直接用 ``zlib.decompress``"
+        它会先把全部输出分配出来，之后才比对 ``unzipsize``。一个 8 KB 的异常
+        压缩体可以先解出 8 MiB（内存放大约 1000×）才报错，异常响应因此能造成
+        过量内存分配。加上限后在产出过程中就截断。
     """
 
     if len(raw_body) != header.zipsize:
@@ -105,7 +115,9 @@ def decompress_mac_body(header: MacFrameHeader, raw_body: bytes) -> bytes:
         body = raw_body
     else:
         try:
-            body = zlib.decompress(raw_body)
+            body = decompress_limited(raw_body, MAX_FRAME_UNZIPPED_BYTES)
+        except DecompressLimitError as exc:
+            raise ProtocolError(f"mac frame body 解压超限: {exc}") from exc
         except zlib.error as exc:
             raise ProtocolError(f"mac frame body zlib 解压失败: {exc}") from exc
 
