@@ -151,9 +151,9 @@ eltdx-http \
 | `--tdx-host` | 自动选择 | 单个 7709 主站，格式为 `host:port` |
 | `--tdx-hosts` | 自动选择 | 多个 7709 主站，以逗号分隔 |
 | `--timeout` | `8` | 7709 请求超时秒数 |
-| `--server-count` | `2` | 选用的主站数量 |
-| `--connections-per-server` | 项目默认值 | 每个主站的连接数 |
-| `--pool-size` | 项目默认值 | 连接池大小兼容参数 |
+| `--server-count` | `1` | 选用的主站数量 |
+| `--connections-per-server` | `1` | 每个主站的连接数 |
+| `--pool-size` | `1` | 连接池大小兼容参数；需要并发时显式调整 |
 | `--log-level` | `info` | Uvicorn 日志级别 |
 
 网关应保持单进程运行。不要使用多个 Uvicorn worker；每个 worker 都会各自创建一套 `TdxClient` 和连接池。

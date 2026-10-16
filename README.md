@@ -15,7 +15,7 @@
   <a href="https://pypi.org/project/eltdx/"><img alt="PyPI eltdx" src="https://img.shields.io/pypi/v/eltdx?label=PyPI&amp;color=0969da"></a>
   <a href="https://electkismet.github.io/eltdx/"><img alt="文档站" src="https://img.shields.io/github/actions/workflow/status/electkismet/eltdx/pages.yml?branch=main&amp;label=%E6%96%87%E6%A1%A3"></a>
   <img alt="Python 3.10+" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&amp;logoColor=white">
-  <a href="./LICENSE"><img alt="Research-Only License" src="https://img.shields.io/badge/协议-Research--Only-6f42c1"></a>
+  <a href="./LICENSE"><img alt="Non-Commercial Research License" src="https://img.shields.io/badge/许可-非商业研究-6f42c1"></a>
 </p>
 
 <a href="https://electkismet.github.io/eltdx/">
@@ -36,17 +36,16 @@
 
 > `v3.4.0` 把新发现的**免登录 7615 接口**合并封装：个股 F10 的股东研究、股本结构、经营分析、行业分析、交易数据、最新提示，以及 ETF / 基金、板块、指数、大盘指数 F10，全部收成 8 个按 `section` 分派的方法（旧方法只补 `section`，不新增同义方法）；`client.money_flow.history()` 改走 7615 并支持 3 / 5 / 10 / 20 / 60 日。详见 [v3.4.0 发布说明](docs/releases/v3.4.0.md)。
 
-1. 本项目仅以个人学习、协议研究和非商业研究为目的进行开发。
-2. 本项目基于互联网公开信息搜集开发。
-3. 项目本身、衍生产品及通过本项目获取的数据禁止用于任何商业行为、付费服务、生产服务、转售或其他营利用途，产生的任何数据、损失或法律责任由使用者自负。
-4. 对第三方服务器或服务的访问，用户需自行遵守相关法律法规及服务协议。
-5. 请勿将本项目用于侵犯他人权益、违反监管规定或滥用第三方服务的行为。
+1. 本项目仅以个人学习、协议兼容性与数据解析研究为目的进行开发。
+2. 项目本身、衍生产品及通过本项目获取的数据禁止用于任何商业行为、付费服务、生产服务、转售或其他营利用途，产生的任何数据、损失或法律责任由使用者自负。
+3. 对第三方服务器或服务的访问，用户需自行遵守相关法律法规及服务协议。
+4. 请勿将本项目用于侵犯他人权益、违反监管规定或滥用第三方服务的行为。
 
 感谢 [injoyai/tdx](https://github.com/injoyai/tdx) 及 [rainx/pytdx](https://github.com/rainx/pytdx) 的启发。
 
 ## 功能地图
 
-eltdx 默认按“想拿什么数据”组织入口。普通调用优先使用模块化 API 和 Helpers；只有做协议研究时，才需要直接对照 `7709` 命令或 `7615` Entry。下表的代表调用均来自当前接口文档，点击方法名可直接查看参数、返回字段和同类方法。
+eltdx 默认按“想拿什么数据”组织入口。普通调用优先使用模块化 API 和 Helpers；需要核对底层字段时，再对照 `7709` 命令或 `7615` Entry。下表的代表调用均来自当前接口文档，点击方法名可直接查看参数、返回字段和同类方法。
 
 <p align="center">
   <strong>Python / MCP</strong>
@@ -430,34 +429,34 @@ with TdxClient(timeout=3) as client:
 
 ## 连接、并发和缓存
 
-默认 `TdxClient()` 使用真实 `7709` 行情主站。整个过程可以概括为：先从候选主站中测速排名，再选服务器建立多条 TCP 连接，最后由 Rust Runtime 用少量工作线程驱动这些异步连接。
+默认 `TdxClient()` 使用真实 `7709` 行情主站，并以单个连接、关闭自动测速的保守配置启动。需要多节点或并发请求时，可以显式设置连接池和并发参数。
 
 <p align="center">
-  <strong>43 台候选主站</strong>
+  <strong>可配置的候选主站</strong>
   &nbsp;→&nbsp;
-  <strong>TCP 测速并保存排名</strong>
+  <strong>可选的 TCP 测速</strong>
   &nbsp;→&nbsp;
-  <strong>默认选最快 2 台</strong>
+  <strong>默认使用 1 台</strong>
   &nbsp;→&nbsp;
-  <strong>每台 4 TCP</strong>
+  <strong>默认 1 TCP</strong>
   &nbsp;→&nbsp;
-  <strong>8 Slot</strong>
+  <strong>默认 1 Slot</strong>
   &nbsp;→&nbsp;
   <strong>Runtime 按逻辑 CPU 自动取值</strong>
 </p>
 
-> **核心关系：** `服务器数 × 每台 TCP 连接数 = Slot 总数`。Slot 数是同时可以在网络上处理的请求数，**不是线程数**。例如 20 台 × 每台 8 条 = 160 Slot；如果当前进程可用 16 个逻辑处理器，默认由 16 个 Runtime 工作线程异步驱动。
+> **核心关系：** `服务器数 × 每台 TCP 连接数 = Slot 总数`。默认只有 1 个 Slot；需要并行处理多个请求时，由调用方显式配置服务器数和连接数。
 
 ### 服务器测速与排名
 
-- 不传 `host` / `hosts` 时，读取包内 `tdx_server.json` 的 43 台候选主站。
-- `probe_hosts=True` 默认开启。创建 `TdxClient` 时会阻塞等待普通 43 台和专用 35 台两组候选主站的测速、排序完成；两组地址合并去重后并发探测，再分别保存排名。显式 `host` / `hosts` 只替换普通组，专用组仍供集合竞价和资金流向使用。
+- 不传 `host` / `hosts` 时，客户端使用默认候选主站配置；显式配置会覆盖普通行情节点。
+- `probe_hosts=False` 默认关闭自动测速。需要测量并缓存候选主站延迟时，显式设置 `probe_hosts=True`，或调用 `refresh_server_ranking()`。
 - 测速只打开并关闭临时探测连接，不创建业务 Engine、不做协议握手。进入 `with` 或显式 `connect()` 连接普通池；集合竞价与资金流向的独立池仍在首次请求时按需建连、握手，后续复用连接。
-- 同一客户端生命周期内复用内存排名，首次请求、另一个专用池启动或专用池重新创建都不重复测速。`probe_hosts=False` 跳过两组自动测速，使用已有排名；内存和自定义非池化 transport 不触发测速。单独使用 `PooledSocketTransport` 仍在首次启动 Engine 时测速。
+- 同一客户端生命周期内复用内存排名，不重复测速；内存和自定义非池化 transport 不触发测速。
 - 测速检查的是 TCP connect 延迟，用来快速排除连不上或延迟高的主站；它不等于完整业务请求质量测试。
 - 排名会原子写入当前用户数据目录的 `tdx_server_ranking.json`。下次启动先使用上次排名，然后重新测速刷新；升级 eltdx 不会覆盖这份用户排名。
 
-也可以手动重测全部 43 台候选主站并持久化结果：
+也可以手动重测候选主站并持久化结果：
 
 ```python
 from eltdx.hosts import refresh_server_ranking
@@ -472,7 +471,7 @@ for item in ranking[:10]:
 ```python
 from eltdx import TdxClient
 
-with TdxClient(host="116.205.183.150:7709", timeout=3) as client:
+with TdxClient(host="HOST:PORT", timeout=3) as client:
     print(client.helpers.full_quotes("sz000001"))
 ```
 
@@ -480,9 +479,9 @@ with TdxClient(host="116.205.183.150:7709", timeout=3) as client:
 
 | 场景 | 配置 | 实际含义 |
 | --- | --- | --- |
-| 默认，适合普通查询 | `TdxClient()` | 最快 2 台 × 每台 4 TCP = 8 Slot；Runtime 线程数自动 |
-| 中等并发 | `TdxClient(server_count=4, connections_per_server=8)` | 最快 4 台 × 每台 8 TCP = 32 Slot |
-| 高并发 | `TdxClient(server_count=20, connections_per_server=8)` | 最快 20 台 × 每台 8 TCP = 160 Slot |
+| 默认，适合普通查询 | `TdxClient()` | 1 台 × 1 TCP = 1 Slot；不自动测速 |
+| 显式并发 | `TdxClient(server_count=2, connections_per_server=4)` | 由调用方选择主站数和连接数 |
+| 手动限制建连并发 | `TdxClient(pool_size=8, connect_concurrency=2)` | 建立连接时最多同时进行 2 个握手 |
 | 手动限制 CPU 线程 | `TdxClient(server_count=4, connections_per_server=8, runtime_workers=8)` | 仍为 32 Slot，只让 Rust Runtime 用 8 个 worker 驱动 |
 | 兼容旧配置 | `TdxClient(pool_size=16)` | `pool_size` 仅表示 TCP/Slot 总数，在选中主站之间尽量平均分配 |
 
@@ -490,20 +489,20 @@ with TdxClient(host="116.205.183.150:7709", timeout=3) as client:
 
 | 参数 | 默认 | 控制什么 |
 | --- | --- | --- |
-| `server_count` | `2` | 从测速排名中取前几台服务器 |
-| `connections_per_server` | `4` | 每台选中服务器建几条 TCP，不是每台几个线程 |
-| `pool_size` | 自动为 `server_count × connections_per_server` | TCP/Slot 总数；显式同时传三者时，乘积必须一致 |
+| `server_count` | `1` | 使用的服务器数量 |
+| `connections_per_server` | `1` | 每台选中服务器建立的 TCP 连接数 |
+| `pool_size` | `1` | TCP/Slot 总数；显式同时传三者时，乘积必须一致 |
 | `runtime_workers` | 按 Slot 和逻辑 CPU 自动 | Rust Tokio Runtime 工作线程数 |
 | `max_connections_per_host` | 按初始分布自动 | 单台服务器的活动连接硬上限，重连时也遵守 |
-| `connect_concurrency` | 按 CPU/Slot 自动，单批最高 `32` | 整个 Engine 每批最多同时建立和握手的 TCP 连接数，**不是 Runtime 线程上限** |
-| `connect_concurrency_per_host` | 单批最多 `2` | 每批对同一台服务器最多同时建立 2 条 TCP，也不是线程数 |
-| `probe_hosts` | `True` | 创建客户端时是否对两组候选主站测速、持久化并缓存排名 |
+| `connect_concurrency` | `1` | 建立和握手 TCP 连接时的同时任务数；需要并发时显式提高 |
+| `connect_concurrency_per_host` | `1` | 单台服务器建立 TCP 连接时的同时任务数 |
+| `probe_hosts` | `False` | 是否显式测速并缓存候选主站排名 |
 | `heartbeat_interval` | `30.0` | 后台心跳秒数；`None` 表示关闭 |
 | `max_pending_requests` | `256` | Slot 全忙时允许等待的请求数；满后抛 `PoolBusyError` |
 | `push_queue_size` / `push_queue_bytes` | `1024` 帧 / `64 MiB` | 用户可见 push 缓冲的帧数和字节上限 |
 | `global_raw_bytes` / `global_decoded_bytes` | 随 Slot 自动增长 | Engine 全局内存预算，分别最高 `256 MiB` / `2 GiB`，防止异常流量无限增长 |
 
-160 Slot 并不会一次性拉起 160 次握手：默认每批全局最多同时建立 32 条 TCP，其中对同一台服务器最多 2 条，完成一批后再继续。这个 32 只控制启动时的建连速度；连好后 160 个 Slot 都能异步工作，Runtime 线程数另由 `runtime_workers` 决定。所有连接共享 Engine 级 raw、decoded 和 push 内存预算；达到上限时会限流、丢弃过旧 push 或关闭受影响的 Slot，不会任由队列无限占用内存。
+连接建立默认按顺序进行；显式设置 `connect_concurrency` 后才会提高建连阶段的同时任务数。连接建立完成后，已配置的多个 Slot 可以并行处理请求；`runtime_workers` 只控制 Rust Runtime 的工作线程数。所有连接共享 Engine 级 raw、decoded 和 push 内存预算。
 
 运行时可通过 diagnostics 查看真实线程数、已连主站和内存占用：
 
@@ -616,4 +615,4 @@ print(auction.open_price, auction.open_change_pct, auction.open_amount)
 
 ## 许可证
 
-本项目仅允许个人学习、协议研究和非商业研究使用，禁止一切商业使用和滥用。详细条款见 [LICENSE](LICENSE)。
+本项目仅允许个人学习、协议兼容性与数据解析研究使用，禁止商业使用和滥用。详细条款见 [LICENSE](LICENSE)。

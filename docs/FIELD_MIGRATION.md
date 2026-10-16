@@ -26,9 +26,9 @@ print(data.bars[0].record_hex)
 | --- | --- | --- |
 | `raw_payload_hex` | `raw_payload.hex()` | payload 原始十六进制 |
 | `items[].raw_hex` | `bars[].record_hex` / `points[].record_hex` / `ticks[].record_hex` / `records[].record_hex` | 单条记录原始十六进制 |
-| `raw_frame_hex` | 查看 transport 返回帧或抓包样本 | 业务模型默认保留 payload；完整 TCP 响应帧更适合在 transport / 抓包层查看 |
+| `raw_frame_hex` | 查看 transport 返回帧或原始报文样本 | 业务模型默认保留 payload；完整 TCP 响应帧更适合在 transport 层查看 |
 
-常规字段排查优先看 `raw_payload` 和单条 `record_hex`；需要完整帧时，在 transport / 抓包层取更清楚。
+常规字段排查优先看 `raw_payload` 和单条 `record_hex`；需要完整帧时，在 transport 层查看。
 
 ## 返回集合字段
 

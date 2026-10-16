@@ -10,7 +10,7 @@
 | --- | --- |
 | Python 量化研究者 | 拉取 A 股行情数据，做研究、回测和数据校验 |
 | 数据工程开发者 | 把通达信行情源接入自己的本地数据管道 |
-| 协议研究者 | 在清晰 API 之上继续验证字段、样本和协议细节 |
+| 协议兼容性研究者 | 在清晰 API 之上继续验证字段、样本和协议细节 |
 
 ## 核心价值
 
@@ -58,7 +58,7 @@ with TdxClient(timeout=3) as client:
 需要指定主站、连接池或启动前测速时：
 
 ```python
-with TdxClient(host="116.205.183.150:7709", timeout=3) as client:
+with TdxClient(host="HOST:PORT", timeout=3) as client:
     quote = client.helpers.full_quotes("sz000001")
 
 with TdxClient.from_hosts(pool_size=2, probe_hosts=True, timeout=3) as client:
