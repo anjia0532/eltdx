@@ -425,11 +425,17 @@ def fail(message: str) -> int:
 # ── 输入解析 ────────────────────────────────────────────────────────────
 
 
-def _codes(values: Sequence[str]) -> list[str]:
-    """展开 ``sz000001`` / ``"SZ 000001"`` / ``000001,600519`` 等写法。"""
+def _codes(values: Sequence[str] | str | None) -> list[str]:
+    """展开 ``sz000001`` / ``"SZ 000001"`` / ``000001,600519`` 等写法。
 
+    ``nargs="?"`` 的位置参数拿到的是**裸字符串**（如 ``eltdx kline sh000016``），
+    必须当作单个代码，不能按字符展开；``None``（未传位置参数）按空列表处理。
+    """
+    if values is None:
+        return []
+    items: Sequence[str] = [values] if isinstance(values, str) else values
     out: list[str] = []
-    for value in values:
+    for value in items:
         for chunk in str(value).replace(",", " ").split():
             chunk = chunk.strip()
             if chunk:
@@ -437,7 +443,7 @@ def _codes(values: Sequence[str]) -> list[str]:
     return out
 
 
-def _single_code(values: Sequence[str]) -> str:
+def _single_code(values: Sequence[str] | str | None) -> str:
     codes = _codes(values)
     if len(codes) != 1:
         raise ValueError(f"该命令只接受一个代码，收到 {len(codes)} 个: {codes}")
@@ -1027,7 +1033,7 @@ def cmd_ex(args: argparse.Namespace) -> int:
         if args.action == "info":
             return emit(args, client.get_instrument_info(args.start, args.count))
         if args.action == "quote":
-            return emit(args, client.get_instrument_quote(_require(args.market), args.code))
+            return emit(args, client.get_instrument_quote(_require(args.market), _single_code(args.code)))
         if args.action == "quote-list":
             return emit(
                 args,
@@ -1039,17 +1045,17 @@ def cmd_ex(args: argparse.Namespace) -> int:
             return emit(
                 args,
                 client.get_instrument_bars(
-                    _require(args.category), _require(args.market), args.code,
+                    _require(args.category), _require(args.market), _single_code(args.code),
                     args.start, args.count,
                 ),
             )
         if args.action == "minute":
-            return emit(args, client.get_minute_time_data(_require(args.market), args.code))
+            return emit(args, client.get_minute_time_data(_require(args.market), _single_code(args.code)))
         if args.action == "txn":
             return emit(
                 args,
                 client.get_transaction_data(
-                    _require(args.market), args.code, args.start, args.count
+                    _require(args.market), _single_code(args.code), args.start, args.count
                 ),
             )
         raise ValueError(f"未知的 ex 子命令: {args.action}")  # pragma: no cover
