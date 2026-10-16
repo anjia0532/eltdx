@@ -32,7 +32,9 @@ from eltdx.mac.bitmap import (
     FieldBit,
     PresetField,
     build_bitmap,
+    count_set_bits,
     get_active_fields,
+    iter_set_bits,
 )
 from eltdx.mac.client import MacClient, convert_board_code
 from eltdx.mac.codec import build_mac_request, decompress_mac_body, parse_mac_header
@@ -56,8 +58,14 @@ from eltdx.mac.commands import (
     TickChartsCmd,
     UnusualCmd,
 )
-from eltdx.mac.enums import Adjust, BoardType, Period
+from eltdx.mac.enums import Adjust, BoardType, Category, Period
 from eltdx.mac.hosts import MAC_HOSTS, MAC_PORT, MAC_TIMEOUT
+from eltdx.mac.models import BoardInfo, MacQuoteField
+from eltdx.protocol.decompress import (
+    MAX_FRAME_UNZIPPED_BYTES,
+    DecompressLimitError,
+    decompress_limited,
+)
 from eltdx.mac.models import MacBar
 from eltdx.mac.transport import SETUP_COMMANDS, MacConnection, ping_mac_all, ping_mac_host
 
@@ -423,6 +431,114 @@ def test_parse_board_members_quotes() -> None:
     assert len(res) == 1
     assert res[0].code == "600000"
     assert res[0].fields["close"] == 10.5
+
+
+# --------------------------------------------------------------------------- #
+# 响应含未知字段时的槽位对齐（静默错价回归）
+# --------------------------------------------------------------------------- #
+
+#: 本模块未定义的位（线上可能有新字段置位）。取 0x2F：0x11 < 0x2F < 0x3f，
+#: 能把两个已知字段夹在中间，从而暴露「未知位挤掉后续字段」的错位。
+_UNKNOWN_BIT = 0x2F
+assert _UNKNOWN_BIT not in FieldBit._value2member_map_
+assert FieldBit.BID_PRICE.value < _UNKNOWN_BIT < FieldBit.PERCENT_BASE.value
+
+
+def _quotes_body_with_unknown_field(rows: list[tuple[float, float, int]]) -> bytes:
+    """构造含未知置位位的 symbol_quotes 响应体。
+
+    线上按**位序**下发槽位，所以每行的三个值依次是
+    ``BID_PRICE / <未知字段> / PERCENT_BASE``。
+    """
+
+    bitmap = (
+        (1 << FieldBit.BID_PRICE.value)
+        | (1 << _UNKNOWN_BIT)
+        | (1 << FieldBit.PERCENT_BASE.value)
+    ).to_bytes(16, "little")
+    body = bytes(bitmap) + b"\x00" * 4
+    body += struct.pack("<IH", len(rows), len(rows))
+    for bid, unknown, percent_base in rows:
+        body += struct.pack("<H22s44s", 0, b"600000", "浦发银行".encode("gbk"))
+        body += struct.pack("<f", bid)
+        body += struct.pack("<f", unknown)  # 未知字段的槽位，客户端不应命名它
+        body += struct.pack("<I", percent_base)
+    return body
+
+
+def test_symbol_quotes_unknown_field_does_not_shift_known_fields() -> None:
+    """未知置位字段占槽位，后续已知字段不得位移。
+
+    回归：旧实现用 ``get_active_fields()`` 的长度算行宽、并按已知字段序号取偏移，
+    未知字段被完全忽略 —— ``PERCENT_BASE`` 于是读到未知槽位的位模式（实测
+    ``1120402145`` 而非 ``63``），且不抛任何异常。
+    """
+
+    body = _quotes_body_with_unknown_field([(11.11, 99.99, 63)])
+    res = SymbolQuotesCmd([(0, "600000")]).parse_response(body)
+    assert len(res) == 1
+    assert res[0].fields["bid_price"] == pytest.approx(11.11)
+    assert res[0].fields["percent_base"] == 63
+    # 未知字段不产出任何键
+    assert set(res[0].fields) == {"bid_price", "percent_base"}
+
+
+def test_symbol_quotes_unknown_field_keeps_row_alignment() -> None:
+    """多行记录时，未知字段不能让第 2 行整体错位。"""
+
+    body = _quotes_body_with_unknown_field([(11.11, 99.9, 63), (22.22, 88.8, 64)])
+    res = SymbolQuotesCmd([(0, "600000")]).parse_response(body)
+    assert len(res) == 2
+    assert res[0].fields["bid_price"] == pytest.approx(11.11)
+    assert res[0].fields["percent_base"] == 63
+    assert res[1].fields["bid_price"] == pytest.approx(22.22)
+    assert res[1].fields["percent_base"] == 64
+
+
+def test_board_members_unknown_field_does_not_shift_known_fields() -> None:
+    """0x122C 走同样的位图解析，必须同样按槽位对齐。"""
+
+    body = _quotes_body_with_unknown_field([(11.11, 99.9, 63), (22.22, 88.8, 64)])
+    res = BoardMembersQuotesCmd(881001).parse_response(body)
+    assert len(res) == 2
+    assert res[0].fields["bid_price"] == pytest.approx(11.11)
+    assert res[1].fields["percent_base"] == 64
+
+
+def test_row_width_counts_all_set_bits() -> None:
+    """行宽按全部置位位算，不是按已知字段数算。"""
+
+    bitmap = (
+        (1 << FieldBit.BID_PRICE.value)
+        | (1 << _UNKNOWN_BIT)
+        | (1 << FieldBit.PERCENT_BASE.value)
+    ).to_bytes(16, "little")
+    assert count_set_bits(bitmap) == 3
+    assert len(get_active_fields(bitmap)) == 2  # 已知字段只有 2 个
+
+
+def test_iter_set_bits_yields_unknown_slots_without_shifting() -> None:
+    """``iter_set_bits`` 必须为未知位也产出槽位序号。"""
+
+    bitmap = (
+        (1 << FieldBit.BID_PRICE.value)
+        | (1 << _UNKNOWN_BIT)
+        | (1 << FieldBit.PERCENT_BASE.value)
+    ).to_bytes(16, "little")
+    slots = list(iter_set_bits(bitmap))
+    assert [slot for slot, _, _ in slots] == [0, 1, 2]
+    assert slots[0][1] is FieldBit.BID_PRICE
+    assert slots[1][1] is None  # 未知位：占槽但无字段
+    assert slots[2][1] is FieldBit.PERCENT_BASE
+
+
+def test_bit_zero_field_is_not_treated_as_unknown() -> None:
+    """``PRE_CLOSE`` 的位值是 0：任何 ``if field`` 式判断都会把它误判成未知。"""
+
+    bitmap = (1 << 0).to_bytes(16, "little")
+    slots = list(iter_set_bits(bitmap))
+    assert len(slots) == 1
+    assert slots[0][1] is FieldBit.PRE_CLOSE
 
 
 def test_parse_board_list() -> None:
@@ -1050,3 +1166,267 @@ def test_ensure_connected_fails_over_when_current_host_is_dead() -> None:
 
     assert client.host == "10.0.0.2"
     client.close()
+
+
+# --------------------------------------------------------------------------- #
+# 报价分页：条数与跨页顺序（静默错序回归）
+# --------------------------------------------------------------------------- #
+
+
+class _PagingStub(MacClient):
+    """按 ``(start, page_size)`` 合成行情，并记录每次请求。"""
+
+    def __init__(self) -> None:
+        super().__init__(hosts=["x"])
+        self.page_requests: list[tuple[int, int]] = []
+
+    def _execute(self, cmd):  # type: ignore[override]
+        start, page_size = cmd._start, cmd._page_size
+        self.page_requests.append((start, page_size))
+        return [
+            _make_quote(start + i) for i in range(page_size)
+        ]
+
+
+def _make_quote(index: int) -> MacQuoteField:
+    return MacQuoteField(
+        market=0, code=f"{index:06d}", name="x", fields={"close": float(index)}
+    )
+
+
+def test_stock_quotes_list_last_page_does_not_overfetch() -> None:
+    """回归：最后一页必须按**剩余条数**请求，不能固定 80。
+
+    旧实现把 ``page_size`` 算在循环外，``count=100`` 时两页各取 80 条 → 返回 160 条。
+    """
+
+    stub = _PagingStub()
+    out = stub.get_stock_quotes_list(Category.A, 0, 100)
+    assert stub.page_requests == [(0, 80), (80, 20)]
+    assert len(out) == 100
+
+
+def test_stock_quotes_list_preserves_server_order_across_pages() -> None:
+    """跨页必须顺序拼接，不能整页前插把第 2 页排到最前。"""
+
+    stub = _PagingStub()
+    out = stub.get_stock_quotes_list(Category.A, 0, 100)
+    assert [q.code for q in out[:3]] == ["000000", "000001", "000002"]
+    assert [q.code for q in out[-3:]] == ["000097", "000098", "000099"]
+
+
+def test_board_members_preserves_server_order_across_pages() -> None:
+    """``get_board_members`` 同样不能整页前插。"""
+
+    stub = _PagingStub()
+    out = stub.get_board_members("881001", count=100)
+    assert len(out) == 100
+    assert [q.code for q in out[:2]] == ["000000", "000001"]
+    assert out[-1].code == "000099"
+
+
+@pytest.mark.parametrize(
+    ("count", "expected_requests"),
+    [
+        (30, [(0, 30)]),  # 少于一页
+        (80, [(0, 80)]),  # 恰好一页
+        (160, [(0, 80), (80, 80)]),  # 整除页大小
+        (100, [(0, 80), (80, 20)]),  # 不能整除
+    ],
+)
+def test_paging_request_shapes(count: int, expected_requests: list[tuple[int, int]]) -> None:
+    stub = _PagingStub()
+    out = stub.get_stock_quotes_list(Category.A, 0, count)
+    assert stub.page_requests == expected_requests
+    assert len(out) == count
+
+
+def test_paging_respects_non_zero_start() -> None:
+    stub = _PagingStub()
+    out = stub.get_stock_quotes_list(Category.A, 200, 100)
+    assert stub.page_requests == [(200, 80), (280, 20)]
+    assert out[0].code == "000200"
+    assert out[-1].code == "000299"
+
+
+def test_paging_stops_when_server_returns_short_page() -> None:
+    """服务端返回不足一页时应停止，不再继续请求。"""
+
+    class _ShortPage(MacClient):
+        def __init__(self) -> None:
+            super().__init__(hosts=["x"])
+            self.calls = 0
+
+        def _execute(self, cmd):  # type: ignore[override]
+            self.calls += 1
+            return [_make_quote(i) for i in range(10)]
+
+    stub = _ShortPage()
+    out = stub.get_stock_quotes_list(Category.A, 0, 100)
+    assert stub.calls == 1
+    assert len(out) == 10
+
+
+# --------------------------------------------------------------------------- #
+# 板块排行榜：先按目标指标排序再截断（静默错排回归）
+# --------------------------------------------------------------------------- #
+
+
+def _board(code: str, name: str, price: float, pre_close: float) -> BoardInfo:
+    return BoardInfo(
+        market=0,
+        code=code,
+        name=name,
+        price=price,
+        rise_speed=(price - pre_close) / pre_close * 100,
+        pre_close=pre_close,
+        symbol_market=0,
+        symbol_code="000000",
+        symbol_name="x",
+        symbol_price=0.0,
+        symbol_rise_speed=0.0,
+        symbol_pre_close=0.0,
+    )
+
+
+#: 三个板块刻意让「涨幅最高」与「成交额最高」不是同一个。
+_RANKING_BOARDS = [
+    _board("880001", "涨幅王", 10.9, 10.0),  # change_pct 最高
+    _board("880002", "成交额王", 10.2, 10.0),  # amount / main_net_amount 最高
+    _board("880003", "中间", 10.3, 10.0),
+]
+
+_RANKING_METRICS = {
+    "880001": {"amount": 100.0, "vol": 1, "main_net_amount": 1},
+    "880002": {"amount": 9999.0, "vol": 2, "main_net_amount": 50},
+    "880003": {"amount": 500.0, "vol": 3, "main_net_amount": 3},
+}
+
+
+class _RankingStub(MacClient):
+    def __init__(self) -> None:
+        super().__init__(hosts=["x"])
+        self.summarized: list[str] = []
+
+    def get_board_list(self, board_type=None):  # type: ignore[override]
+        return list(_RANKING_BOARDS)
+
+    def get_board_summary(self, board_symbol, sort_type=None, sort_order=None):  # type: ignore[override]
+        self.summarized.append(board_symbol)
+        metrics = _RANKING_METRICS[board_symbol]
+        return {
+            "amount": metrics["amount"],
+            "vol": metrics["vol"],
+            "main_net_amount": metrics["main_net_amount"],
+            "up_count": 0,
+            "down_count": 0,
+            "member_count": 10,
+        }
+
+
+def test_board_ranking_by_amount_returns_highest_amount_board() -> None:
+    """回归：``sort_by="amount"`` 必须返回成交额最高的板块。
+
+    旧实现先按涨幅截断 ``top_n`` 再按成交额重排，「涨幅最高但成交额低」的板块
+    在第一轮就被丢弃，排行给出的不是目标指标的前 N 名。
+    """
+
+    rows = _RankingStub().get_board_ranking(top_n=1, sort_by="amount")
+    assert [r["name"] for r in rows] == ["成交额王"]
+    assert rows[0]["amount"] == 9999.0
+
+
+@pytest.mark.parametrize(
+    ("sort_by", "expected"),
+    [
+        ("amount", "成交额王"),
+        ("main_net_amount", "成交额王"),
+        ("vol", "中间"),
+        ("change_pct", "涨幅王"),
+    ],
+)
+def test_board_ranking_respects_every_sort_key(sort_by: str, expected: str) -> None:
+    rows = _RankingStub().get_board_ranking(top_n=1, sort_by=sort_by)
+    assert [r["name"] for r in rows] == [expected]
+
+
+def test_board_ranking_change_pct_keeps_fast_path() -> None:
+    """涨跌幅可直接从板块列表得到，只需聚合 ``top_n`` 个。"""
+
+    stub = _RankingStub()
+    rows = stub.get_board_ranking(top_n=2, sort_by="change_pct")
+    assert len(rows) == 2
+    assert len(stub.summarized) == 2
+
+
+def test_board_ranking_other_keys_must_aggregate_all_boards() -> None:
+    """其余指标必须聚合全部板块才能排序 —— 请求变多是拿到正确排名的代价。"""
+
+    stub = _RankingStub()
+    rows = stub.get_board_ranking(top_n=1, sort_by="amount")
+    assert len(rows) == 1
+    assert len(stub.summarized) == len(_RANKING_BOARDS)
+
+
+def test_board_ranking_ascending() -> None:
+    rows = _RankingStub().get_board_ranking(top_n=1, sort_by="amount", ascending=True)
+    assert [r["name"] for r in rows] == ["涨幅王"]
+
+
+def test_board_ranking_top_n_truncates_after_sorting() -> None:
+    rows = _RankingStub().get_board_ranking(top_n=2, sort_by="amount")
+    assert [r["name"] for r in rows] == ["成交额王", "中间"]
+
+
+def test_board_ranking_rejects_unknown_sort_key() -> None:
+    with pytest.raises(ValueError):
+        _RankingStub().get_board_ranking(sort_by="bogus")
+
+
+# --------------------------------------------------------------------------- #
+# 解压输出上限（内存放大防护）
+# --------------------------------------------------------------------------- #
+
+
+def test_decompress_mac_body_rejects_zip_bomb_before_allocating() -> None:
+    """异常压缩体必须在**产出过程中**被截断，而不是先解完再报错。
+
+    回归：``zlib.decompress`` 会把 8 KiB 压缩体完整解成 8 MiB（放大约 1000×）
+    之后才抛「长度不符」，异常响应因此能造成过量内存分配。
+    """
+
+    bomb = zlib.compress(b"\x00" * (8 * 1024 * 1024), 9)
+    assert len(bomb) < 16 * 1024  # 压缩体很小
+    hdr = parse_mac_header(
+        struct.pack("<IIIHH", 7654321, 1, 0, len(bomb), MAX_FRAME_UNZIPPED_BYTES)
+    )
+    with pytest.raises(ProtocolError, match="解压超限"):
+        decompress_mac_body(hdr, bomb)
+
+
+def test_decompress_mac_body_accepts_body_just_under_limit() -> None:
+    """接近上限的合法响应仍要正常解出。"""
+
+    payload = b"\x01" * (MAX_FRAME_UNZIPPED_BYTES - 100)
+    comp = zlib.compress(payload, 9)
+    hdr = parse_mac_header(
+        struct.pack("<IIIHH", 7654321, 1, 0, len(comp), len(payload))
+    )
+    assert decompress_mac_body(hdr, comp) == payload
+
+
+def test_decompress_limited_returns_output_within_limit() -> None:
+    data = zlib.compress(b"payload" * 100, 9)
+    assert decompress_limited(data, MAX_FRAME_UNZIPPED_BYTES) == b"payload" * 100
+
+
+def test_decompress_limited_raises_on_oversized_output() -> None:
+    data = zlib.compress(b"\x00" * (1024 * 1024), 9)
+    with pytest.raises(DecompressLimitError):
+        decompress_limited(data, 4096)
+
+
+def test_max_frame_unzipped_matches_header_field_width() -> None:
+    """上限应与帧头 unzipsize 的 2 字节宽度一致（<IIIHH）。"""
+
+    assert MAX_FRAME_UNZIPPED_BYTES == 0xFFFF

@@ -13,7 +13,7 @@ from typing import TypeVar, cast
 
 from .._command import BaseCommand
 from ._binary import require_bytes, unpack_from
-from .bitmap import Fields, PresetField, build_bitmap, get_active_fields
+from .bitmap import Fields, PresetField, build_bitmap, count_set_bits, iter_set_bits
 from .codec import build_mac_request
 from .enums import Adjust, BoardType, FilterType, Period, SortOrder, SortType
 from .models import (
@@ -88,9 +88,9 @@ class SymbolQuotesCmd(BaseCommand[list[MacQuoteField]]):
         (_total_stocks, row_count) = unpack_from("<IH", body, pos, "symbol_quotes header")
         pos += 6
 
-        active = get_active_fields(field_bitmap[:16])
-        field_count = len(active)
-        row_len = 68 + 4 * field_count
+        # 行宽按**全部置位位**算，未知字段在线上也占 4 字节槽位；不能只数已知字段。
+        slots = list(iter_set_bits(field_bitmap[:16]))
+        row_len = 68 + 4 * count_set_bits(field_bitmap[:16])
 
         results: list[MacQuoteField] = []
         for _ in range(row_count):
@@ -104,8 +104,11 @@ class SymbolQuotesCmd(BaseCommand[list[MacQuoteField]]):
                 "<H22s44s", row_data, 0, "symbol_quotes row"
             )
             fields_dict: dict[str, object] = {}
-            for idx, (field_bit, fmt) in enumerate(active):
-                value_bytes = row_data[68 + idx * 4 : 68 + (idx + 1) * 4]
+            for slot, field_bit, fmt in slots:
+                if field_bit is None:
+                    # 未知字段：槽位照占，但没有可命名的键。
+                    continue
+                value_bytes = row_data[68 + slot * 4 : 68 + (slot + 1) * 4]
                 (value,) = struct.unpack(fmt, value_bytes)
                 from .bitmap import FIELD_POSTPROCESS
 
@@ -173,9 +176,8 @@ class BoardMembersQuotesCmd(BaseCommand[list[MacQuoteField]]):
         resp_bitmap = body[:20]
         (_total, row_count) = unpack_from("<IH", body, 20, "board_members header")
 
-        active_fields = get_active_fields(resp_bitmap[:16])
-        field_count = len(active_fields)
-        row_len = 68 + field_count * 4
+        active_slots = list(iter_set_bits(resp_bitmap[:16]))
+        row_len = 68 + count_set_bits(resp_bitmap[:16]) * 4
 
         results: list[MacQuoteField] = []
         for i in range(row_count):
@@ -185,8 +187,13 @@ class BoardMembersQuotesCmd(BaseCommand[list[MacQuoteField]]):
             name_raw = body[row_start + 24 : row_start + 68]
 
             fields_dict: dict[str, object] = {}
-            for idx, (field_bit, fmt) in enumerate(active_fields):
-                val_bytes = body[row_start + 68 + idx * 4 : row_start + 68 + (idx + 1) * 4]
+            for slot, field_bit, fmt in active_slots:
+                if field_bit is None:
+                    # 未知字段槽位照占，但不产出键。
+                    continue
+                val_bytes = body[
+                    row_start + 68 + slot * 4 : row_start + 68 + (slot + 1) * 4
+                ]
                 if len(val_bytes) < 4:
                     break
                 (value,) = struct.unpack(fmt, val_bytes)
