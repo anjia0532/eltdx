@@ -610,7 +610,7 @@ print(response.rows[:3])
 | `industry_analysis(code, section="peers", *, arg="")` | 10 | `CWServ.tdxf10_gg_hyfx`（`comparable` / `comparable_profile` 走 `CWServ.tdxf10_gg_kbgs`） |
 | `trading_report(code, section="margin", *, arg="", date=None, page=1, page_size=20)` | 11 | `CWServ.tdxf10_gg_jyds`（`margin_history` 走 `CWServ.tdxf10_gg_sj`） |
 | `fund_report(code, section="basic", *, arg="", date=None, page=1, page_size=20)` | 30 | `CWServ.skef10_jj_*` |
-| `market_report(code="", section="board_info", *, arg="", date=None, page=1, page_size=20)` | 22 | `CWServ.skef10_bk_*` / `skef10_zs_*` / `skef10_dpzx_*` |
+| `market_report(code="", section="board_info", *, arg="", date=None, page=1, page_size=20)` | 26 | `CWServ.skef10_bk_*` / `skef10_zs_*` / `skef10_dpzx_*` |
 | `profit_forecast(code, section="ylyctj")` | 5 | `CWServ.tdxf10_gg_ybpj` |
 | `digest(code, section="tips", *, page=1, page_size=20)` | 8 | `CWServ.tdxf10_gg_zxts`（`interaction` 走 `CWServ.tdxf10_gg_zxtstzzhd`） |
 

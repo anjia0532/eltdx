@@ -112,9 +112,10 @@ F10 走 `7615/TQLEX` HTTP 网关，**不需要 7709 连接**；个股、ETF / �
 | `forecast` | 盈利预测与评级（`--section` 选分区） |
 | `score` / `topics` / `topic-compare` | 个股总评 / 热点题材 / 题材内对比 |
 | `news` / `northbound` / `ranking` / `valuation` / `detail` | 公司资讯（含 `finance_review` 财报点评）/ 沪深股通 / 排名 / 估值 / 详情正文 |
+| `board-members` | 板块分红成份（自动翻页按记录身份去重；一行 = 一条分红记录，证券清单看 `full_code` 去重） |
 | `limit-board` | 涨跌停列表（`--date`） |
 | `fund` | ETF / 场外基金 30 个分区（`industry_allocation` / `bond_allocation` / `futures_allocation` 不传 `--date` 自动取最新报告期） |
-| `market` | 板块 / 指数 / 大盘 22 个分区（`market_new_shares` / `market_capital` 可省略 CODE；指数两融用 `market_margin_summary` / `market_margin_investors`） |
+| `market` | 板块 / 指数 / 大盘 26 个分区（`market_new_shares` / `market_capital` / `ipo_calendar` 可省略 CODE；指数两融用 `market_margin_summary` / `market_margin_investors`；指数估值用 `index_valuation`） |
 
 | 选项 | 说明 |
 | --- | --- |
@@ -132,6 +133,7 @@ eltdx f10 digest 688004 --section events --output table
 eltdx f10 trading 688004 --section limit_up --output jsonl
 eltdx f10 fund 510300 --section dividends
 eltdx f10 market 880472 --section board_flow --arg 001_1
+eltdx f10 board-members 880472 --page-size 100 -o table
 eltdx f10 market --section market_new_shares        # 无需 CODE
 eltdx f10 call --entry CWServ.tdxf10_gg_gdyj --params '["688004","gdrs","","","1","1","20"]'
 ```
@@ -140,6 +142,34 @@ eltdx f10 call --entry CWServ.tdxf10_gg_gdyj --params '["688004","gdrs","","","1
 F10 不接受 `--host`（它是 HTTP 网关，不是 7709 主站），需要换网关时用 `--base-url`。
 `--output table / csv / jsonl` 会把 TQLEX 回包里的结果集**展开成数据行**（多结果集按顺序拼接）；
 默认的 `-o json` 保留完整回包（`entry` / `request_body` / `result_sets` / `raw`），便于排查；只要原始回包时用 `eltdx f10 call`。
+
+### 指数与新股（7615 F10）
+
+不需要 7709 连接，也不需要启动通达信客户端。
+
+| 命令 | 说明 |
+| --- | --- |
+| `index members CODE` | 指数成份股清单（自动翻页拉全；服务端不返回权重） |
+| `index etfs CODE` | 跟踪某个指数的全部产品（ETF / LOF / 场外基金） |
+| `ipo` | 近期新股列表（申购日、发行价、募资额） |
+
+| 选项 | 说明 |
+| --- | --- |
+| `--first-page` | 只取第一页，不自动翻页 |
+| `--page-size N` | 每页条数，默认 `100`（服务端上限） |
+| `--etf-only` | `etfs` 时只保留场内 ETF 号段（51/56/58/15/159/16 开头） |
+| `--base-url URL` | 覆盖 TQLEX 网关地址（默认 `static.tdx.com.cn:7615`） |
+
+```bash
+eltdx index members 000905 -o table
+eltdx index etfs 000300 --etf-only --page-size 50
+eltdx index members 000001 --first-page --output jsonl
+eltdx ipo -o table
+```
+
+实测样本量：`000300` 成份 300 只 / 跟踪产品 299 只，`000905` 成份 500 只，`399006` 100 只，
+`000001` 2229 只；`ipo` 约 50 行，覆盖沪深北三市。成份权重必须用通达信客户端，见
+[TDX_TQ_CAPABILITY_MAP.md](TDX_TQ_CAPABILITY_MAP.md)。
 
 ### 扩展行情 7727
 

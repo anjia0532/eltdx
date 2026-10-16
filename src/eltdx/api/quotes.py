@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
+from typing import Any
 
 from .base import ApiBase
+from .subscription import ErrorCallback, QuoteCallback, QuoteSubscription
 
 
 class QuoteApi(ApiBase):
@@ -67,3 +69,52 @@ class QuoteApi(ApiBase):
         if parse and resolver is not None:
             return [resolver("refresh_stream", item, None) for item in result]
         return result
+
+    def subscribe(
+        self,
+        codes: str | Iterable[str],
+        callback: QuoteCallback,
+        *,
+        timeout: float = 0.5,
+        filter_codes: bool = True,
+        on_error: ErrorCallback | None = None,
+        reactivate_interval: float | None = None,
+    ) -> QuoteSubscription:
+        """订阅一组代码的实时行情推送（对齐 TQ ``subscribe_hq`` 心智模型）。
+
+        ``refresh`` 激活 + ``poll_push`` 轮询的组合封装：服务端每推来一帧，
+        就按代码派发给 ``callback(record)``，``record`` 为
+        :class:`eltdx.models.quote.QuoteRefreshRecord`。
+
+        Args:
+            codes: 单个代码或代码序列（``sh600000`` / ``sz000001`` 形式）。
+            callback: 每条记录触发一次。
+            timeout: 单次轮询的阻塞超时（秒），默认 0.5。
+            filter_codes: 只派发订阅代码的记录，默认开启。
+            on_error: 轮询或回调抛错时的兜底回调。
+            reactivate_interval: 定期重新激活订阅的间隔（秒），默认不续期。
+
+        Returns:
+            :class:`eltdx.api.subscription.QuoteSubscription` 句柄，
+            调用 ``run()`` 阻塞轮询或 ``run_once()`` 单轮派发。
+        """
+
+        return QuoteSubscription(
+            self,
+            codes,
+            callback,
+            timeout=timeout,
+            filter_codes=filter_codes,
+            on_error=on_error,
+            reactivate_interval=reactivate_interval,
+        )
+
+    def subscribe_hq(
+        self,
+        codes: str | Iterable[str],
+        callback: QuoteCallback,
+        **kwargs: Any,
+    ) -> QuoteSubscription:
+        """:meth:`subscribe` 的别名，对齐通达信 TQ 的 ``subscribe_hq`` 命名。"""
+
+        return self.subscribe(codes, callback, **kwargs)

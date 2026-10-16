@@ -12,6 +12,7 @@ from .money_flow import MoneyFlowApi
 from .quotes import QuoteApi
 from .resources import ResourceApi
 from .session import SessionApi
+from .subscription import QuoteSubscription
 from .trades import TradeApi
 
 __all__ = [
@@ -24,6 +25,7 @@ __all__ = [
     "MinuteApi",
     "MoneyFlowApi",
     "QuoteApi",
+    "QuoteSubscription",
     "ResourceApi",
     "SessionApi",
     "TradeApi",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -426,8 +427,17 @@ class _RecordingF10:
         self.calls: list[tuple[str, tuple, dict]] = []
 
     def __getattr__(self, name: str):
-        def recorder(*args: object, **kwargs: object) -> dict[str, object]:
+        def recorder(*args: object, **kwargs: object) -> object:
             self.calls.append((name, args, kwargs))
+            if name == "board_members":
+                # board-members action 会展开 rows，给一个最小可迭代表结构。
+                row = SimpleNamespace(
+                    code="600030", full_code="sh600030", name="中信证券",
+                    dividend_plan="10派2.50元", progress="实施",
+                    announce_date="2026-06-30", record_date="2026-07-15",
+                    ex_date="2026-07-15", report_period="20251231",
+                )
+                return SimpleNamespace(rows=[row], total=1)
             return {"method": name}
 
         return recorder
@@ -544,6 +554,12 @@ def _record_f10(monkeypatch: pytest.MonkeyPatch) -> _RecordingF10:
             {"section": "market_new_shares", "arg": "", "date": None, "page": 1, "page_size": 20},
         ),
         (["f10", "detail", "xw", "22075813"], "detail", ("xw", "22075813"), {}),
+        (
+            ["f10", "board-members", "880472", "--page-size", "100"],
+            "board_members",
+            ("880472",),
+            {"all_pages": True, "page_size": 100},
+        ),
         (
             ["f10", "call", "--entry", "CWServ.tdxf10_gg_gdyj", "--params", '["688004","gdrs"]'],
             "call",

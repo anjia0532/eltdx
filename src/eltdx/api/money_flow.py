@@ -234,7 +234,9 @@ class MoneyFlowApi(ApiBase):
         返回模型的 ``rows`` **原样保留**服务端 ``N00x`` 列（不做语义臆测）：
         ``N001`` 日期、``N002`` 代码、``N003`` 名称、``N004`` 主力净额、
         ``N005`` 超大单净买入、``N006`` 大单净买入、``N007`` 主买净额、
-        ``N009`` 上市日期。行序即服务端顺序。
+        ``N009`` 上市日期。行序统一为**日期降序（最新在前）**——服务端原始回包
+        是升序，客户端已反转，与 :meth:`daily`（``records[0]`` 即最新交易日）
+        及 F10 其它日期序列口径一致。
         """
 
         _validate_batch_size(batch_size)
@@ -291,7 +293,12 @@ class MoneyFlowApi(ApiBase):
             str(days),
             split_code(code)[2],
         )
-        rows = tuple(response.rows)
+        # 服务端回包是日期升序（最旧在前，2026-10-15 实测 days=10 首行
+        # 2026-09-23、末行 2026-10-14）。统一反转为「最新在前」，与
+        # daily()（0x0ffc，records[0] 即最新交易日）和 F10 其它日期序列
+        # （ipo_calendar / market_margin_summary / index_members）口径一致；
+        # 反转后下面的 start / count 切片（距最新偏移）语义才成立。
+        rows = tuple(reversed(response.rows))
         window = rows[start:] if count is None else rows[start : start + count]
         payload = b""
         if include_raw:

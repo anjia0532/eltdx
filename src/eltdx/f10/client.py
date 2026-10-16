@@ -16,9 +16,17 @@ from eltdx.protocol.unit import split_code
 from ._http import open_ipv4_first
 
 from .models import (
+    BoardMember,
+    BoardMemberTable,
     F10Cell,
     F10Response,
     F10ResultSet,
+    IndexMember,
+    IndexMemberTable,
+    IndexTrackingProduct,
+    IndexTrackingTable,
+    IpoCalendar,
+    IpoEntry,
     LimitBoardLadder,
     LimitBoardLadderRow,
 )
@@ -40,6 +48,17 @@ _FUND_REPORT_PERIOD_ENTRIES: dict[str, str] = {
 _MARKET_REPORT_CODELESS_SECTIONS: frozenset[str] = frozenset(
     {"market_new_shares", "market_capital"}
 )
+
+#: ``market_report`` 的语义别名。底层 Entry 名沿用了客户端页面叫法（例如成份股清单
+#: 挂在 ``index_flow_members``「成份股资金」下），别名让调用方按语义取名。
+_MARKET_REPORT_SECTION_ALIASES: dict[str, str] = {
+    "index_members": "index_flow_members",
+    "index_etfs": "index_tracking",
+    "ipo_calendar": "market_new_shares",
+}
+
+#: 分页拉取时的单页条数上限（服务端实测接受 100）。
+_MAX_PAGE_SIZE = 100
 
 
 class F10Client:
@@ -515,7 +534,12 @@ class F10Client:
         （``arg`` 默认 ``"001"``）；``board_analysis`` 板块三点分析；
         ``board_finance_compare`` 成份股财务对比；``board_candidates`` 成份股候选数据
         （``arg`` 默认 ``"001"``）；``board_trend`` 板块异动分析；
-        ``index_info`` 指数信息；``index_profile`` 指数概况；``index_tracking`` 跟踪标的；
+        ``index_info`` 指数信息；``index_profile`` 指数概况；``index_valuation`` 指数估值快照
+        （Entry ``CWServ.skef10_zs_jbxx_gzxx``，Params ``["001", code, "", ""]``：``N001`` 市盈率TTM /
+        ``N002`` 市盈率LYR / ``N003`` 市净率MRQ / ``N004`` 市净率加权 / ``N005`` 市销率TTM /
+        ``N006`` 市销率LYR / ``N007`` 市现率TTM / ``N008`` 市现率LYR / ``N009`` 股息率% /
+        ``N010`` 净资产收益率（按板块版 ``board_analysis`` 同名列推断）/
+        ``N010__2`` 报告期（服务端两列同名 ``N010``，解析时加 ``__2`` 区分））；``index_tracking`` 跟踪标的；
         ``index_flow`` 指数资金动向（``arg`` 默认 ``"004_1"``）；
         ``index_flow_members`` 成份股资金（``arg`` 默认 ``"001"``）；
         ``index_notices`` 今日提示（``arg`` 默认 ``"001"``）；
@@ -536,9 +560,14 @@ class F10Client:
         ``market_new_shares`` 与 ``market_capital`` 不需要 ``code``（可省略或传空串）；
         ``page`` / ``page_size`` 仅对集合类 section 有效。
 
+        语义别名：``index_members`` = ``index_flow_members``（成份股清单）、
+        ``index_etfs`` = ``index_tracking``（跟踪标的）、
+        ``ipo_calendar`` = ``market_new_shares``（新股）。
+
         返回模型：:class:`eltdx.f10.models.F10Response`。
         """
 
+        section = _MARKET_REPORT_SECTION_ALIASES.get(section, section)
         code_less = section in _MARKET_REPORT_CODELESS_SECTIONS
         code6 = _code6(code) if (code or not code_less) else ""
         page_text = str(page)
@@ -559,6 +588,7 @@ class F10Client:
             "board_trend": (f"{bk}ydfx", (code6,)),
             "index_info": (f"{zs}getinfo", (code6,)),
             "index_profile": (f"{zs}jbxx_zsgk", (code6,)),
+            "index_valuation": (f"{zs}jbxx_gzxx", ("001", code6, "", "")),
             "index_tracking": (f"{zs}jbxx_gzbd", (code6, page_text, size_text)),
             "index_flow": (f"{zs}zjdx", (arg or "004_1", code6, "", "", page_text, size_text)),
             "index_flow_members": (f"{zs}cfgsj_cfgjcsj", (arg or "001", code6, page_text, size_text)),
@@ -572,6 +602,215 @@ class F10Client:
         }
         entry, params = _section_request(section, table)
         return self.params(entry, *params)
+
+    def index_members(
+        self,
+        code: str,
+        *,
+        all_pages: bool = True,
+        page_size: int = _MAX_PAGE_SIZE,
+        max_pages: int = 100,
+    ) -> IndexMemberTable:
+        """指数成份股清单（覆盖中证、国证和上证/深证系列指数）。
+
+        底层 Entry 为 ``CWServ.skef10_zs_cfgsj_cfgjcsj``。实测 ``000300`` 沪深 300
+        返回 300 只、``000905`` 中证 500 返回 500 只、``399006`` 创业板指返回 100 只、
+        ``000001`` 上证指数返回 2229 只，分页可拉全。
+
+        Args:
+            code: 指数代码，6 位数字或带市场前缀（如 ``000300`` / ``sh000300``）。
+            all_pages: 是否自动翻页取全部成份股。``False`` 时只取第一页。
+            page_size: 单页条数，服务端上限 100。
+            max_pages: 翻页保护上限，防止指数样本过大时死循环。
+
+        Returns:
+            :class:`~eltdx.f10.models.IndexMemberTable`。``total`` 是服务端报告的
+            样本总数；``rows`` 内每行只有代码、名称、纳入日期和市场标记——
+            **服务端不返回成份权重**，需要权重请走通达信客户端。
+        """
+
+        size = max(1, min(int(page_size), _MAX_PAGE_SIZE))
+        rows: list[IndexMember] = []
+        total: int | None = None
+        page = 1
+        while True:
+            response = self.market_report(code, "index_members", page=page, page_size=size)
+            table = response.first_table
+            batch = table.rows if table is not None else ()
+            if total is None:
+                total = _result_total(response)
+            for row in batch:
+                rows.append(
+                    IndexMember(
+                        code=_text(row.get("N001")),
+                        name=_text(row.get("N002")),
+                        market_id=_market_flag(row.get("N004")),
+                        join_date=row.get("N003"),
+                        raw=dict(row),
+                    )
+                )
+            if not all_pages or len(batch) < size or page >= max_pages:
+                break
+            if total is not None and len(rows) >= total:
+                break
+            page += 1
+        return IndexMemberTable(index_code=_code6(code), total=total, rows=tuple(rows))
+
+    def index_tracking_products(
+        self,
+        code: str,
+        *,
+        all_pages: bool = True,
+        page_size: int = _MAX_PAGE_SIZE,
+        max_pages: int = 100,
+    ) -> IndexTrackingTable:
+        """跟踪某个指数的全部产品（ETF / LOF / 场外基金等）。
+
+        底层 Entry 为 ``CWServ.skef10_zs_jbxx_gzbd``。这是 TQ
+        ``get_trackzs_etf_info`` 的等价能力，但方向相反：给定指数代码，返回跟踪它的
+        全部产品；实测 ``000300`` 返回 299 只。
+
+        Args:
+            code: 指数代码。其余参数同 :meth:`index_members`。
+
+        Returns:
+            :class:`~eltdx.f10.models.IndexTrackingTable`。``N004`` 与 ``N007``
+            服务端未标注含义，不做猜测，只保留在各行的 ``raw`` 里。
+        """
+
+        size = max(1, min(int(page_size), _MAX_PAGE_SIZE))
+        rows: list[IndexTrackingProduct] = []
+        total: int | None = None
+        page = 1
+        while True:
+            response = self.market_report(code, "index_etfs", page=page, page_size=size)
+            table = response.first_table
+            batch = table.rows if table is not None else ()
+            if total is None:
+                total = _result_total(response)
+            for row in batch:
+                rows.append(
+                    IndexTrackingProduct(
+                        code=_text(row.get("N001")),
+                        name=_text(row.get("N002")),
+                        market_id=_int(row.get("sc")),
+                        scale_yuan=_float(row.get("N003")),
+                        change_pct=_float(row.get("N005")),
+                        amount_yuan=_float(row.get("N006")),
+                        inception_date=row.get("N008"),
+                        manager=_text(row.get("N009")),
+                        company=_text(row.get("N010")),
+                        nav=_float(row.get("N011")),
+                        fee_rate_pct=_float(row.get("N012")),
+                        raw=dict(row),
+                    )
+                )
+            if not all_pages or len(batch) < size or page >= max_pages:
+                break
+            if total is not None and len(rows) >= total:
+                break
+            page += 1
+        return IndexTrackingTable(index_code=_code6(code), total=total, rows=tuple(rows))
+
+    def board_members(
+        self,
+        code: str,
+        *,
+        all_pages: bool = True,
+        page_size: int = _MAX_PAGE_SIZE,
+        max_pages: int = 50,
+    ) -> BoardMemberTable:
+        """板块成份股的分红记录清单，按记录去重自动翻页。
+
+        底层 Entry 为 ``CWServ.skef10_bk_getinfo`` 的 ``board_members`` 分区。
+        实测 ``880472``（证券板块）共 67 行记录、44 只证券（21 只有中报 + 年报
+        两条记录），按公告日期降序。
+
+        !!! warning "一行 = 一条分红记录，不是一只股票"
+            同一证券的中报 / 年报分红各占一行，所以 ``rows`` 里同一代码会出现多次；
+            ``total``（第二个 ResultSet 的 ``zs`` 列）是**记录总数**，不是证券只数。
+            只要证券清单请用 ``BoardMemberTable.stocks`` / ``full_codes``。
+
+        !!! warning "服务端翻页对同日记录不稳定"
+            排序按公告日期降序，但**同日记录的服务端次序在两次请求间会变**
+            （实测同一 ``page=2`` 连续请求两次结果不同，出现跨页重复行）。
+            因此本方法按**记录身份**（代码 + 方案 + 三个日期 + 报告期）去重，
+            而不是按代码去重——按代码去重会丢掉合法的多条分红记录。
+            想完全绕开翻页，用 ``page_size=100``（默认）单页取全。
+        """
+
+        size = max(1, min(int(page_size), _MAX_PAGE_SIZE))
+        rows: list[BoardMember] = []
+        seen: set[tuple] = set()
+        total: int | None = None
+        page = 1
+        while True:
+            response = self.market_report(code, "board_members", page=page, page_size=size)
+            table = response.first_table
+            batch = table.rows if table is not None else ()
+            if total is None:
+                total = _result_total(response)
+            added = 0
+            for row in batch:
+                item = BoardMember(
+                    code=_text(row.get("N001")),
+                    name=_text(row.get("N002")),
+                    market_id=_market_flag(row.get("sc")),
+                    dividend_plan=_text(row.get("N003")),
+                    progress=_text(row.get("N004")),
+                    announce_date=row.get("N005"),
+                    record_date=row.get("N006"),
+                    ex_date=row.get("N007"),
+                    report_period=row.get("N008"),
+                    raw=dict(row),
+                )
+                key = item.record_key
+                if key in seen:
+                    continue
+                seen.add(key)
+                rows.append(item)
+                added += 1
+            if not all_pages or not batch or len(batch) < size or page >= max_pages:
+                break
+            if total is not None and len(rows) >= total:
+                break
+            if added == 0:
+                # 整页都是已见记录：服务端页界在原地打滑，再翻也不会扩容。
+                break
+            page += 1
+        return BoardMemberTable(board_code=_code6(code), total=total, rows=tuple(rows))
+
+    def ipo_calendar(self) -> IpoCalendar:
+        """近期新股列表（含申购日、发行价、募资额）。
+
+        底层 Entry 为 ``CWServ.skef10_dpzx_xgfx``，参数 ``002``，实测约 50 行，
+        覆盖沪深北三个市场，按日期倒序。这是 TQ ``get_ipo_info`` 的等价能力。
+
+        字段确认状态：``N001`` 日期、``N002`` 代码、``N003`` 名称、``N006`` 发行价、
+        ``N008`` 募资总额已与公开数据核对一致；``N004`` / ``N005`` / ``N007``
+        服务端未标注，这里按语义命名为 ``issue_pe`` / ``extra_pct`` / ``apply_limit``，
+        **均为推断**，请用行内 ``raw`` 复核后再用于生产。
+        """
+
+        response = self.market_report(section="ipo_calendar")
+        table = response.first_table
+        rows: list[IpoEntry] = []
+        for row in table.rows if table is not None else ():
+            rows.append(
+                IpoEntry(
+                    apply_date=row.get("N001"),
+                    code=_text(row.get("N002")),
+                    name=_text(row.get("N003")),
+                    market_id=_int(row.get("sc")),
+                    issue_pe=_float(row.get("N004")),
+                    extra_pct=_float(row.get("N005")),
+                    issue_price=_float(row.get("N006")),
+                    apply_limit=_float(row.get("N007")),
+                    raise_amount=_float(row.get("N008")),
+                    raw=dict(row),
+                )
+            )
+        return IpoCalendar(rows=tuple(rows))
 
     def dividend_financing(self, code: str, section: str = "fh") -> F10Response:
         """分红融资类数据。section=fh 为分红方案历史。"""
@@ -981,6 +1220,62 @@ def _first_value(response: F10Response, field_name: str) -> Any | None:
     for row in response.rows:
         if field_name in row:
             return row[field_name]
+    return None
+
+
+def _text(value: Any) -> str | None:
+    """把服务端标量转成字符串；空值、占位符一律返回 ``None``。"""
+
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _int(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _float(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _market_flag(value: Any) -> int | None:
+    """指数成份股的市场标记：``"1"`` 沪市、``"0"`` 深市。
+
+    服务端把市场标记放在 ``N004`` 且是字符串；无法识别时返回 ``None``，
+    由 :class:`~eltdx.f10.models.IndexMember` 按代码号段回退推断。
+    """
+
+    text = _text(value)
+    if text is None:
+        return None
+    return {"1": 1, "0": 0}.get(text)
+
+
+def _result_total(response: F10Response) -> int | None:
+    """分页接口把样本总数放在第二个 ResultSet（列名 ``zs``）里。"""
+
+    for table in response.result_sets:
+        if table.key == "table0":
+            continue
+        for row in table.rows:
+            for value in row.values():
+                if isinstance(value, int):
+                    return value
+                parsed = _int(value)
+                if parsed is not None:
+                    return parsed
     return None
 
 

@@ -38,6 +38,8 @@
 | 资金流向日数据 | `client.money_flow` | `0x0ffc` |
 | 特殊品种涨跌停限制 | `client.limits` | `0x0452` |
 | F10、题材、公告、财务报表、估值 | `client.f10` | `7615/TQLEX` |
+| 指数成份股、指数跟踪产品、近期新股 | `client.f10` / `client.helpers` | `7615/TQLEX` |
+| 订阅式实时行情回调 | `client.quotes.subscribe` | `0x0547` + 推送队列 |
 | 常用场景组合调用（含 21 个短线指标） | `client.helpers` | 组合 7709 / F10 |
 | MCP 工具服务 | `eltdx-mcp` | 组合 7709 / F10 |
 
