@@ -66,7 +66,7 @@ def test_common_interface_docs_have_collapsible_real_json_samples() -> None:
 
     assert "assets/return-samples.css" in mkdocs
     assert stylesheet.is_file()
-    assert len(return_sample_docs) == 49
+    assert len(return_sample_docs) == 51
     for relative_path in return_sample_docs:
         detail = (REPO_ROOT / "docs" / relative_path).read_text(encoding="utf-8")
         assert '??? return-sample "' in detail, relative_path
@@ -85,11 +85,11 @@ def test_pages_catalog_has_expected_public_interfaces() -> None:
     items = catalog["items"]
 
     assert catalog["schema_version"] == 14
-    assert len(items) == 77
+    assert len(items) == 79
     assert Counter(item["source"] for item in items) == {
         "7709": 26,
         "F10": 28,
-        "Helper": 23,
+        "Helper": 25,
     }
     assert len({item["id"] for item in items}) == len(items)
 
@@ -135,7 +135,7 @@ hide:
 [← 返回接口目录](../index.md){ .interface-detail-back }
 """
 
-    assert len(detail_docs) == 77
+    assert len(detail_docs) == 79
     for relative_path in detail_docs:
         detail = (REPO_ROOT / "docs" / relative_path).read_text(encoding="utf-8")
         assert detail.startswith(expected_header), relative_path
@@ -155,9 +155,9 @@ def test_pages_catalog_has_three_flat_source_menus() -> None:
     assert Counter(layer_id for layer_id, _ in assignments.values()) == {
         "7709": 26,
         "7615": 28,
-        "helpers": 23,
+        "helpers": 25,
     }
-    expected_counts = {"7709": 26, "7615": 28, "helpers": 23}
+    expected_counts = {"7709": 26, "7615": 28, "helpers": 25}
     assert all(layer["description"].startswith(f"{expected_counts[layer['id']]} 个") for layer in ordered_layers)
     assert all("groups" not in layer for layer in ordered_layers)
     assert {layer["source"] for layer in ordered_layers} == {"7709", "F10", "Helper"}
@@ -207,8 +207,8 @@ def test_pages_catalog_has_complete_function_menus() -> None:
         "history": 4,
         "bars": 4,
         "auction-shortline": 8,
-        "f10": 32,
-        "common": 7,
+        "f10": 33,
+        "common": 8,
     }
     assert assigned["f10-stock-info"] == "f10"
     assert assigned["f10-limit-board-ladder"] == "f10"

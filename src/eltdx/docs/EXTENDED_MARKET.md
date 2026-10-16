@@ -232,6 +232,52 @@ with MacExClient.from_best_host() as c:          # 走 MAC_EX_HOSTS，端口 772
     需要「代码 + 名称」成对数据时请直接用 `instruments()`——`GoodsItem` 的
     `name` 字段存的是**代码**（与 0x2562 协议语义一致），不含中文名。
 
+## 外盘股票：美股 / 德股 / 新加坡股（`market=73/74/78`）
+
+**外盘股票就在扩展行情里**，与场外基金一样走 MAC-EX（`MacExClient`）：
+`ExTdxClient` 的 `get_instrument_quote` / `get_instrument_bars` 在免费主站上对
+这些市场同样超时，只有 MAC 命令有数据。
+
+| 市场 | 编号 | `category` | 实测标的数 | 代码样例 |
+| --- | --- | --- | --- | --- |
+| `US_STOCK` | 74 | 13 | **13409** | `A`（安捷伦科技）、`AA`（美国铝业）、`AAPL`（苹果）、`MSFT`（微软）、`NVDA`（英伟达）、`TSLA`（特斯拉） |
+| `GE_STOCK` | 73 | 14 | 40 | `ADS`（阿迪达斯）、`AIR`（空中客车）、`BAYN`（拜耳） |
+| `SG_STOCK` | 78 | 15 | 1392 | `1A0`（Katrina集团）、`1B1`（HC SURGICAL） |
+
+```python
+from eltdx.ex import MacExClient
+
+with MacExClient.from_best_host() as c:
+    n = c.goods_count(74)                                # 13409
+    items = c.instruments(74, count=10)                  # 代码 + 中文名
+    quotes = c.goods_quotes([(74, "AAPL"), (74, "NVDA")])  # 批量报价
+    bars = c.goods_kline(74, "AAPL", count=5)            # 日 K（含 amount）
+    chart = c.goods_tick_chart(74, "AAPL")               # 当日分时
+    txns = c.goods_transaction(74, "AAPL")               # 逐笔
+```
+
+实测要点（2026-10-15，主机 `116.205.135.205`）：
+
+- **枚举带中文名**：`instruments(74)` 返回 `code` + `name`（中文），美股代码即
+  Ticker（`AAPL` / `MSFT` / `NVDA` / `TSLA` 直查可用）。
+- **报价七字段**：`pre_close` / `open` / `high` / `low` / `close` / `vol` / `amount`
+  （`goods_quotes` 默认字段），与 A 股五档不同，外盘无买卖盘口。
+- **日 K 正常**：`goods_kline(74, "AAPL", count=5)` 返回 2026-10-08 ~ 10-14 五根日线，
+  含 `vol` / `amount` / `float_shares`。
+- **分时与逐笔可用**：`goods_tick_chart` 分时点从 **21:30** 起（服务端时间，即美股
+  时段）；`goods_transaction` 返回 `time` / `price` / `vol` / `bs_flag`。
+- 标的范围不限于股票：`AAA`（先行CLO债券ETF）、`AAAU`（伦敦金定盘价格）等
+  ETF / 权证（`AAC+`）同在 `market=74`，靠 `instruments()` 的名称区分。
+
+已知限制：
+
+- `ExInstrumentInfo.desc` 带 `\x00` 填充与尾部杂字节（协议如此），只用
+  `code` / `name` / `category` 即可。
+- **国际指数**（`market=12`，`INTL_INDEX`）的 `DJI` / `IXIC` / `SPX` 代码直查返回空，
+  正确代码格式未验证；要美股大盘指数时先 `instruments(12)` 看实际代码。
+- 与场外基金一样，**取行情必须用 `MacExClient`**（`MAC_EX_HOSTS`，端口 7727），
+  不要用 `ExTdxClient` 的 quote / bars 命令。
+
 ## MAC 协议 `eltdx.mac.MacClient`
 
 ```python

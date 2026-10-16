@@ -1,6 +1,79 @@
 # 变更记录
 
-## v3.4.3 - 2026-10-14
+## v3.4.5 - 2026-10-15
+
+> 未发布的改动合并为一个版本一次发车（原 v3.4.4 草稿内容已并入本条目，不存在独立的 v3.4.4 版本）。
+
+### 新增
+
+- **指数成份股清单**：`f10.index_members(code)` / `helpers.index_members(code)`，走
+  `CWServ.skef10_zs_cfgsj_cfgjcsj` 自动翻页，返回 `IndexMemberTable`（含 `full_code`）。
+  等价于 TQ `get_index_stocks` / `get_zzgz_stocklist`。实测 `000300` 300 只、
+  `000905` 500 只、`399006` 100 只、`000001` 2229 只。**服务端不返回成份权重**
+  （通达信客户端同样没有权重信息）。
+- **指数跟踪产品**：`f10.index_tracking_products(code)` / `helpers.index_etfs(code)`，走
+  `CWServ.skef10_zs_jbxx_gzbd`，返回 `IndexTrackingTable`（规模 / 涨跌幅 / 成交额 /
+  成立日期 / 基金经理 / 基金公司 / 单位净值 / 管理费率），`.etfs` 粗筛场内 ETF。
+  与 TQ `get_trackzs_etf_info` 方向相反：给定指数找产品。实测 `000300` 299 只。
+- **近期新股列表**：`f10.ipo_calendar()` / `helpers.ipo_calendar()`，走
+  `CWServ.skef10_dpzx_xgfx`（`["002"]`），返回 `IpoCalendar`（申购日 / 发行价 / 募资总额）。
+  等价于 TQ `get_ipo_info`。实测约 50 行，覆盖沪深北三市。
+- **订阅式实时行情回调**：`quotes.subscribe(codes, callback)`（别名 `subscribe_hq`），
+  `refresh` 激活 + `poll_push` 轮询，对齐 TQ `subscribe_hq` 心智模型；支持 `run()` /
+  `run_once()` / `stop()` / `on_error` / `reactivate_interval`。
+- **板块分红成份**：`f10.board_members(code)` / `helpers.board_members(code)`，走
+  `CWServ.skef10_bk_getinfo`（`board_members` 分区）自动翻页，返回 `BoardMemberTable`
+  （含 `full_code`）。一行 = 一条分红记录（同一证券中报 / 年报各一行），按**记录身份**
+  去重；`total` 是记录总数，证券清单用 `.stocks` / `.full_codes`。实测 `880472`
+  67 条记录、44 只证券。新增导出 `BoardMember` / `BoardMemberTable`。
+- **`market_report()` 新增 3 个 section**：`index_members`、`index_etfs`、
+  **`index_valuation`（指数估值快照）**，以及新股分区的语义别名 `ipo_calendar`
+  （`market_new_shares` 已有）。分区数 22 → **26**。
+- **指数估值快照**：`market_report(code, "index_valuation")`，走
+  `CWServ.skef10_zs_jbxx_gzxx`（`["001", code, "", ""]`），返回市盈率TTM / LYR、
+  市净率MRQ / 加权、市销率TTM / LYR、市现率TTM / LYR、股息率（%）与报告期。
+  实测 `000300` 沪深300 市盈率TTM 13.01 / 市净率MRQ 1.27 / 股息率 2.94%、
+  `000001` 上证综指 15.10 / 1.29 / 2.61%、`399001` 深证成指 26.65 / 2.36 / 1.79%。
+  个股估值历史与百分位走 `f10.valuation(code, req_id="200191")`。
+- **CLI 新命令**：`eltdx index members <code>` / `eltdx index etfs <code>` / `eltdx ipo` /
+  `eltdx f10 board-members <code>`（板块分红成份）。
+- **新文档**：`docs/TDX_TQ_CAPABILITY_MAP.md`（TQ 能力对照 + 明确不做清单 + 真缺口清单）、
+  `docs/helpers/指数与新股.md`。
+
+### 修复
+
+- **美股能力结论纠错**：`docs/TDX_TQ_CAPABILITY_MAP.md` 此前把「美股行情」列为
+  必须回到通达信客户端的缺口，**该结论错误**——外盘股票一直在扩展行情里：
+  `ExMarket.US_STOCK = 74`（美股 13409 只）、`GE_STOCK = 73`（德股 40 只）、
+  `SG_STOCK = 78`（新加坡股 1392 只），走 `MacExClient` 的 `instruments` /
+  `goods_quotes` / `goods_kline` / `goods_tick_chart` / `goods_transaction`
+  实测全部可取数（含中文名）。能力矩阵已改为覆盖项，用法与实测细节写入
+  `docs/EXTENDED_MARKET.md`「外盘股票」节。
+- **成份权重与推断字段的结论写入文档**：成份股 Entry 无权重列；新股的
+  `issue_pe` / `extra_pct` / `apply_limit` 为未标注列的推断命名，均已在 docstring
+  与文档中标注「用 `raw` 复核后再用于生产」。
+- **BREAKING · `money_flow.history` 行序统一为日期降序（最新在前）**：服务端回包
+  是升序，与原样返回时的文档声明（`start=0` 为最新一条）矛盾，且与 F10 其它日期
+  序列方向相反；现客户端统一反转，与 `daily()` 口径一致。**破坏性行为变更**：
+  依赖 `rows[0]` 为最旧一条的下游需调整。
+- `board_members` 分区同日记录翻页次序不稳定（服务端行为，两次请求次序不同、
+  跨页重复）在封装层按记录身份去重规避，文档已标注。
+
+### 能力矩阵收口（实测结论）
+
+- **指数权重**：通达信系全链路都没有——7615 成份股 Entry、easy-tdx、腾讯源、
+  新浪源实测均无权重列；中证系列指数用中证官网权重文件
+  （`oss-ch.csindex.com.cn/.../closeweight/{code}closeweight.xls`，实测 `000300`
+  301 行含权重%）。
+- **舆情 / 经营分析 / 十大股东**：确认 eltdx F10 结构化通道已有
+  （`f10.shareholders(top)` / `business_report` / `hot_topics` / `company_news`），
+  从「需客户端」清单移入覆盖项。
+- **板块写入 / 公式选股 / 下单交易 / 回测**：按定位差异明确标为「不做」。
+- **ETF 申赎成分 / 基金持股明细第二段**：7615 `skef10_jj_*` 家族实测只有报告期
+  列表（第一段），明细与申赎通道需客户端抓包确认，列入真缺口。
+- **可转债**：标的在 7709 代码表 `11`/`12` 号段可枚举（`110081` 闻泰转债等）；
+  条款数据仍需客户端或中证 / 交易所公告。
+
 ## v3.4.3 - 2026-10-14
 
 ### 修复内容

@@ -703,6 +703,7 @@ _NEW_F10_METHOD_SECTIONS = {
         "board_trend": ("CWServ.skef10_bk_ydfx", ["000034"]),
         "index_info": ("CWServ.skef10_zs_getinfo", ["000034"]),
         "index_profile": ("CWServ.skef10_zs_jbxx_zsgk", ["000034"]),
+        "index_valuation": ("CWServ.skef10_zs_jbxx_gzxx", ["001", "000034", "", ""]),
         "index_tracking": ("CWServ.skef10_zs_jbxx_gzbd", ["000034", "1", "20"]),
         "index_flow": ("CWServ.skef10_zs_zjdx", ["004_1", "000034", "", "", "1", "20"]),
         "index_flow_members": ("CWServ.skef10_zs_cfgsj_cfgjcsj", ["001", "000034", "1", "20"]),

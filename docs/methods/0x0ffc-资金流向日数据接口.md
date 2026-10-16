@@ -237,7 +237,15 @@ MAC 协议（`eltdx.mac.MacClient.get_capital_flow`）的 `0x1218` 也返回当�
 | `batch_size` | 传入代码列表时的最大并发；实际并发不超过连接池容量 |
 
 `FundFlowRangeSeries` 字段：`code`（本次查询的完整代码）、`days`、`codes`（实际发给服务端的
-六位代码）、`rows`（原样保留 `N00x` 列，服务端顺序即最新在前）、`raw_payload`、`count`。
+六位代码）、`rows`（原样保留 `N00x` 列，日期降序即最新在前）、`raw_payload`、`count`。
+
+!!! warning "BREAKING · 行序口径（v3.4.5 起）"
+
+    服务端原始回包是日期**升序**（最旧在前），`history()` 已统一反转为**降序
+    （最新在前）**，与 `daily()`（`records[0]` 即最新交易日）和 F10 其它日期序列
+    （`ipo_calendar` / `market_margin_summary` / `index_members`）一致；
+    反转后 `start` / `count`（距最新偏移）的语义才成立。
+    **破坏性变更**：v3.4.4 及以前 `rows[0]` 是最旧一条，依赖旧行序的下游需调整。
 
 `rows` 的列语义（与网关返回列一一对应，不做二次解读）：
 

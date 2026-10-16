@@ -29,6 +29,12 @@ from .market import FundFlow, MarketStat, fetch_market_stat, fetch_today_fund_fl
 
 if TYPE_CHECKING:
     from eltdx.client import TdxClient
+    from eltdx.f10.models import (
+        BoardMemberTable,
+        IndexMemberTable,
+        IndexTrackingTable,
+        IpoCalendar,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -264,6 +270,7 @@ class HelperApi:
         self._shortline = ShortlineIndicatorService(client)
         self._finance_cache: dict[tuple[str, ...], Any] = {}
         self._security_cache: dict[str, tuple[Any, ...]] = {}
+        self._index_cache: dict[tuple[str, str], Any] = {}
         self._boards = BoardService(
             client,
             data_dir=board_data_dir,
@@ -283,7 +290,77 @@ class HelperApi:
         self._shortline.clear_cache()
         self._finance_cache.clear()
         self._security_cache.clear()
+        self._index_cache.clear()
         self._boards.clear_cache()
+
+    def index_members(self, code: str, *, refresh: bool = False) -> IndexMemberTable:
+        """指数成份股清单（中证 / 国证 / 上证 / 深证系列均可用）。
+
+        走 7615 F10 通道，不需要 7709 连接。等价于 TQ ``get_index_stocks`` +
+        ``get_zzgz_stocklist``。实测 ``000300`` 返回 300 只、``000905`` 返回 500 只、
+        ``399006`` 返回 100 只、``000001`` 返回 2229 只。
+
+        **服务端不返回成份权重**，需要权重请用通达信客户端。
+        """
+
+        return self._index_cached("members", code, refresh, self._client.f10.index_members)
+
+    def index_etfs(self, code: str, *, refresh: bool = False) -> IndexTrackingTable:
+        """跟踪某个指数的全部产品（ETF / LOF / 场外基金）。
+
+        等价于 TQ ``get_trackzs_etf_info`` 的反向查询：给定指数代码找产品。
+        实测 ``000300`` 返回 299 只，其中 44 只是场内 ETF（见 ``.etfs``）。
+        """
+
+        return self._index_cached("etfs", code, refresh, self._client.f10.index_tracking_products)
+
+    def ipo_calendar(self, *, refresh: bool = False) -> IpoCalendar:
+        """近期新股列表（申购日、发行价、募资额），等价于 TQ ``get_ipo_info``。
+
+        实测约 50 行，覆盖沪深北三市，按日期倒序。
+        """
+
+        if not refresh:
+            cached = self._index_cache.get(("ipo", ""))
+            if cached is not None:
+                return cached
+        result = self._client.f10.ipo_calendar()
+        self._index_cache[("ipo", "")] = result
+        return result
+
+    def board_members(self, code: str, *, refresh: bool = False) -> BoardMemberTable:
+        """板块成份股的分红记录清单（含分红方案与关键日期），按记录去重自动翻页。
+
+        走 7615 F10 通道，不需要 7709 连接。与 :meth:`board_member_quotes`
+        （7709 实时行情）互补：本方法给分红 / 报告期信息，那条给实时行情。
+
+        **一行 = 一条分红记录，不是一只股票**：同一证券的中报 / 年报分红各占一行，
+        ``total`` 是记录总数；只要证券清单用 ``.stocks`` / ``.full_codes``。
+
+        !!! warning "服务端翻页对同日记录不稳定"
+            同日记录的服务端次序在两次请求间会变，底层
+            ``F10Client.board_members`` 按**记录身份**去重（不是按代码去重）；
+            想完全绕开翻页，传 ``page_size=100``（默认）单页取全。
+        """
+
+        key = str(code).strip().lower()
+        if not refresh:
+            cached = self._index_cache.get(("board_members", key))
+            if cached is not None:
+                return cached
+        result = self._client.f10.board_members(code)
+        self._index_cache[("board_members", key)] = result
+        return result
+
+    def _index_cached(self, kind: str, code: str, refresh: bool, getter: Any) -> Any:
+        key = str(code).strip().lower()
+        if not refresh:
+            cached = self._index_cache.get((kind, key))
+            if cached is not None:
+                return cached
+        result = getter(code)
+        self._index_cache[(kind, key)] = result
+        return result
 
     def board_quotes(self, *, category: str = "概念", refresh: bool = False) -> BoardQuoteTable:
         """Return board quotes for one category (concepts by default)."""
