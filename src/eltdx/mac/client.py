@@ -318,10 +318,12 @@ class MacClient:
             fields = PresetField.BASIC + PresetField.VOLUME
         all_quotes: list[MacQuoteField] = []
         fetched = 0
-        page_size = min(count, _BOARD_MEMBERS_PAGE_SIZE)
         offset = start
 
         while fetched < count:
+            # 每页按**剩余条数**请求：固定用 _BOARD_MEMBERS_PAGE_SIZE 会让最后一页
+            # 超量（count=100 → 两页各 80 → 返回 160 条）。
+            page_size = min(count - fetched, _BOARD_MEMBERS_PAGE_SIZE)
             batch = self._execute(
                 BoardMembersQuotesCmd(
                     board_code=int(category),
@@ -335,7 +337,9 @@ class MacClient:
             )
             if not batch:
                 break
-            all_quotes = batch + all_quotes
+            # 服务端已按 sort_type/sort_order 排好序，跨页直接顺序拼接。
+            # 注意不要像 _fetch_kline_pages 那样前插 —— 那是为 K 线倒序返回准备的。
+            all_quotes.extend(batch)
             fetched += len(batch)
             offset += len(batch)
             if len(batch) < page_size:
@@ -618,7 +622,8 @@ class MacClient:
             )
             if not batch:
                 break
-            all_quotes = batch + all_quotes
+            # 顺序拼接，保留服务端的跨页排序（整页前插会把第 2 页排到最前）。
+            all_quotes.extend(batch)
             fetched += len(batch)
             offset += len(batch)
             if len(batch) < page_size:
@@ -700,10 +705,29 @@ class MacClient:
         sort_by: str = "change_pct",
         ascending: bool = False,
     ) -> list[dict[str, object]]:
-        """获取板块涨跌幅排行榜（含成交额、成交量、资金流入流出、涨跌家数）。
+        """获取板块排行榜（含成交额、成交量、资金净流入、涨跌家数）。
 
-        先通过 :meth:`get_board_list` 获取全部板块，再逐个调用
-        :meth:`get_board_summary` 聚合成分股数据，合并为排行榜列表。
+        先通过 :meth:`get_board_list` 获取全部板块，再按**用户指定的指标**排序，
+        取前 ``top_n`` 后逐个调用 :meth:`get_board_summary` 聚合成分股数据。
+
+        !!! warning "必须先按目标指标排序再截断"
+            早期实现先用 ``change_pct`` 排一遍、截取 ``top_n``，之后才按
+            ``sort_by`` 重排。于是「成交额最高但涨幅较低」的板块在第一轮就被丢掉，
+            永远进不了 ``sort_by="amount"`` 的结果 —— 排行给出的不是目标指标的
+            前 N 名。
+
+        Args:
+            board_type: 板块类型。
+            top_n: 返回条数。
+            sort_by: 排序指标（``change_pct`` / ``amount`` / ``vol`` /
+                ``main_net_amount``）。
+            ascending: 是否升序。
+
+        Note:
+            ``sort_by="change_pct"`` 时涨跌幅直接来自 :meth:`get_board_list`，
+            可以先截断再聚合（少调 ``N - top_n`` 次 summary）；
+            其余指标必须**先聚合全部板块**才能排序，请求数会明显增加 ——
+            这是拿到正确排名的必要代价，不是可以优化掉的。
         """
 
         valid_sort = {"change_pct", "amount", "main_net_amount", "vol"}
@@ -714,33 +738,44 @@ class MacClient:
         if not boards:
             return []
 
-        scored: list[tuple[BoardInfo, float]] = []
+        change_by_code: dict[str, float] = {}
         for board in boards:
             pre = board.pre_close if board.pre_close else float("nan")
-            change_pct = (board.price - board.pre_close) / pre * 100 if pre == pre else 0.0
-            scored.append((board, change_pct))
-        scored.sort(key=lambda item: item[1], reverse=not ascending)
-        top = scored[:top_n]
-
-        rows: list[dict[str, object]] = []
-        for board, change_pct in top:
-            summary = self.get_board_summary(board.code)
-            rows.append(
-                {
-                    "code": board.code,
-                    "name": board.name,
-                    "change_pct": round(change_pct, 2),
-                    "amount": summary["amount"],
-                    "vol": summary["vol"],
-                    "main_net_amount": summary["main_net_amount"],
-                    "up_count": summary["up_count"],
-                    "down_count": summary["down_count"],
-                    "member_count": summary["member_count"],
-                }
+            change_by_code[board.code] = (
+                (board.price - board.pre_close) / pre * 100 if pre == pre else 0.0
             )
 
+        rows: list[dict[str, object]] = []
+        if sort_by == "change_pct":
+            # 涨跌幅不需要额外请求即可排序：先截断再聚合，避免无谓的网络开销。
+            ordered = sorted(
+                boards,
+                key=lambda b: change_by_code[b.code],
+                reverse=not ascending,
+            )[:top_n]
+            rows = [self._board_row(board, change_by_code[board.code]) for board in ordered]
+            return rows
+
+        # 其余指标只有聚合成分股后才知道，必须对**全部**板块求值再排序。
+        rows = [self._board_row(board, change_by_code[board.code]) for board in boards]
         rows.sort(key=lambda row: float(row.get(sort_by, 0.0) or 0.0), reverse=not ascending)
-        return rows
+        return rows[:top_n]
+
+    def _board_row(self, board: BoardInfo, change_pct: float) -> dict[str, object]:
+        """聚合单个板块的成分股数据，产出排行榜的一行。"""
+
+        summary = self.get_board_summary(board.code)
+        return {
+            "code": board.code,
+            "name": board.name,
+            "change_pct": round(change_pct, 2),
+            "amount": summary["amount"],
+            "vol": summary["vol"],
+            "main_net_amount": summary["main_net_amount"],
+            "up_count": summary["up_count"],
+            "down_count": summary["down_count"],
+            "member_count": summary["member_count"],
+        }
 
     def get_board_change_ranking(
         self,
