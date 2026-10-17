@@ -25,10 +25,7 @@ class DecompressLimitError(Exception):
 
 
 def decompress_limited(data: bytes, max_length: int = MAX_FRAME_UNZIPPED_BYTES) -> bytes:
-    """解压 ``data``，输出超过 ``max_length`` 立即中止。
-
-    与 :func:`zlib.decompress` 的区别：不等到全部解完才发现超限。命中上限时抛
-    :class:`DecompressLimitError`，此时最多只分配了 ``max_length`` 字节。
+    """解压 ``data``，输出超过 ``max_length`` 立即中止；流不完整时也拒绝。
 
     Args:
         data: 压缩数据。
@@ -36,7 +33,14 @@ def decompress_limited(data: bytes, max_length: int = MAX_FRAME_UNZIPPED_BYTES) 
 
     Raises:
         DecompressLimitError: 输出达到上限仍未结束（说明实际输出更大）。
-        zlib.error: 数据本身不是合法的 zlib 流。
+        zlib.error: 数据不是合法的 zlib 流，或流被截断（``eof`` 未置位）。
+
+    !!! warning "必须校验 ``eof``"
+        ``decompressobj().decompress()`` 对**截断**的流不会报错：只要被截掉的
+        恰好是尾部校验段，输出仍可以是完整内容，此时 ``eof`` 为 ``False`` 而
+        ``unconsumed_tail`` / ``unused_data`` 都是空的。只凭后两者判断会把截断流
+        当成合法响应放过去（实测截断掉 4 字节的流仍解出全部 110 字节）。
+        这里显式要求 ``eof`` 为真，使行为与 :func:`zlib.decompress` 一致。
     """
 
     decompressor = zlib.decompressobj()
@@ -46,4 +50,7 @@ def decompress_limited(data: bytes, max_length: int = MAX_FRAME_UNZIPPED_BYTES) 
         raise DecompressLimitError(
             f"解压输出超过上限 {max_length} 字节，已中止（声明长度不匹配或响应异常）"
         )
+    # 流未走到结束标记：数据被截断。与 zlib.decompress 的错误文案保持一致。
+    if not decompressor.eof:
+        raise zlib.error("Error -5 while decompressing data: incomplete or truncated stream")
     return output

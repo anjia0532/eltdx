@@ -202,7 +202,11 @@ class MacClient:
         return cls(best, port, timeout, hosts=ordered)
 
     def connect(self) -> None:
-        """连接服务器：按候选列表逐个尝试，成功即记录为当前主机。"""
+        """连接服务器：按候选列表逐个尝试，成功即记录为当前主机。
+
+        重复调用是安全的：新连接建立成功后才关闭旧连接（见下），所以既不会
+        泄漏上一条 socket，也不会出现「重连失败反而把可用连接关掉」的窗口。
+        """
 
         last_exc: TransportError | None = None
         for offset in range(len(self._hosts)):
@@ -219,8 +223,14 @@ class MacClient:
                 last_exc = exc
                 conn.close()
                 continue
+            # 接管新连接，并释放被替换掉的旧连接。
+            # 顺序很关键：先让 self._conn 指向新连接，再关旧的 —— 旧连接必须在
+            # 新连接确认可用之后才关，否则重连失败会把还能用的连接弄丢。
+            previous = self._conn
             self._host_index = idx
             self._conn = conn
+            if previous is not None and previous is not conn:
+                previous.close()
             return
         raise last_exc or TransportError("无可用 MAC 服务器")
 

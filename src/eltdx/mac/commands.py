@@ -14,6 +14,7 @@ from typing import TypeVar, cast
 from .._command import BaseCommand
 from ._binary import require_bytes, unpack_from
 from .bitmap import (
+    FIELD_POSTPROCESS,
     RESP_BITMAP_SIZE,
     Fields,
     PresetField,
@@ -116,8 +117,6 @@ class SymbolQuotesCmd(BaseCommand[list[MacQuoteField]]):
                     continue
                 value_bytes = row_data[68 + slot * 4 : 68 + (slot + 1) * 4]
                 (value,) = struct.unpack(fmt, value_bytes)
-                from .bitmap import FIELD_POSTPROCESS
-
                 post_fn = FIELD_POSTPROCESS.get(field_bit.value)
                 if post_fn is not None:
                     value = cast("object", post_fn(value, market))
@@ -217,6 +216,11 @@ class BoardMembersQuotesCmd(BaseCommand[list[MacQuoteField]]):
                 if len(val_bytes) < 4:
                     break
                 (value,) = struct.unpack(fmt, val_bytes)
+                # 与 SymbolQuotesCmd 保持一致：AH_CODE 这类字段要按同一规则转换，
+                # 否则同一个字段在两个命令里返回的类型/语义不同。
+                post_fn = FIELD_POSTPROCESS.get(field_bit.value)
+                if post_fn is not None:
+                    value = cast("object", post_fn(value, market_raw))
                 fields_dict[field_bit.field_name] = value
 
             results.append(
@@ -291,10 +295,13 @@ class SymbolBarCmd(BaseCommand[list[MacBar]]):
         )
         count = min(count, max(0, (len(body) - 33) // 36))
 
+        # 日内周期才带 time_num：分钟级（< DAILY）、1 分钟、多分钟，以及**秒级**。
+        # 漏掉 SECONDS 会让秒级 K 线的 time_num 被丢弃，时间退化成当天 00:00。
         is_intraday = (
             self._period < Period.DAILY
             or self._period == Period.MIN_1
             or self._period == Period.MINS
+            or self._period == Period.SECONDS
         )
 
         results: list[MacBar] = []
@@ -417,6 +424,8 @@ class TickChartsCmd(BaseCommand[MacMultiTickChart]):
     _TICK_SIZE = struct.calcsize("<HffHH")
     _TAIL_FMT = "<44sBHf5x2I5ffIf12s2fI"
     _TAIL_SIZE = struct.calcsize(_TAIL_FMT)
+    #: 协议里日期 / 昨收固定各 5 个槽位，``days`` 不得超过它。
+    MAX_DAYS = 5
 
     def __init__(
         self,
@@ -425,6 +434,10 @@ class TickChartsCmd(BaseCommand[MacMultiTickChart]):
         start_date: date | None = None,
         days: int = 5,
     ) -> None:
+        # 响应头固定 ``<5I`` + ``<5f``（各 5 个槽位），days 超范围会让解析越界。
+        # 在构造期就拒绝，比等到 parse_response 抛 IndexError 更早也更明确。
+        if not 1 <= days <= self.MAX_DAYS:
+            raise ValueError(f"days 必须在 1..{self.MAX_DAYS} 之间，收到 {days}")
         self._market = market
         self._code = code
         if start_date is not None:
@@ -452,6 +465,17 @@ class TickChartsCmd(BaseCommand[MacMultiTickChart]):
         (count, _send_last, page_size, total) = unpack_from(
             "<HBHH", body, 64, "tick_charts header2"
         )
+        # 响应头只给了 5 个日期 / 昨收槽位：服务端回 count>5（或 page_size=0 导致
+        # 后续整除）都不能直接采信。天数改为受两个上界约束：
+        #   1) 前导有效日期槽的个数 —— 空槽的 ymd=0 会让 date(0,0,0) 直接抛错；
+        #   2) ``MAX_DAYS``。
+        leading_days = 0
+        for value in date_ints:
+            if not value:
+                break
+            leading_days += 1
+        count = max(0, min(count, leading_days, self.MAX_DAYS))
+        page_size = max(1, page_size)
 
         max_ticks = max(0, (len(body) - self._TICK_OFFSET - self._TAIL_SIZE) // self._TICK_SIZE)
         actual_total = min(total, max_ticks)

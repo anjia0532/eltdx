@@ -123,10 +123,20 @@ class FieldBit(IntEnum):
     ACTIVITY = 0x59, "<I", "活跃度"
     DIVIDEND_YIELD_RATE = 0x5B, "<f", "股息率%"
     CONSECUTIVE_UP_DAYS = 0x5C, "<i", "连涨天"
-    LIMIT_UP_COUNT = 0x5D, "<I", "涨停数(板块) / 买二量(个股)"
-    BID2_VOLUME = 0x5D, "<I", "买二量(个股)"
-    LIMIT_DOWN_COUNT = 0x5E, "<I", "跌停数(板块) / 卖二量(个股)"
-    ASK2_VOLUME = 0x5E, "<I", "卖二量(个股)"
+    #: 0x5D / 0x5E / 0x88 / 0x8B 这 4 个位是**双语义**：个股盘口量 vs 板块统计。
+    #: 个股语义取 canonical name —— 现有命令（0x122B 个股报价、0x122C 板块成分）
+    #: 返回的都是**个股**，用它才不会让 ``quote.fields["bid2_volume"]`` 变成
+    #: ``limit_up_count``。查询板块代码时这 4 个键分别表示
+    #: 涨停数 / 跌停数 / 上涨家数 / 下跌家数，见对应的板块别名。
+    #:
+    #: !!! note "为什么 canonical 必须是个股语义"
+    #:     ``IntEnum`` 只管一个 canonical 名，``field_name`` 又直接取 ``self.name``，
+    #:     所以定义在前的那个名字决定了 dict 的键。早期把板块名写在前面，
+    #:     导致个股行情返回 ``limit_up_count`` 这类键 —— 语义错误。
+    BID2_VOLUME = 0x5D, "<I", "买二量(个股) / 涨停数(板块)"
+    LIMIT_UP_COUNT = 0x5D, "<I", "涨停数(板块)"
+    ASK2_VOLUME = 0x5E, "<I", "卖二量(个股) / 跌停数(板块)"
+    LIMIT_DOWN_COUNT = 0x5E, "<I", "跌停数(板块)"
     INDUSTRY_SUB = 0x5F, "<I", "行业二级分类"
     AUCTION_BUY_LIMIT = 0x66, "<f", "连续竞价买入上限"
     AUCTION_SELL_LIMIT = 0x67, "<f", "连续竞价卖出下限"
@@ -162,12 +172,12 @@ class FieldBit(IntEnum):
     ASK5_PRICE = 0x85, "<f", "卖五价"
     BID3_VOLUME = 0x86, "<I", "买三量"
     BID4_VOLUME = 0x87, "<I", "买四量"
-    UP_COUNT = 0x88, "<I", "上涨家数(板块) / 买五量(个股)"
-    BID5_VOLUME = 0x88, "<I", "买五量(个股)"
+    BID5_VOLUME = 0x88, "<I", "买五量(个股) / 上涨家数(板块)"
+    UP_COUNT = 0x88, "<I", "上涨家数(板块)"
     ASK3_VOLUME = 0x89, "<I", "卖三量"
     ASK4_VOLUME = 0x8A, "<I", "卖四量"
-    DOWN_COUNT = 0x8B, "<I", "下跌家数(板块) / 卖五量(个股)"
-    ASK5_VOLUME = 0x8B, "<I", "卖五量(个股)"
+    ASK5_VOLUME = 0x8B, "<I", "卖五量(个股) / 下跌家数(板块)"
+    DOWN_COUNT = 0x8B, "<I", "下跌家数(板块)"
     BID_ASK_DIFF = 0x8C, "<i", "委差"
     CHANGE_UP_TYPE = 0x8D, "<i", "封板状态"
     SAFETY_SCORE = 0x8E, "<f", "安全分"
