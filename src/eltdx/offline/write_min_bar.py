@@ -31,6 +31,10 @@ def _last_datetime(filepath: str | Path, fmt_size: int) -> tuple[int, int, int, 
     if not filepath.is_file():
         return None
     size = filepath.stat().st_size
+    # 先按记录长度向下对齐：写盘中断留下的残尾会让 ``seek(size - fmt_size)``
+    # 落在错误偏移上，读出一个「伪末条」的日期时间。读取侧对残尾是容忍的
+    # （能读多少读多少），但末条必须是**真实**的最后一条完整记录。
+    size -= size % fmt_size
     if size < fmt_size:
         return None
     with filepath.open("rb") as handle:
