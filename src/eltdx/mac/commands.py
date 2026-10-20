@@ -48,7 +48,12 @@ T = TypeVar("T")
 
 
 def _combine_bar_datetime(ymd: int, time_num: int, is_intraday: bool) -> datetime:
-    """将日期和可选时间组合为 datetime（日线及以上 ``time_num`` 为 0）。"""
+    """将日期和可选时间组合为 datetime（日线及以上 ``time_num`` 为 0）。
+
+    ``time_num`` 是**当日秒数**（``09:30:01`` → ``34201``），不是 ``HHMM``，
+    因此必须保留秒：早前只取到分钟，两条相邻的秒级 K 线会塌成同一个
+    ``09:30:00``，后续按时间排序/去重都会出错。
+    """
 
     year = ymd // 10000
     month = (ymd % 10000) // 100
@@ -56,7 +61,8 @@ def _combine_bar_datetime(ymd: int, time_num: int, is_intraday: bool) -> datetim
     if is_intraday and time_num:
         hour = time_num // 3600
         minute = (time_num % 3600) // 60
-        return datetime(year, month, day, hour, minute)
+        second = time_num % 60
+        return datetime(year, month, day, hour, minute, second)
     return datetime(year, month, day)
 
 

@@ -1569,11 +1569,28 @@ def test_symbol_bar_seconds_period_keeps_intraday_time() -> None:
     """回归：``SECONDS`` 漏在 ``is_intraday`` 之外 → time_num 被丢弃，退化成 00:00。"""
 
     head = struct.pack("<H22s", 0, b"600000") + struct.pack("<HBHI", 4, 0, 1, 0)
-    # 34200 秒 = 09:30
+    # 34200 秒 = 09:30:00
     bar = struct.pack("<II7f", 20240102, 34200, 10.0, 11.0, 9.0, 10.5, 1000.0, 200.0, 300.0)
     res = SymbolBarCmd(0, "600000", Period.SECONDS).parse_response(head + bar)
     assert res[0].datetime.date() == date(2024, 1, 2)
-    assert res[0].datetime.time() == time(9, 30)
+    assert res[0].datetime.time() == time(9, 30, 0)
+
+
+def test_symbol_bar_seconds_period_keeps_seconds() -> None:
+    """回归：``time_num`` 是当日秒数，只取到分钟会让相邻秒级 K 线塌成同一时刻。
+
+    34201 = 09:30:01，34202 = 09:30:02 —— 二者必须能区分。
+    """
+
+    head = struct.pack("<H22s", 0, b"600000") + struct.pack("<HBHI", 4, 0, 2, 0)
+    b1 = struct.pack("<II7f", 20240102, 34201, 10.0, 11.0, 9.0, 10.5, 1000.0, 200.0, 300.0)
+    b2 = struct.pack("<II7f", 20240102, 34202, 10.5, 11.2, 10.4, 11.1, 1100.0, 210.0, 310.0)
+    res = SymbolBarCmd(0, "600000", Period.SECONDS).parse_response(head + b1 + b2)
+
+    assert len(res) == 2
+    assert res[0].datetime.time() == time(9, 30, 1)
+    assert res[1].datetime.time() == time(9, 30, 2)
+    assert res[0].datetime < res[1].datetime
 
 
 def test_symbol_bar_daily_still_ignores_time() -> None:
