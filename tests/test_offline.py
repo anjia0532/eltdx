@@ -733,3 +733,92 @@ class TestHistoryFinancialLimits:
                 read_history_financial(path)
         finally:
             hf.MAX_HISTORY_DAT_BYTES = original
+
+
+class TestHistoryFinancialMemoryAmplification:
+    """回归：异常 DAT 的索引条目可反复指向同一段数据，造成内存放大。
+
+    复核方构造的样本：约 18–21 KB 的 DAT 即可产生约 31 MB 峰值内存
+    （约 8M 个 float）。单条记录的字段数有限制，但**条数**由 ``max_count``
+    决定，且索引偏移完全由文件内容控制。
+    """
+
+    @staticmethod
+    def _dat(max_count: int, report_size: int, offsets, blob_size: int | None = None) -> bytes:
+        header = struct.pack("<1hI1H3L", 0, 20260331, max_count, 0, report_size, 0)
+        index_fmt = "<6s1c1L"
+        index_size = struct.calcsize(index_fmt)
+        header_size = struct.calcsize("<1hI1H3L")
+        data_start = header_size + max_count * index_size
+        # 数据段要容纳最大偏移：默认按「递增 offset」构造给足
+        # （start + (max_count-1) + report_size），调用方可按需放大。
+        if blob_size is None:
+            blob_size = report_size + max_count
+        blob = bytes(bytearray(blob_size))
+        data = bytearray(header)
+        for i in range(max_count):
+            data += struct.pack(index_fmt, f"{i:06d}".encode(), b"\x00", offsets(i, data_start))
+        data += blob
+        return bytes(data)
+
+    def test_duplicate_index_offsets_are_rejected(self) -> None:
+        from eltdx.exceptions import ResourceFormatError
+        from eltdx.offline import parse_financial_dat
+
+        # 1600 条索引全部指向同一段 4 KB 数据 → 早前会解出 1600 份完整 float 列表
+        dat = self._dat(1600, 4096, lambda i, start: start)
+        with pytest.raises(ResourceFormatError, match="偏移重复"):
+            parse_financial_dat(dat)
+
+    def test_duplicate_offsets_stay_small_in_memory(self) -> None:
+        import tracemalloc
+
+        from eltdx.exceptions import ResourceFormatError
+        from eltdx.offline import parse_financial_dat
+
+        dat = self._dat(1600, 4096, lambda i, start: start)
+        tracemalloc.start()
+        try:
+            with pytest.raises(ResourceFormatError):
+                parse_financial_dat(dat)
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        # 拒绝必须发生在解压/展开之前，峰值内存不能随索引条数线性增长
+        assert peak < 4 * 1024 * 1024
+
+    def test_offset_overlapping_but_unique_is_capped_by_total_floats(self) -> None:
+        """偏移互不重复、但大量重叠时，由总解析量上限兜底。"""
+
+        from eltdx.exceptions import ResourceFormatError
+        from eltdx.offline import parse_financial_dat
+
+        # 5000 条索引、每条 1024 个字段，偏移逐个 +1 字节（互不重复）
+        dat = self._dat(5000, 4096, lambda i, start: start + i)
+        with pytest.raises(ResourceFormatError, match="总解析量"):
+            parse_financial_dat(dat)
+
+    def test_normal_dat_is_unaffected(self) -> None:
+        from eltdx.offline import parse_financial_dat
+
+        # 每条索引占独立一段、互不重叠 —— 正常财报布局
+        def offsets(i: int, start: int) -> int:
+            return start + i * 12
+
+        dat = self._dat(50, 12, offsets, blob_size=12 * 50)
+        records = parse_financial_dat(dat)
+        assert len(records) == 50
+        assert records[0][0] == "000000"
+        assert records[-1][0] == "000049"
+
+    def test_zip_entry_point_also_rejects_duplicates(self, tmp_path: Path) -> None:
+        import zipfile
+
+        from eltdx.exceptions import ResourceFormatError
+        from eltdx.offline import read_history_financial
+
+        path = tmp_path / "gpcw20260331.zip"
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("gpcw.dat", self._dat(1600, 4096, lambda i, start: start))
+        with pytest.raises(ResourceFormatError, match="偏移重复"):
+            read_history_financial(path)

@@ -20,6 +20,11 @@ MAX_HISTORY_ZIP_ENTRIES = 64
 MAX_HISTORY_DAT_BYTES = 256 * 1024 * 1024
 #: 单条记录允许的最大 float32 字段数（``report_size / 4``）。
 MAX_HISTORY_REPORT_FIELDS = 4096
+# 全文件累计浮点数上限。单条记录的字段数有限制，但**条数**由 max_count 决定
+# （uint16，最多 65535）：若索引条目重复指向同一段数据，每条都会解出一份完整的
+# float 列表 —— 18 KB 的构造样本即可产生约 8M 个 float（约 31 MB 峰值内存）。
+# 正常全市场财报约 5 千只 × 数百字段 ≈ 1.6M，留一倍余量取 4M。
+MAX_HISTORY_TOTAL_FLOATS = 4 * 1024 * 1024
 
 
 def read_dat_from_zip(
@@ -168,6 +173,8 @@ def parse_financial_dat(
     report_pack_size = struct.calcsize(report_fmt)
 
     results: list[tuple[str, int, int, list[float]]] = []
+    seen_offsets: set[int] = set()
+    total_floats = 0
     for i in range(max_count):
         idx_pos = index_base + i * index_size
         if idx_pos + index_size > len(data):
@@ -178,8 +185,21 @@ def parse_financial_dat(
         code = code_bytes.decode("ascii", errors="replace").rstrip("\x00")
         if not code or file_offset == 0:
             continue
+        if file_offset in seen_offsets:
+            # 正常布局里每只票占独立一段，偏移必然唯一；重复指向同一段只可能是
+            # 构造/损坏数据 —— 而每条索引都会解出一份完整 float 列表，是内存放大的直接来源。
+            raise ResourceFormatError(
+                f"财报索引偏移重复: offset={file_offset}（第 {i} 条，code={code}）"
+            )
         if file_offset + report_pack_size > len(data):
             continue
+        seen_offsets.add(file_offset)
+        total_floats += num_fields
+        if total_floats > MAX_HISTORY_TOTAL_FLOATS:
+            raise ResourceFormatError(
+                f"财报总解析量超出上限: {total_floats} > {MAX_HISTORY_TOTAL_FLOATS} "
+                f"个字段（已解析 {i + 1}/{max_count} 条，report_size={report_size}）"
+            )
         floats = list(
             struct.unpack(report_fmt, data[file_offset : file_offset + report_pack_size])
         )
