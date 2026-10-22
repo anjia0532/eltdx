@@ -1075,7 +1075,7 @@ response = client.f10.params("CWServ.tdxf10_gg_gsgk", "8", "000034", "")
 | `allotment_dates(code)`                                | `CWServ.tdxf10_gg_fhrz_zfhpmx`                           | 增发获配可选日期                                  |
 | `allotment_details(code, date)`                        | `CWServ.tdxf10_gg_fhrz_zfhpmx`                           | 获配机构、获配数量、获配金额、锁定期                        |
 | `finance_report(code, report_type="zcfzb")`            | `CWServ.tdxf10_gg_cwfx`                                  | 财务报表，默认资产负债表                              |
-| `finance_diagnosis(code, section="yynl")`              | `CWServ.tdxf10_gg_cwzd`                                  | 营运、盈利、成长、现金流、资产质量等诊断                      |
+| `finance_diagnosis(code, section="zzyj")`              | `CWServ.tdxf10_gg_cwzd`                                  | 财务诊断（增减异常）；**仅 `zzyj` 有数据**，历史分区已随页面改版下线   |
 | `stock_score(code, section="pf")`                      | `CWServ.tdxf10_gg_ggzp`                                  | 综合评分、排名、资金面 / 基本面 / 主题面评分                 |
 | `profit_forecast(code, section="ylyctj")`               | `CWServ.tdxf10_gg_ybpj`                                  | 盈利预测统计 / 明细、一致预期、投资评级统计、研报（`section` 选分区） |
 | `shareholders(code, section="count", *, report_date=None, kind="000", filter1="", filter2="", page=1, page_size=20)` | `CWServ.tdxf10_gg_gdyj`（`institution_holdings` 走 `CWServ.tdxf10_gg_gdyj_jgcgmx`） | 股东人数、同业股东人数排名、控股股东与实际控制人、十大流通股东、十大股东、十大债券持有人、持股变动、机构持股汇总 / 分类、机构持仓明细、增减持计划（11 个分区） |
@@ -1090,7 +1090,7 @@ response = client.f10.params("CWServ.tdxf10_gg_gsgk", "8", "000034", "")
 | `board_members(code, *, all_pages=True, page_size=100, max_pages=50)` | `CWServ.skef10_bk_getinfo`（`board_members` 分区） | 板块成份股的**分红记录**清单，返回 `BoardMemberTable`；一行一条分红记录（同一证券中报 / 年报各一行），`total` 是记录总数，证券清单用 `.stocks` / `.full_codes` |
 | `ipo_calendar()` | `CWServ.skef10_dpzx_xgfx` | 近期新股列表（申购日、发行价、募资额），返回 `IpoCalendar` |
 | `ranking_detail(code, section="scpmdela")`             | `CWServ.tdxf10_gg_zxts_rqpm`                             | 市场 / 行业排名明细                               |
-| `governance(code, section="wgcl")`                     | `CWServ.tdxf10_gg_zbyz`                                  | 违规处理、担保明细等治理数据                            |
+| `governance(code, section="gljy")`                     | `CWServ.tdxf10_gg_zbyz`                                  | 关联交易 / 担保明细 / 股权转让 / 项目投资 / 资金运用（5 分区）        |
 | `hot_topics(code, section="zttzbkz")`                  | `CWServ.tdxf10_gg_rdtc`                                  | 题材名称、关联度、入选日期、入选原因、详情 ID                  |
 | `topic_compare(code, topic_id, section="gndbzfsj")`    | `CWServ.tdxf10_gg_rdtc_gndb`                             | 题材内个股对比和排名                                |
 | `topic_compare_first(code)`                            | `CWServ.tdxf10_gg_comreq` + `CWServ.tdxf10_gg_rdtc_gndb` | 先取第一个题材 ID，再查题材内对比                        |
@@ -1104,6 +1104,38 @@ response = client.f10.params("CWServ.tdxf10_gg_gsgk", "8", "000034", "")
 | `roadshows(code)`                                      | `CWSearch.tzx_rcache`                                    | 路演列表                                      |
 | `theme_market(code, req_id="200743")`                  | `HQServ.hq_nlp_tcihq`                                    | 题材概念行情、相关板块、成分股等                          |
 | `valuation(code, req_id="200191")`                     | `HQServ.hq_nlp_gpsj`                                     | PE、PB、市销率、市现率、估值百分位、市值等                   |
+| `stock_stage_gain(code, *, days=60)`                   | `HQServ.hq_nlp_tcihq`（ReqId 200740）                     | 阶段涨幅日线序列（t0 区间统计、t1 日线）                    |
+| `stock_main_funds(code, *, days=30)`                   | `HQServ.hq_nlp_tcihq`（ReqId 200742）                     | 主力资金流日序列                            |
+| `stock_industry_rank(code, *, days=30)`                | `HQServ.hq_nlp_tcihq`（ReqId 200745）                     | 所属行业与行业内排名（t0 归属信息、t1 行业指数走势）             |
+| `stock_industry_pct_rank(code, *, days=30)`            | `HQServ.hq_nlp_tcihq`（ReqId 200747）                     | 行业内日涨跌幅排名（N002 为嵌套数组）                   |
+| `stock_board_member_quotes(board_code, *, board_market=1)` | `HQServ.hq_nlp_tcihq`（ReqId 200744）                 | 关联板块的成分股行情                          |
+| `stock_valuation_percentile(code, kind="0")`           | `HQServ.hq_nlp_gpsj`（ReqId 200192）                      | 估值历史分位（kind 0=PE / 1=PB / 2=市现率 / 3=市销率）       |
+| `stock_pepb_percentile(code, indicator="0", *, window="1Y", period="0")` | `HQServ.hq_nlp_gpsj`（ReqId 200124）         | PE/PB 历史与分位（估值带，t1 为 TotalNum/Min/Mid）          |
+| `stock_history_trend(code)`                            | `HQServ.hq_nlp_gpsj`（ReqId 200135）                      | 年度历史走势（N001 年份起）                        |
+| `stock_finance_weights(code, section="zcfzb")`         | `CWServ.tdxf10_gg_zxtscwbq`                               | 财务指标权重（最新提示页）                        |
+
+扩展市场 F10（均走 page2 网关，完整清单见 [F10_7615.md](F10_7615.md)）：
+
+| 调用方法                                                   | 底层 Entry                                                 | 返回内容 / 常见字段                               |
+| ------------------------------------------------------ | -------------------------------------------------------- | ----------------------------------------- |
+| `mg_name` / `hk_name` / `sb_name(code)`                 | `CWServ.skef10_{mg,hk,sb}_idreq`                          | 美股裸码 / 港股 5 位 / 新三板 6 位的名称与市场          |
+| `mg_profile` / `hk_profile(code, section)` / `sb_profile` | `CWServ.skef10_{mg,hk,sb}_gsgk`                        | 公司概况                                  |
+| `mg_finance` / `hk_finance` / `sb_finance(code, section)` | `CWServ.skef10_{mg,hk,sb}_cwfx`                        | 财务分析（子标签格式四家各不同，见 F10_7615.md）         |
+| `mg_finance_indicator` / `hk_finance_indicator(code, section)` | `CWServ.skef10_{mg,hk}_cwzb`                     | 财务指标                                  |
+| `mg_business` / `hk_business` / `sb_business(code)`     | `CWServ.skef10_{mg,hk,sb}_jyfx`                          | 经营分析                                  |
+| `mg_dividend` / `sb_dividend(code, section)`            | `CWServ.skef10_{mg,sb}_fhrz`                             | 分红 / 拆分                                |
+| `mg_capital` / `hk_capital` / `sb_capital(code, section)` | `CWServ.skef10_{mg,hk,sb}_gbjg`                        | 股本结构                                  |
+| `mg_shareholders` / `hk_shareholders` / `sb_shareholders(code, section)` | `CWServ.skef10_{mg,hk,sb}_gdyj`           | 股东研究                                  |
+| `mg_directors` / `hk_executives` / `sb_*(code, section)` | `CWServ.skef10_{mg,hk,sb}_dsgg` 等                       | 董事高管（新三板另有大事 / 资讯 / 合规等 13 方法）         |
+| `mg_market` / `hk_market(code, section="3")`            | `CWServ.skef10_{mg,hk}_schq`                             | 行情数据（港股默认 3：3/4/6/7 有数据）                |
+| `hk_capital_flow(code, section="001")`                  | `CWServ.skef10_hk_schq_zjlx`                             | 港股资金流向                                |
+| `mg_announcements(code)`                                | `CWServ.skef10_mg_gsbd`                                  | 美股公告（N003 为 SEC EDGAR 公网地址）              |
+| `mg_rating` / `hk_events` / `hk_related` / `hk_news` / `hk_topic` / `mg_topic(code)` | `CWServ.skef10_{mg,hk}_*`              | 评级 / 大事 / 关联证券 / 资讯 / 题材                 |
+| `hk_pepb_band` / `hk_valuation` / `hk_price_chart` / `hk_analyst_forecast(code, start, end)` | `CWServ.skef10_hk_sdfx_*`       | 港股深度分析（forecast 空日期默认近一年）                |
+| `bond_profile` / `bond_finance` / `bond_rating` / `bond_conversion` / `bond_rate` / `bond_announcements` | `CWServ.skef10_bond_kzz_*` | 可转债全套                                |
+| `gz_*` / `qyz_*` / `gzhg_*` / `zczq_*` / `kjhz_*` / `bond_terms` / `bond_bulletin` | `CWServ.skef10_bond_*`     | 国债 / 企业债 / 国债回购 / ABS / 可交换债（9 类债券全覆盖）         |
+| `hy_summary` / `hy_profile` / `hy_news` / `hy_members_rank` / `hy_capital_stats` / `hy_capital_flow` / `hy_index` 等 | `CWServ.skef10_hy_*` | 行业 F10（`hy` 为板块代码如 `881319`）              |
+| `qh_position_report` / `qh_basis_spread` / `qh_warehouse_receipt` / `qh_variety_info` / `qh_index_info` / `qh_weights` 等 | `CWServ.qhf9_{sp,gz}_*` | 期货 F10（持仓报告必须带日期）                     |
 
 F10 的字段名来自服务端返回的 `ColName` / `ColDes`，不同 Entry 的列名可能是 `T001` 这类原生列名，也可能是中文或拼音字段。`response.rows` 会把每行转成字典；如果同一张表出现重复列名，重复列会保存成 `字段名__2`、`字段名__3`。
 

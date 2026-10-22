@@ -79,9 +79,17 @@ Windows 上找不到脚本时，可以直接指定安装 `eltdx` 的 Python：
 | `eltdx_limit_up_down_list` | 查询指定日期 / 日期范围的逐股涨停、炸板和跌停列表，可选市场概况 |
 | `eltdx_limit_board_ladder` | `eltdx_limit_up_down_list` 的兼容名称 |
 | `eltdx_company_profile` | 查询 F10 公司概况 |
+| `eltdx_f10_digest` | 查询 F10「最新提示」页（提示/概要/大事/新闻/公告/研报/路演/互动 8 分区） |
 | `eltdx_hot_topics` | 查询 F10 热点题材明细 |
 | `eltdx_finance_report` | 查询 F10 财务报表 |
 | `eltdx_company_news` | 查询 F10 公司资讯或研报 |
+| `eltdx_stock_analysis` | 个股总评 / 深度分析：所属行业与排名、阶段涨幅、主力资金、估值分位、PE/PB 估值带、年度走势 |
+| `eltdx_us_stock_f10` | 美股 F10（概况/财务/经营/评级/公告，代码如 `NVDA`） |
+| `eltdx_hk_stock_f10` | 港股 F10（概况/财务/股本/资讯/资金流向，代码如 `00700`） |
+| `eltdx_bond_f10` | 债券 F10（可转债/国债/企业债/公司债/可交换债/ABS/国债回购 × 概况/财务/评级/付息/条款/公告） |
+| `eltdx_industry_f10` | 行业 F10（`industry_code` 为板块代码如 `881319`：总览/介绍/动态/成份股排名/资金流向/指数） |
+| `eltdx_macro_indicators` | 宏观指标清单（市场 38，217 个指标、9 大类） |
+| `eltdx_macro_data` | 宏观指标数值（如 `GDP,CPI,PMI,M2`，可附历史序列） |
 
 F10 工具保留服务端返回的原始字段名，同时在每个 `result_sets` 项中增加：
 
