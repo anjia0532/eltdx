@@ -1,5 +1,86 @@
 # 变更记录
 
+## v3.4.7 - 2026-10-22
+
+> 汇总 2026-10-17 之后的全部改动：upstream PR #20 后半批修复的本地同步、
+> 扩展市场 F10 家族（美股 / 港股 / 新三板 / 债券 9 类 / 行业 / 期货）、
+> 宏观指标、各行业龙头矩阵实测发现的默认值修复。
+
+### 同步 upstream PR #20 review 阶段修复（20 个文件）
+
+- **安全类**：解压流 `eof` 完整性校验（`protocol/decompress.py`）、板块文件路径穿越防护
+  （`offline/block.py`）、财报 ZIP 炸弹限额与 `read_dat_from_zip` 防重名绕过、索引偏移重复/总量超限
+  （`offline/history_financial.py`）、下载限额下推到传输层（`financial.py`）。
+- **正确性类**：涨跌停补 302 段且板块规则优先于 ST（`mac/price_rules.py`）、秒级 K 线保留秒数、
+  `FIELD_POSTPROCESS` 应用于板块成分、TickCharts `days` 越界校验（`mac/commands.py`）、
+  0x5D/0x5E/0x88/0x8B 双语义位 canonical 修正（`mac/bitmap.py`）、`connect()` 先建新连接再关旧连接
+  （`mac/client.py`）、`find_lc1` 路径 `fzline`→`minline`、`SZ_BOND` 量系数 1.0→0.01、
+  末条记录按长度向下对齐（`offline/*`）、资金流「已选主机为空时继续试其他候选主机」
+  （`api/money_flow.py`，精细合并，保留本地 `history()` 7615 通道与弱引用机制）。
+- 配套测试与 release 脚本（标题去重）同步；全量回归通过。
+
+### 扩展市场 F10 家族（page2 网关，`src/eltdx/f10/`）
+
+- **美股 mgf10（17 方法）/ 港股 hkf10（19 方法）**：`mg_*` / `hk_*` 系列；新增
+  `DEFAULT_MG_HK_BASE_URL`（page2 带服务端二级缓存 `HitCache`），`_us_code`（裸字母码）/
+  `hk_code`（5 位前导零）规范化；财务子标签四家格式不同（mg 拼音 / mg 指标数字 001~005 /
+  hk 分析数字 1~3 / hk 指标数字 1~5）已按实测封装并写入文档。
+- **新三板 sbf10（13 方法）**：`sb_*` 系列，Params 统一 `[code, section]`。
+- **债券 zqf10（9 类全覆盖，26 方法）**：`bond_*`（可转债）/ `gz_*`（国债）/ `qyz_*`（企业债、
+  公司债）/ `gzhg_*`（国债回购）/ `zczq_*`（ABS）/ `kjhz_*`（可交换债）/ `bond_terms` /
+  `bond_bulletin`；新增 `_bond_code` / `_bond_sc`（`sc` 市场码 1=沪 / 0=深，重叠段不纯代码推断）。
+- **行业 hyf10（14 方法）**：`hy_*` 系列，`hy` 为板块代码（如 `881319`）。
+- **期货 qhf10（9 方法）**：`qh_*` 系列，Entry 为 `CWServ.qhf9_*`（JS 侧不带前缀、由 req.js 补，
+  漏前缀会 503）；持仓报告必须带日期。
+- **字段中文映射**：`f10/fields_mg_hk.py`（mg/hk 291 列，美股财报科目经 SEC 10-Q 逐项核对）。
+
+### 宏观指标（市场 38，`src/eltdx/ex/mac_client.py`）
+
+- 新增 `MacExClient.macro_indicators()` / `macro_quotes()` / `macro_kline()` 与
+  `MACRO_CATEGORIES`（9 类 217 个指标：国民经济 / 物价 / 景气 / 对外经济 / 货币金融 /
+  房地产与其他 / 证券市场 / 美国经济 / 利率与回购）；裸代码自动补类别，歧义抛 `ValueError`，
+  未知抛 `ProtocolError`；实测 GDP 1401879.25 亿（年度 36 根）、CPI 100.9（月度 393 根）、
+  PMI 50.1（月度 261 根）。
+
+### 各行业龙头矩阵实测发现的修复（2026-10-22）
+
+- **`theme_market` 漏 ReqId 200740 的 `zq_num`**：`stock_stage_gain` 的日线序列 t1 曾返回 0 行，
+  已修复并加回归测试。
+- **`finance_diagnosis` 默认 `yynl` 已随页面改版下线**（20/20 龙头全空）→ 默认 `zzyj`。
+- **`governance` 默认 `wgcl` 数据稀少** → 默认 `gljy`（关联交易）。
+- **`hk_market` 默认 section=1 对港股为空** → 默认 `3`（实测 3/4/6/7 有数据）。
+- **`hk_analyst_forecast` 空日期返回 0 行** → 默认近一年区间。
+- **新增封装**：个股总评 `stock_stage_gain` / `stock_main_funds` / `stock_industry_rank` /
+  `stock_industry_pct_rank` / `stock_board_member_quotes`，深度分析 `stock_valuation_percentile` /
+  `stock_pepb_percentile` / `stock_history_trend` / `stock_finance_weights`，港股 `hk_capital_flow`。
+
+### 测试
+
+- `tests/test_f10_stock_analysis.py`（15 passed）、`tests/test_f10_extended.py`（138 passed）、
+  `tests/test_macro_indicators.py`（13 passed）、`tests/test_f10_boundaries.py`（35 passed）覆盖：
+  A 股各板代码推断回归、三家族 Entry/Params 拼装、未知 section 抛错、日期去横线与 strip、
+  网关路由、200740 `zq_num` 回归、宏观代码歧义与未知、空值/格式/数值边界（空代码、空 section、
+  非法日期、days=0/负数、纯符号美股码、混字母港股码均显式抛错，不静默返回空）。
+- **边界加固**（本轮新测出的真问题）：`_us_code` 拒绝纯符号（`-`）、`_hk_code` 拒绝混入字母
+  （`00700A`）、期货/预测日期统一先 `strip` 再去横线（`" 2026-10-20 "` 曾带空格下发）。
+- 20 个行业龙头 × 30 方法真实网关矩阵：600 次调用 0 失败；港股 / 美股全家族实测通过。
+- **live smoke 扩展**：`scripts/smoke/smoke_f10.py --extended --macro` 覆盖 44 项 F10 检查
+  （含全部新家族与宏观 3 项），实测全 OK；wrapper 已改为优先 import 仓库 `src/`。
+- **MCP 新增 8 个工具**：`eltdx_f10_digest` / `eltdx_us_stock_f10` / `eltdx_hk_stock_f10` /
+  `eltdx_bond_f10` / `eltdx_industry_f10` / `eltdx_stock_analysis` / `eltdx_macro_indicators` /
+  `eltdx_macro_data`；工具总数 24 → 32，全部带 output schema。
+
+### 文档
+
+- `docs/F10_7615.md`：补齐美股 / 港股 / 新三板 / 债券 9 类 / 行业 / 期货六大家族章节，
+  ggzp/sdfx 新方法入「常用方法」表，`finance_diagnosis`（zzyj）/ `governance`（gljy）/
+  `hk_market`（3）默认值订正。
+- `docs/METHOD_REFERENCE.md`：修 2 处过时默认，新增 11 行新方法 + 扩展家族总表。
+- `README.md` 功能地图：新增个股总评与深度分析、美股 / 港股 F10、新三板、债券、行业、期货、
+  宏观指标 7 行。
+- `docs/MCP.md`：8 个新工具入列表。
+- `docs/CHANGELOG.md`：本条目。
+
 ## v3.4.6 - 2026-10-16
 
 ### 修复内容

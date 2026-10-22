@@ -1,0 +1,1075 @@
+{
+  "bond": {
+    "skef10_zq_gzhg_zqgk": {
+      "label": "债券概况",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_gzhg_zqxx",
+          "params": [
+            [
+              "zqgk",
+              "{stock}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_gzhg_zqsj": {
+      "label": "债券数据",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_gzhg_zqxx",
+          "params": [
+            [
+              "bpzs",
+              "{stock}"
+            ],
+            [
+              "hgdpll",
+              "{stock}"
+            ],
+            [
+              "hgzs",
+              "{stock}"
+            ],
+            [
+              "zqsj",
+              "{stock}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_gz_zqgk": {
+      "label": "债券概况",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_gz_zjgk",
+          "params": [
+            [
+              "fxgk",
+              "{stock}",
+              "{sc}"
+            ],
+            [
+              "zqgk",
+              "{stock}",
+              "{sc}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_gz_fxqk": {
+      "label": "付息情况",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_gz_fxqk",
+          "params": [
+            [
+              "fxqk",
+              "{stock}",
+              "{sc}"
+            ],
+            [
+              "xjlfx",
+              "{stock}",
+              "{sc}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_gz_zqsj": {
+      "label": "债券数据",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_gz_zjsj",
+          "params": [
+            [
+              "dzjy",
+              "{stock}",
+              "{sc}"
+            ],
+            [
+              "zsbl",
+              "{stock}",
+              "{sc}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_zqgg": {
+      "label": "债券公告",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_zjzx",
+          "params": [
+            [
+              "{stock}",
+              "{sc}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_gz_zqpj": {
+      "label": "债券评级",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_gz_zjpj",
+          "params": [
+            [
+              "dfzf",
+              "{stock}",
+              "{sc}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_gz_cwfx": {
+      "label": "财务分析",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_gz_cwfx",
+          "params": [
+            [
+              "t",
+              "{stock}",
+              "{sc}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_kzz_zqgk": {
+      "label": "债券概况",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_kzz_zqgk",
+          "params": [
+            [
+              "fhrjbzl",
+              "{stock}",
+              ""
+            ],
+            [
+              "sdcyr",
+              "{stock}",
+              "e.bgq||i"
+            ],
+            [
+              "sdcyrbgq",
+              "{stock}",
+              ""
+            ],
+            [
+              "xtfhr",
+              "{stock}",
+              ""
+            ],
+            [
+              "zqzl",
+              "{stock}",
+              ""
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_kzz_cwfx": {
+      "label": "财务分析",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_kzz_cwfx",
+          "params": [
+            [
+              "t",
+              "{stock}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_kzz_fxqk": {
+      "label": "付息情况",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_kzz_fxqk",
+          "params": [
+            [
+              "fxqk",
+              "{stock}"
+            ],
+            [
+              "xjlfx",
+              "{stock}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_kzz_zqdb": {
+      "label": "债券担保",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_kzz_zqdb",
+          "params": [
+            [
+              "dbsm",
+              "{stock}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_kzz_zqpj": {
+      "label": "债券评级",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_kzz_zqpj",
+          "params": [
+            [
+              "fxjgpj",
+              "{stock}"
+            ],
+            [
+              "fxjgzst",
+              "{stock}"
+            ],
+            [
+              "pjzst",
+              "{stock}"
+            ],
+            [
+              "xypj",
+              "{stock}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_kzz_zgqk": {
+      "label": "转股情况",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_kzz_zg",
+          "params": [
+            [
+              "t",
+              "{stock}"
+            ],
+            [
+              "zgjg",
+              "{stock}"
+            ],
+            [
+              "zgjgzs",
+              "{stock}"
+            ],
+            [
+              "zgqk",
+              "{stock}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_kzz_zqll": {
+      "label": "债券利率",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_kzz_zqll",
+          "params": [
+            [
+              "zbz",
+              "{stock}"
+            ],
+            [
+              "zqll",
+              "{stock}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_zq_zqtk": {
+      "label": "债券条款",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_kzz_lltk",
+          "params": [
+            [
+              "hstk",
+              "{stock}"
+            ],
+            [
+              "shtk",
+              "{stock}"
+            ],
+            [
+              "xztk",
+              "{stock}"
+            ],
+            [
+              "zqll",
+              "{stock}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_kzz_zqgg": {
+      "label": "债券公告",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_kzz_zjzx",
+          "params": [
+            [
+              "{stock}",
+              "{sc}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_qyz_zqgk": {
+      "label": "债券概况",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_qyz_zqgk",
+          "params": [
+            [
+              "fhrjbzl",
+              "{stock}",
+              "{sc}"
+            ],
+            [
+              "xtfhr",
+              "{stock}",
+              "{sc}"
+            ],
+            [
+              "zqzl",
+              "{stock}",
+              "{sc}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_qyz_cwfx": {
+      "label": "财务分析",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_qyz_cwfx",
+          "params": [
+            [
+              "t",
+              "{stock}",
+              "{sc}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_qyz_xjlfx": {
+      "label": "付息兑付",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_qyz_xjlfx",
+          "params": [
+            [
+              "febd",
+              "{stock}",
+              "{sc}"
+            ],
+            [
+              "fxqk",
+              "{stock}",
+              "{sc}"
+            ],
+            [
+              "xjlfx",
+              "{stock}",
+              "{sc}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_qyz_zqdb": {
+      "label": "债券担保",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_qyz_zqdb",
+          "params": [
+            [
+              "dbsm",
+              "{stock}",
+              "{sc}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_qyz_zqpj": {
+      "label": "债券评级",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_qyz_zjpj",
+          "params": [
+            [
+              "fxjgpj",
+              "{stock}",
+              "{sc}"
+            ],
+            [
+              "fxjgzst",
+              "{stock}",
+              "{sc}"
+            ],
+            [
+              "zjpjzst",
+              "{stock}",
+              "{sc}"
+            ],
+            [
+              "zjxypj",
+              "{stock}",
+              "{sc}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_qyz_zqll": {
+      "label": "债券利率",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond__idreq",
+          "params": []
+        },
+        {
+          "entry": "CWServ.skef10_bond_qyz_zjlv",
+          "params": [
+            [
+              "zqlv",
+              "{stock}",
+              "{sc}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_qyz_gsps": {
+      "label": "公司评述",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_qyz_gsps",
+          "params": [
+            [
+              "e",
+              "{stock}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_zczq_zqgk": {
+      "label": "债券概况",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_zczqh_zqgk",
+          "params": [
+            [
+              "zqgk",
+              "{stock}",
+              "{sc}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_zczq_cwfx": {
+      "label": "财务分析",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_zczqh_cwfx",
+          "params": [
+            [
+              "t",
+              "{stock}",
+              "{sc}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_zczq_zqpj": {
+      "label": "债券评级",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_zczqh_zqpj",
+          "params": [
+            [
+              "fxjgpj",
+              "{stock}",
+              "{sc}"
+            ],
+            [
+              "fxjgzst",
+              "{stock}",
+              "{sc}"
+            ],
+            [
+              "pjzst",
+              "{stock}",
+              "{sc}"
+            ],
+            [
+              "xypj",
+              "{stock}",
+              "{sc}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_kjhz_zqgk": {
+      "label": "债券概况",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_kjhz_zqgk",
+          "params": [
+            [
+              "fhrjbzl",
+              "{stock}"
+            ],
+            [
+              "xtfhr",
+              "{stock}"
+            ],
+            [
+              "zqzl",
+              "{stock}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_kjhz_cwfx": {
+      "label": "财务分析",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_kjhz_cwfx",
+          "params": [
+            [
+              "t",
+              "{stock}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_kjhz_fxqk": {
+      "label": "付息情况",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_kjhz_fxqk",
+          "params": [
+            [
+              "fxqk",
+              "{stock}"
+            ],
+            [
+              "xjlfx",
+              "{stock}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_kjhz_zqdb": {
+      "label": "债券担保",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_kjhz_zqdb",
+          "params": [
+            [
+              "dbsm",
+              "{stock}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_kjhz_zqpj": {
+      "label": "债券评级",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_kjhz_zqpj",
+          "params": [
+            [
+              "fxjgpj",
+              "{stock}"
+            ],
+            [
+              "fxjgzst",
+              "{stock}"
+            ],
+            [
+              "pjzst",
+              "{stock}"
+            ],
+            [
+              "xypj",
+              "{stock}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_kjhz_jhqk": {
+      "label": "交换情况",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_kjhz_jhqk",
+          "params": [
+            [
+              "jgtzzst",
+              "{stock}"
+            ],
+            [
+              "jhjbqk",
+              "{stock}"
+            ],
+            [
+              "jhjgtz",
+              "{stock}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_kjhz_zqll": {
+      "label": "债券利率",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_kjhz_zqll",
+          "params": [
+            [
+              "zqll",
+              "{stock}"
+            ],
+            [
+              "zst",
+              "{stock}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_zq_kjhz_zqgg": {
+      "label": "债券公告",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_bond_kjhz_zqzx",
+          "params": [
+            [
+              "{stock}",
+              "{sc}"
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "industry": {
+    "skef10_hy_hyzlan": {
+      "label": "行业总览",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hy_hqtj",
+          "params": [
+            [
+              "{hy}"
+            ]
+          ]
+        },
+        {
+          "entry": "CWServ.skef10_hy_hygy",
+          "params": [
+            [
+              "{hy}"
+            ]
+          ]
+        },
+        {
+          "entry": "CWServ.skef10_hy_hyzq",
+          "params": [
+            [
+              "{hy}"
+            ]
+          ]
+        },
+        {
+          "entry": "CWServ.skef10_hy_jdzf",
+          "params": [
+            [
+              "{hy}",
+              "e"
+            ]
+          ]
+        },
+        {
+          "entry": "CWServ.skef10_hy_zszfb",
+          "params": [
+            [
+              "{hy}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_hy_hydw": {
+      "label": "成份股",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hy_hydw_cwzkpm",
+          "params": [
+            [
+              "001",
+              "{hy}"
+            ],
+            [
+              "002",
+              "{hy}",
+              "",
+              "e",
+              ""
+            ],
+            [
+              "003",
+              "{hy}",
+              "",
+              "",
+              ""
+            ]
+          ]
+        },
+        {
+          "entry": "CWServ.skef10_hy_hydw_gsgmpm",
+          "params": [
+            [
+              "{hy}"
+            ]
+          ]
+        },
+        {
+          "entry": "CWServ.skef10_hy_hydw_gzsppm",
+          "params": [
+            [
+              "01",
+              "{hy}",
+              "o"
+            ],
+            [
+              "02",
+              "{hy}",
+              ""
+            ]
+          ]
+        },
+        {
+          "entry": "CWServ.skef10_hy_hydw_scbxpm",
+          "params": [
+            [
+              "scpm",
+              "",
+              "{hy}"
+            ],
+            [
+              "sczf",
+              "i",
+              "{hy}"
+            ]
+          ]
+        },
+        {
+          "entry": "CWServ.skef10_hy_hydw_zysrpm",
+          "params": [
+            [
+              "001",
+              "{hy}",
+              ""
+            ],
+            [
+              "011",
+              "",
+              "a"
+            ],
+            [
+              "011A",
+              "i",
+              "n"
+            ],
+            [
+              "011B",
+              "i",
+              "n"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_hy_hyzl": {
+      "label": "行业资料",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hy_hydw_zysrpm",
+          "params": [
+            [
+              "i",
+              "n",
+              ""
+            ]
+          ]
+        },
+        {
+          "entry": "CWServ.skef10_hy_hyzl_hyjs",
+          "params": [
+            [
+              "{hy}"
+            ]
+          ]
+        },
+        {
+          "entry": "CWServ.skef10_hy_hyzl_hyplk",
+          "params": [
+            [
+              "001",
+              "{hy}"
+            ],
+            [
+              "002",
+              "t"
+            ],
+            [
+              "003",
+              "{hy}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_hy_zxdt": {
+      "label": "最新动态",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hy_hyzx_idreq",
+          "params": []
+        },
+        {
+          "entry": "CWServ.skef10_hy_zxdt",
+          "params": [
+            [
+              "hydt",
+              "{hy}"
+            ],
+            [
+              "hyzt",
+              "{hy}"
+            ]
+          ]
+        },
+        {
+          "entry": "CWServ.skef10_hy_zxdt_hyzchy",
+          "params": []
+        },
+        {
+          "entry": "CWServ.skef10_hy_zxdt_hyzysj",
+          "params": []
+        }
+      ]
+    },
+    "skef10_hy_hysj": {
+      "label": "行业数据",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hy_hysj_bxzjtj",
+          "params": [
+            [
+              "001",
+              "{hy}",
+              "n"
+            ],
+            [
+              "002",
+              "{hy}",
+              ""
+            ]
+          ]
+        },
+        {
+          "entry": "CWServ.skef10_hy_hysj_jjzb",
+          "params": [
+            [
+              "1",
+              "{hy}",
+              ""
+            ],
+            [
+              "2",
+              "{hy}",
+              "n"
+            ],
+            [
+              "3",
+              "{hy}",
+              "o"
+            ]
+          ]
+        },
+        {
+          "entry": "CWServ.skef10_hy_hysj_zjlx",
+          "params": [
+            [
+              "001",
+              "{hy}"
+            ],
+            [
+              "002",
+              "{hy}"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_hy_hyyj": {
+      "label": "行业研究",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hy_hyyj_fxszs",
+          "params": [
+            [
+              "001",
+              "{hy}",
+              "",
+              ""
+            ],
+            [
+              "002",
+              "{hy}",
+              "t.gpdm",
+              "t.fxs_id"
+            ],
+            [
+              "003",
+              "{hy}",
+              "t.gpdm",
+              "t.fxs_id"
+            ],
+            [
+              "004",
+              "{hy}",
+              "t.gpdm",
+              "t.fxs_id"
+            ]
+          ]
+        },
+        {
+          "entry": "CWServ.skef10_hy_hyyj_hymzgd",
+          "params": [
+            [
+              "{hy}"
+            ]
+          ]
+        },
+        {
+          "entry": "CWServ.skef10_hy_hyyj_hypjhz",
+          "params": [
+            [
+              "001",
+              "{hy}",
+              ""
+            ],
+            [
+              "002",
+              "{hy}",
+              "t"
+            ],
+            [
+              "003",
+              "{hy}",
+              "t"
+            ],
+            [
+              "004",
+              "{hy}",
+              "t"
+            ]
+          ]
+        }
+      ]
+    },
+    "skef10_hy_hyzx": {
+      "label": "行业资讯",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hy_idsy",
+          "params": [
+            [
+              "002",
+              "{hy}"
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "futures": {
+    "skef10_qh_pzzl_gz": {
+      "label": "品种资料",
+      "entries": []
+    },
+    "skef10_qh_zszl": {
+      "label": "指数资料",
+      "entries": []
+    },
+    "skef10_qh_ccbg": {
+      "label": "持仓报告",
+      "entries": []
+    },
+    "skef10_qh_zsgz": {
+      "label": "指数估值",
+      "entries": []
+    },
+    "skef10_qh_cfg": {
+      "label": "成份权重",
+      "entries": []
+    },
+    "skef10_qh_xwpl": {
+      "label": "新闻评论",
+      "entries": []
+    },
+    "skef10_qh_pzzl_sp": {
+      "label": "品种资料",
+      "entries": []
+    },
+    "skef10_qh_cdrb": {
+      "label": "仓单日报",
+      "entries": []
+    },
+    "skef10_qh_jcjc": {
+      "label": "基差价差",
+      "entries": []
+    },
+    "skef10_qh_kcbg": {
+      "label": "库存报告",
+      "entries": []
+    }
+  }
+}

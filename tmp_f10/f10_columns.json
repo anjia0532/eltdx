@@ -1,0 +1,1180 @@
+{
+  "mg.mg_name": {
+    "entry": "CWServ.skef10_mg_idreq",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "T003",
+          "T009",
+          "name"
+        ]
+      }
+    ]
+  },
+  "mg.mg_tips": {
+    "entry": "CWServ.skef10_mg_zxdt",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "T003",
+          "T080",
+          "T055",
+          "T073",
+          "T074",
+          "T045",
+          "T025",
+          "T056",
+          "T057",
+          "T077",
+          "T079"
+        ]
+      }
+    ]
+  },
+  "mg.mg_profile": {
+    "entry": "CWServ.skef10_mg_gsgk",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "f11",
+          "f12",
+          "f13",
+          "f14",
+          "f15",
+          "f16"
+        ]
+      }
+    ]
+  },
+  "mg.mg_finance": {
+    "entry": "CWServ.skef10_mg_cwfx",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "year",
+          "rq",
+          "bgid",
+          "bgtype",
+          "N003",
+          "N004",
+          "N005",
+          "N006",
+          "N007",
+          "N008",
+          "N009",
+          "N010",
+          "N011",
+          "N012",
+          "N013",
+          "N014",
+          "N015",
+          "N016",
+          "N017",
+          "N018",
+          "N019",
+          "N020",
+          "N021",
+          "N022",
+          "N023",
+          "N024",
+          "N025",
+          "N026",
+          "N027",
+          "N028",
+          "N029",
+          "N030",
+          "N031",
+          "N032",
+          "N033",
+          "N034",
+          "N035",
+          "N036",
+          "N037",
+          "N038",
+          "N039",
+          "N040",
+          "N041",
+          "N042",
+          "N043",
+          "N044",
+          "N045",
+          "N046",
+          "N047",
+          "N048",
+          "N049",
+          "N050",
+          "N051",
+          "N052",
+          "N053",
+          "N054",
+          "N055",
+          "N056",
+          "N057",
+          "N058",
+          "N059",
+          "N060",
+          "N061",
+          "N062",
+          "N063",
+          "N064",
+          "N065",
+          "N066",
+          "N067"
+        ]
+      }
+    ]
+  },
+  "mg.mg_finance_lyb": {
+    "entry": "CWServ.skef10_mg_cwfx",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "year",
+          "rq",
+          "bgid",
+          "bgtype",
+          "N003",
+          "N004",
+          "N005",
+          "N006",
+          "N007",
+          "N008",
+          "N009",
+          "N010",
+          "N011",
+          "N012",
+          "N013",
+          "N014",
+          "N015",
+          "N016",
+          "N017",
+          "N018",
+          "N019",
+          "N020",
+          "N021",
+          "N022",
+          "N023",
+          "N024",
+          "N025",
+          "N026",
+          "N027",
+          "N028",
+          "N029",
+          "N030",
+          "N031",
+          "N032",
+          "N033",
+          "N034",
+          "N035",
+          "N036",
+          "N037",
+          "N038",
+          "N039"
+        ]
+      }
+    ]
+  },
+  "mg.mg_finance_xjllb": {
+    "entry": "CWServ.skef10_mg_cwfx",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "year",
+          "rq",
+          "bgid",
+          "bgtype",
+          "N004",
+          "N005",
+          "N006",
+          "N007",
+          "N008",
+          "N009",
+          "N010",
+          "N011",
+          "N012",
+          "N013",
+          "N014",
+          "N015",
+          "N016",
+          "N017",
+          "N018",
+          "N019",
+          "N020",
+          "N021",
+          "N022",
+          "N023",
+          "N024",
+          "N025",
+          "N026",
+          "N027",
+          "N028",
+          "N029",
+          "N030",
+          "N031",
+          "N033",
+          "N034",
+          "N035",
+          "N036",
+          "N037",
+          "N038",
+          "N039",
+          "N040",
+          "N041",
+          "N042",
+          "N043",
+          "N045",
+          "N046",
+          "N047",
+          "N048",
+          "N049",
+          "N050",
+          "N051",
+          "N052",
+          "N053",
+          "N054",
+          "N055",
+          "N056",
+          "N057",
+          "N058",
+          "N059",
+          "N060",
+          "N061",
+          "N062",
+          "N063",
+          "N064",
+          "N065"
+        ]
+      }
+    ]
+  },
+  "mg.mg_finance_indicator": {
+    "entry": "CWServ.skef10_mg_cwzb",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N001",
+          "stype",
+          "N002",
+          "N003",
+          "N004",
+          "N005",
+          "N006",
+          "N007",
+          "N008",
+          "N009",
+          "N010",
+          "N011",
+          "N012",
+          "N013"
+        ]
+      }
+    ]
+  },
+  "mg.mg_finance_indicator_yynl": {
+    "entry": "CWServ.skef10_mg_cwzb",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N001",
+          "stype",
+          "N002",
+          "N003",
+          "N004",
+          "N005",
+          "N006",
+          "N007",
+          "N008"
+        ]
+      }
+    ]
+  },
+  "mg.mg_business": {
+    "entry": "CWServ.skef10_mg_jyfx",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "T005",
+          "T006",
+          "zb",
+          "T007",
+          "mll",
+          "lb",
+          "rq"
+        ]
+      }
+    ]
+  },
+  "mg.mg_industry": {
+    "entry": "CWServ.skef10_mg_hyfx",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N001",
+          "N002",
+          "N003"
+        ]
+      }
+    ]
+  },
+  "mg.mg_industry_compare": {
+    "entry": "CWServ.skef10_mg_hydb",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N001",
+          "N002",
+          "N003",
+          "N004",
+          "N005"
+        ]
+      },
+      {
+        "key": "table1",
+        "columns": [
+          "N001",
+          "N002"
+        ]
+      }
+    ]
+  },
+  "mg.mg_dividend_fh": {
+    "entry": "CWServ.skef10_mg_fhrz",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "aT003",
+          "T005",
+          "aT007",
+          "aT006",
+          "aT008"
+        ]
+      }
+    ]
+  },
+  "mg.mg_dividend_cf": {
+    "entry": "CWServ.skef10_mg_fhrz",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "aT003",
+          "T005",
+          "T004",
+          "aT006",
+          "aT007"
+        ]
+      }
+    ]
+  },
+  "mg.mg_capital_001": {
+    "entry": "CWServ.skef10_mg_gbjg",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "T003",
+          "T004"
+        ]
+      }
+    ]
+  },
+  "mg.mg_capital_002": {
+    "entry": "CWServ.skef10_mg_gbjg",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N001",
+          "N002",
+          "N003",
+          "N004",
+          "N005",
+          "N006"
+        ]
+      },
+      {
+        "key": "table1",
+        "columns": [
+          "zs"
+        ]
+      }
+    ]
+  },
+  "mg.mg_shareholders_006": {
+    "entry": "CWServ.skef10_mg_gbgd",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N001",
+          "N002",
+          "N003",
+          "N004",
+          "N005",
+          "N006"
+        ]
+      },
+      {
+        "key": "table1",
+        "columns": [
+          "N000"
+        ]
+      }
+    ]
+  },
+  "mg.mg_shareholders_003": {
+    "entry": "CWServ.skef10_mg_gbgd",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N001",
+          "N002",
+          "N003",
+          "N004",
+          "N005",
+          "N006",
+          "N007",
+          "N008"
+        ]
+      }
+    ]
+  },
+  "mg.mg_directors_ds": {
+    "entry": "CWServ.skef10_mg_dsgg",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "T002",
+          "T006",
+          "T003",
+          "T005",
+          "rq",
+          "T007",
+          "T008",
+          "T009",
+          "T010",
+          "rec_id"
+        ]
+      }
+    ]
+  },
+  "mg.mg_directors_gg": {
+    "entry": "CWServ.skef10_mg_dsgg",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "T002",
+          "T006",
+          "T003",
+          "T005",
+          "rq",
+          "T007",
+          "T008",
+          "T009",
+          "T010",
+          "rec_id"
+        ]
+      }
+    ]
+  },
+  "mg.mg_market_001": {
+    "entry": "CWServ.skef10_mg_schq",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N001",
+          "N002",
+          "N003",
+          "N004",
+          "N005",
+          "N006",
+          "N007",
+          "N008",
+          "N009"
+        ]
+      },
+      {
+        "key": "table1",
+        "columns": [
+          "zs"
+        ]
+      }
+    ]
+  },
+  "mg.mg_market_003": {
+    "entry": "CWServ.skef10_mg_schq",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N001",
+          "N002",
+          "N003",
+          "N004",
+          "N005",
+          "N006",
+          "N007",
+          "N008",
+          "N009",
+          "N010",
+          "N011",
+          "N012",
+          "N013"
+        ]
+      }
+    ]
+  },
+  "mg.mg_announcements": {
+    "entry": "CWServ.skef10_mg_gsbd",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N001",
+          "Title",
+          "N003",
+          "rq",
+          "currq",
+          "rec_id"
+        ]
+      }
+    ]
+  },
+  "mg.mg_rating_001": {
+    "entry": "CWServ.skef10_mg_gspj",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N001",
+          "N002",
+          "N003",
+          "N004",
+          "N005",
+          "N006",
+          "N007",
+          "N008"
+        ]
+      }
+    ]
+  },
+  "mg.mg_rating_002": {
+    "entry": "CWServ.skef10_mg_gspj",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N001",
+          "N002",
+          "N003",
+          "N004"
+        ]
+      }
+    ]
+  },
+  "mg.mg_topic": {
+    "entry": "CWServ.skef10_mg_rdtc",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N002",
+          "N003",
+          "N004",
+          "N005",
+          "N006",
+          "N007"
+        ]
+      }
+    ]
+  },
+  "mg.mg_deep_analysis_001": {
+    "entry": "CWServ.skef10_mg_sdfx",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "year",
+          "N002",
+          "N003",
+          "N004",
+          "N005",
+          "N006",
+          "N007",
+          "N008",
+          "N009",
+          "N010",
+          "N011",
+          "N012",
+          "N013",
+          "N014"
+        ]
+      }
+    ]
+  },
+  "mg.mg_deep_analysis_002": {
+    "entry": "CWServ.skef10_mg_sdfx",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N001",
+          "N002",
+          "N003",
+          "N004",
+          "N005"
+        ]
+      }
+    ]
+  },
+  "hk.hk_name": {
+    "entry": "CWServ.skef10_hk_idreq",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "name",
+          "sc"
+        ]
+      }
+    ]
+  },
+  "hk.hk_tips": {
+    "entry": "CWServ.skef10_hk_zxts",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "lb",
+          "lbname",
+          "contents"
+        ]
+      }
+    ]
+  },
+  "hk.hk_tips_2": {
+    "entry": "CWServ.skef10_hk_zxts",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "zyyw",
+          "hy",
+          "dw",
+          "bk"
+        ]
+      }
+    ]
+  },
+  "hk.hk_events": {
+    "entry": "CWServ.skef10_hk_gsds",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "InfoDate",
+          "Summary",
+          "ExDate",
+          "PayDate",
+          "CDateBegin",
+          "CdateEnd",
+          "bz",
+          "gx"
+        ]
+      },
+      {
+        "key": "table1",
+        "columns": [
+          "cashcount"
+        ]
+      }
+    ]
+  },
+  "hk.hk_events_2": {
+    "entry": "CWServ.skef10_hk_gsds",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "DeclareDate",
+          "IssPaidNum",
+          "OrdNum",
+          "HOrd",
+          "Reason",
+          "EndDate"
+        ]
+      }
+    ]
+  },
+  "hk.hk_profile": {
+    "entry": "CWServ.skef10_hk_gsgk",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "ComName",
+          "StocksName",
+          "Sort",
+          "RegPla",
+          "RegPlaInfo",
+          "WebSite",
+          "SRegister",
+          "Fax",
+          "Auditors",
+          "enname",
+          "Sector1",
+          "Njr",
+          "clrq",
+          "StafSum",
+          "Email",
+          "Tel",
+          "HOffice",
+          "LawDvisors",
+          "Activities",
+          "Bankers",
+          "Introduce",
+          "url",
+          "Secretary"
+        ]
+      },
+      {
+        "key": "table1",
+        "columns": [
+          "Name",
+          "POSITION"
+        ]
+      }
+    ]
+  },
+  "hk.hk_profile_2": {
+    "entry": "CWServ.skef10_hk_gsgk",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "StockCode",
+          "T016",
+          "T021",
+          "T022",
+          "T024",
+          "T014",
+          "T020",
+          "T030",
+          "T023",
+          "T025",
+          "T026",
+          "T027",
+          "T028",
+          "T003",
+          "T004",
+          "jybz"
+        ]
+      }
+    ]
+  },
+  "hk.hk_related": {
+    "entry": "CWServ.skef10_hk_glzq",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N001",
+          "N002",
+          "N003",
+          "N004",
+          "N005",
+          "N006",
+          "N007",
+          "N008",
+          "N009",
+          "N010",
+          "N011",
+          "N012",
+          "N013",
+          "N014"
+        ]
+      }
+    ]
+  },
+  "hk.hk_executives": {
+    "entry": "CWServ.skef10_hk_ggzl",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "rec_id",
+          "ggname",
+          "PositionName",
+          "BirthYear",
+          "Sex",
+          "Degree",
+          "Nationality",
+          "PostDate",
+          "N001",
+          "N002",
+          "N003",
+          "N004",
+          "N005",
+          "N006",
+          "N007"
+        ]
+      }
+    ]
+  },
+  "hk.hk_capital": {
+    "entry": "CWServ.skef10_hk_gbjg",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "DeclareDate",
+          "EndDate",
+          "Src",
+          "IssPaidNum",
+          "OrdNum",
+          "Hord",
+          "Reason",
+          "T011"
+        ]
+      }
+    ]
+  },
+  "hk.hk_shareholders": {
+    "entry": "CWServ.skef10_hk_gdcg",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "T005",
+          "T008",
+          "T009",
+          "T010",
+          "T011",
+          "T012",
+          "T013"
+        ]
+      }
+    ]
+  },
+  "hk.hk_finance_zcfzb": {
+    "entry": "CWServ.skef10_hk_cwfx",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "isjrl"
+        ]
+      },
+      {
+        "key": "table1",
+        "columns": [
+          "bgq",
+          "StartDate",
+          "EndDate",
+          "TAssets",
+          "NAssets",
+          "ProPlaEqu",
+          "AJEquity",
+          "CAssets",
+          "Inventory",
+          "RAccounts",
+          "CasDep",
+          "TLiab",
+          "CLiab",
+          "PAccounts",
+          "SBLoan",
+          "CANet",
+          "NLiab",
+          "LBLoan",
+          "SHEquity",
+          "MEquity",
+          "SCapital",
+          "Currency",
+          "InfoDate",
+          "LastEndDate"
+        ]
+      }
+    ]
+  },
+  "hk.hk_finance_zhsyb": {
+    "entry": "CWServ.skef10_hk_cwfx",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "isjrl"
+        ]
+      },
+      {
+        "key": "table1",
+        "columns": [
+          "bgq",
+          "StartDate",
+          "EndDate",
+          "ProfitBT",
+          "AJProfit",
+          "ProfitFO",
+          "TurnOver",
+          "Depreciation",
+          "SExpense",
+          "Salaries",
+          "IExpense",
+          "Taxation",
+          "ProfitFTY",
+          "SHProfit",
+          "MProfit",
+          "Dividends",
+          "EPSBasic",
+          "EPSDiluted",
+          "Currency",
+          "InfoDate",
+          "LastEndDate"
+        ]
+      }
+    ]
+  },
+  "hk.hk_finance_indicator": {
+    "entry": "CWServ.skef10_hk_cwzb",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "isjrl"
+        ]
+      },
+      {
+        "key": "table1",
+        "columns": [
+          "Year",
+          "type",
+          "EndDate",
+          "bgq",
+          "EndDate",
+          "EPS1",
+          "EPSyear1",
+          "NTA",
+          "CashPShare1",
+          "DivE",
+          "DivP",
+          "Oincome",
+          "ProfitFO",
+          "SHProfit",
+          "FCF",
+          "ONetCash",
+          "Currency"
+        ]
+      }
+    ]
+  },
+  "hk.hk_business": {
+    "entry": "CWServ.skef10_hk_jyfx",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "rq",
+          "nd",
+          "jd",
+          "lb",
+          "lbmc",
+          "xmmc",
+          "yysr",
+          "bz",
+          "zb"
+        ]
+      }
+    ]
+  },
+  "hk.hk_industry_compare": {
+    "entry": "CWServ.skef10_hk_hybj",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "bgrq",
+          "bgqlx"
+        ]
+      },
+      {
+        "key": "table1",
+        "columns": [
+          "xh",
+          "StockCode",
+          "StocksName",
+          "ROE",
+          "EPSBasic",
+          "NTA1",
+          "Oincome",
+          "ProfitFO",
+          "SHProfit",
+          "NPGR"
+        ]
+      },
+      {
+        "key": "table2",
+        "columns": [
+          "edate",
+          "hyname"
+        ]
+      },
+      {
+        "key": "table3",
+        "columns": [
+          "t003",
+          "sl"
+        ]
+      }
+    ]
+  },
+  "hk.hk_market_1": {
+    "entry": "CWServ.skef10_hk_schq",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "tpggrq",
+          "tprq",
+          "tpyy",
+          "fpggrq",
+          "fprq"
+        ]
+      }
+    ]
+  },
+  "hk.hk_market_2": {
+    "entry": "CWServ.skef10_hk_schq",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "acode",
+          "aname",
+          "adate",
+          "aprice",
+          "azdf",
+          "hkcode",
+          "aprice_hkd",
+          "hkprice",
+          "hkzdf",
+          "ahjgb",
+          "ahzyj",
+          "hl"
+        ]
+      }
+    ]
+  },
+  "hk.hk_news": {
+    "entry": "CWServ.skef10_hk_gszx",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "pjdate",
+          "T003",
+          "T004",
+          "T005",
+          "T006",
+          "T007",
+          "T008",
+          "T009",
+          "T010",
+          "T011"
+        ]
+      }
+    ]
+  },
+  "hk.hk_topic": {
+    "entry": "CWServ.skef10_hk_rdtc",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N002",
+          "N003",
+          "N004",
+          "N005",
+          "N006"
+        ]
+      }
+    ]
+  },
+  "hk.hk_pepb_band": {
+    "entry": "CWServ.skef10_hk_sdfx_pepb_band",
+    "tables": []
+  },
+  "hk.hk_valuation": {
+    "entry": "CWServ.skef10_hk_sdfx_gzfx",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N001",
+          "N002",
+          "N003",
+          "N004",
+          "N005",
+          "N006",
+          "N007",
+          "N008",
+          "N009",
+          "N010",
+          "N011"
+        ]
+      }
+    ]
+  },
+  "hk.hk_price_chart": {
+    "entry": "CWServ.skef10_hk_sdfx_hqzft",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "year",
+          "N001",
+          "N002",
+          "N003",
+          "N004",
+          "N005",
+          "N006",
+          "N007",
+          "N008",
+          "N009",
+          "N010",
+          "N011",
+          "N012",
+          "N013"
+        ]
+      }
+    ]
+  },
+  "hk.hk_analyst_forecast": {
+    "entry": "CWServ.skef10_hk_sdfx_fxysyfx",
+    "tables": [
+      {
+        "key": "table0",
+        "columns": [
+          "N001",
+          "N002",
+          "N003",
+          "N004"
+        ]
+      }
+    ]
+  }
+}

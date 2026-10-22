@@ -85,6 +85,13 @@ eltdx 默认按“想拿什么数据”组织入口。普通调用优先使用�
 | 指数与新股 | 指数成份股清单、跟踪某个指数的全部产品、近期新股 | [`client.helpers.index_members()`](docs/helpers/指数与新股.md) | `7615` + `Helpers 封装` |
 | 板块分红成份 | 板块成份股的分红记录（方案、进度、公告 / 登记 / 除权日、报告期），按记录去重翻页 | [`client.helpers.board_members()`](docs/helpers/板块分红成份.md) | `7615` + `Helpers 封装` |
 | 最新提示 | F10 首屏提示、公司概要、大事、新闻、公告、研报、路演和投资者互动 | [`client.f10.digest()`](docs/methods/F10-公司资讯研报.md) | `7615 原生 Entry` |
+| 个股总评与深度分析 | 阶段涨幅、主力资金流、所属行业与排名、行业内排名、估值历史分位、PE/PB 估值带、年度走势、关联板块成分 | [`client.f10.stock_stage_gain()`](docs/F10_7615.md) / [`client.f10.stock_industry_rank()`](docs/F10_7615.md) / [`client.f10.stock_pepb_percentile()`](docs/F10_7615.md) | `7615 原生 Entry` |
+| 美股 / 港股 F10 | 概况、财务（按 GAAP 模板）、经营、股东、高管、行情、公告（SEC 原文地址）、评级、深度分析 | [`client.f10.mg_profile()`](docs/F10_7615.md) / [`client.f10.hk_finance()`](docs/F10_7615.md) | `7615 原生 Entry`（page2） |
+| 新三板 F10 | 概况、股本、股东、财务、行业比较、大事、资讯、合规、分红 | [`client.f10.sb_profile()`](docs/F10_7615.md) | `7615 原生 Entry`（page2） |
+| 债券 F10 | 可转债 / 国债 / 企业债 / 公司债 / 可交换债 / ABS / 国债回购共 9 类：概况、财务、评级、担保、利率、条款、转股、公告 | [`client.f10.bond_profile()`](docs/F10_7615.md) / [`client.f10.gz_interest()`](docs/F10_7615.md) | `7615 原生 Entry`（page2） |
+| 行业 F10 | 行业总览、介绍、评论、成份股五类排名、板块资金、资金流向、基金持仓、分析师指数、评级汇总 | [`client.f10.hy_summary()`](docs/F10_7615.md) / [`client.f10.hy_members_rank()`](docs/F10_7615.md) | `7615 原生 Entry`（page2） |
+| 期货 F10 | 持仓报告（仓差/结构/席位/均价/盈亏）、基差价差、仓单日报、品种资料、指数估值、成份权重 | [`client.f10.qh_position_report()`](docs/F10_7615.md) | `7615 原生 Entry`（page2） |
+| 宏观指标 | GDP / CPI / PPI / PMI / M2 / 利率等 217 个指标的最新值与历史序列（市场 38） | [`MacExClient.macro_indicators()`](docs/EXTENDED_MARKET.md) / [`MacExClient.macro_quotes()`](docs/EXTENDED_MARKET.md) | `7727 MAC_EX` |
 | 历史资金流向 | 近 3 / 5 / 10 / 20 / 60 日主力、超大单和大单净额序列 | [`client.money_flow.history()`](docs/methods/0x0ffc-资金流向日数据接口.md) | `7615 原生 Entry` |
 | 个股概念 | 某只股票所属的热点题材和入选原因 | [`client.helpers.stock_topics()`](docs/helpers/个股概念板块.md) | `7615` + `Helpers 封装` |
 | 股票信息汇总 | 行情、证券名称、股本、市值和换手率合并表 | [`client.helpers.stock_profile_table()`](docs/helpers/股票信息汇总.md) | `7709` + `Helpers 组合` |

@@ -1,0 +1,809 @@
+{
+  "mgf10": [
+    {
+      "menu": "最新提示",
+      "html": "skef10_mg_zxts",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_mg_fhrz",
+          "call_name": "skef10_mg_fhrz",
+          "params": [],
+          "inline": false
+        },
+        {
+          "entry": "CWServ.skef10_mg_gbjg",
+          "call_name": "skef10_mg_gbjg",
+          "params": [],
+          "inline": false
+        },
+        {
+          "entry": "CWServ.skef10_mg_zxdt",
+          "call_name": "skef10_mg_zxdt",
+          "params": [
+            [
+              "zxdt",
+              "{stock}",
+              ""
+            ],
+            [
+              "sypl",
+              "{stock}",
+              ""
+            ],
+            [
+              "gsgy",
+              "{stock}",
+              ""
+            ],
+            [
+              "zysj",
+              "{stock}",
+              ""
+            ]
+          ],
+          "inline": true
+        }
+      ]
+    },
+    {
+      "menu": "公司概况",
+      "html": "skef10_mg_gsgk",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_mg_gsgk",
+          "call_name": "skef10_mg_gsgk",
+          "params": [
+            [
+              "001",
+              "{stock}"
+            ]
+          ],
+          "inline": true
+        }
+      ]
+    },
+    {
+      "menu": "财务分析",
+      "html": "skef10_mg_cwfx",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_mg_cwfx",
+          "call_name": "skef10_mg_cwfx",
+          "params": [],
+          "inline": false
+        },
+        {
+          "entry": "CWServ.skef10_mg_cwfx_",
+          "call_name": "skef10_mg_cwfx_",
+          "params": [],
+          "inline": false
+        }
+      ]
+    },
+    {
+      "menu": "财务指标",
+      "html": "skef10_mg_cwzb",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_mg_cwzb",
+          "call_name": "skef10_mg_cwzb",
+          "params": [],
+          "inline": false
+        }
+      ]
+    },
+    {
+      "menu": "经营分析",
+      "html": "skef10_mg_jyfx",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_mg_jyfx",
+          "call_name": "skef10_mg_jyfx",
+          "params": [],
+          "inline": false
+        }
+      ]
+    },
+    {
+      "menu": "行业分析",
+      "html": "skef10_mg_hyfx",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_mg_hyfx",
+          "call_name": "skef10_mg_hyfx",
+          "params": [
+            [
+              "001",
+              "{stock}",
+              "4",
+              "1"
+            ]
+          ],
+          "inline": true
+        }
+      ]
+    },
+    {
+      "menu": "行业对比",
+      "html": "skef10_mg_hydb",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_mg_hydb",
+          "call_name": "skef10_mg_hydb",
+          "params": [
+            [
+              "001",
+              "{stock}",
+              "",
+              "0",
+              "0"
+            ]
+          ],
+          "inline": true
+        }
+      ]
+    },
+    {
+      "menu": "分红融资",
+      "html": "skef10_mg_fhrz",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_mg_fhrz",
+          "call_name": "skef10_mg_fhrz",
+          "params": [
+            [
+              "{stock}",
+              "cf"
+            ],
+            [
+              "{stock}",
+              "fh"
+            ]
+          ],
+          "inline": true
+        }
+      ]
+    },
+    {
+      "menu": "股本结构",
+      "html": "skef10_mg_gbjg",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_mg_gbjg",
+          "call_name": "skef10_mg_gbjg",
+          "params": [
+            [
+              "001",
+              "{stock}",
+              "1"
+            ],
+            [
+              "002",
+              "{stock}",
+              "{page}"
+            ]
+          ],
+          "inline": true
+        }
+      ]
+    },
+    {
+      "menu": "股东权益",
+      "html": "skef10_mg_sdgd",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_mg_gbgd",
+          "call_name": "skef10_mg_gbgd",
+          "params": [
+            [
+              "007",
+              "{stock}",
+              "{page}",
+              "{pageSize}"
+            ],
+            [
+              "i[0"
+            ],
+            [
+              "014",
+              "{stock}",
+              "{page}",
+              "{pageSize}"
+            ],
+            [
+              "006",
+              "{stock}",
+              "1",
+              "10"
+            ],
+            [
+              "011",
+              "{stock}",
+              "{page}",
+              "{pageSize}"
+            ]
+          ],
+          "inline": true
+        }
+      ]
+    },
+    {
+      "menu": "董事高管",
+      "html": "skef10_mg_dsgg",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_mg_dsgg",
+          "call_name": "skef10_mg_dsgg",
+          "params": [
+            [
+              "{stock}",
+              "t"
+            ]
+          ],
+          "inline": true
+        },
+        {
+          "entry": "CWServ.skef10_mg_idreq",
+          "call_name": "skef10_mg_idreq",
+          "params": [],
+          "inline": false
+        }
+      ]
+    },
+    {
+      "menu": "市场行情",
+      "html": "skef10_mg_schq",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_mg_schq",
+          "call_name": "skef10_mg_schq",
+          "params": [
+            [
+              "003",
+              "{stock}",
+              "0",
+              "i"
+            ],
+            [
+              "001",
+              "{stock}",
+              "{page}",
+              "{pageSize}"
+            ]
+          ],
+          "inline": true
+        }
+      ]
+    },
+    {
+      "menu": "公司资讯",
+      "html": "skef10_mg_gszx",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_mg_gsbd",
+          "call_name": "skef10_mg_gsbd",
+          "params": [],
+          "inline": false
+        },
+        {
+          "entry": "CWServ.skef10_mg_idreq",
+          "call_name": "skef10_mg_idreq",
+          "params": [
+            [
+              "name",
+              "{stock}"
+            ]
+          ],
+          "inline": true
+        }
+      ]
+    },
+    {
+      "menu": "公司评级",
+      "html": "skef10_mg_gspj",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_mg_gspj",
+          "call_name": "skef10_mg_gspj",
+          "params": [
+            [
+              "003",
+              "{stock}"
+            ],
+            [
+              "001",
+              "{stock}"
+            ],
+            [
+              "002",
+              "{stock}"
+            ]
+          ],
+          "inline": true
+        }
+      ]
+    },
+    {
+      "menu": "热点题材",
+      "html": "skef10_mg_rdtc",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_mg_rdtc",
+          "call_name": "skef10_mg_rdtc",
+          "params": [],
+          "inline": false
+        }
+      ]
+    },
+    {
+      "menu": "深度分析",
+      "html": "skef10_mg_sdfx",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_mg_sdfx",
+          "call_name": "skef10_mg_sdfx",
+          "params": [
+            [
+              "002",
+              "{stock}"
+            ]
+          ],
+          "inline": true
+        }
+      ]
+    }
+  ],
+  "hkf10": [
+    {
+      "menu": "最新提示",
+      "html": "skef10_hk_zxts",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hk_gszx",
+          "call_name": "skef10_hk_gszx",
+          "params": [],
+          "inline": false
+        },
+        {
+          "entry": "CWServ.skef10_hk_idreq",
+          "call_name": "skef10_hk_idreq",
+          "params": [],
+          "inline": false
+        },
+        {
+          "entry": "CWServ.skef10_hk_rdtc",
+          "call_name": "skef10_hk_rdtc",
+          "params": [],
+          "inline": false
+        },
+        {
+          "entry": "CWServ.skef10_hk_zxts",
+          "call_name": "skef10_hk_zxts",
+          "params": [
+            [
+              "5",
+              "{stock}"
+            ],
+            [
+              "1",
+              "{stock}"
+            ]
+          ],
+          "inline": true
+        },
+        {
+          "entry": "CWServ.skef10_hk_zxts_kbgs",
+          "call_name": "skef10_hk_zxts_kbgs",
+          "params": [
+            [
+              "t",
+              "{stock}"
+            ]
+          ],
+          "inline": true
+        },
+        {
+          "entry": "CWServ.skef10_hk_zxts_kbgs_gszl",
+          "call_name": "skef10_hk_zxts_kbgs_gszl",
+          "params": [
+            [
+              "n[t"
+            ]
+          ],
+          "inline": true
+        }
+      ]
+    },
+    {
+      "menu": "公司大事",
+      "html": "skef10_hk_gsds",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hk_gsds",
+          "call_name": "skef10_hk_gsds",
+          "params": [
+            [
+              "5",
+              "{stock}"
+            ],
+            [
+              "3",
+              "{stock}"
+            ],
+            [
+              "2",
+              "{stock}"
+            ],
+            [
+              "4",
+              "{stock}"
+            ],
+            [
+              "1",
+              "{stock}"
+            ],
+            [
+              "6",
+              "{stock}"
+            ]
+          ],
+          "inline": true
+        },
+        {
+          "entry": "CWServ.skef10_hk_idreq",
+          "call_name": "skef10_hk_idreq",
+          "params": [],
+          "inline": false
+        }
+      ]
+    },
+    {
+      "menu": "公司概况",
+      "html": "skef10_hk_gsgk",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hk_gsgk",
+          "call_name": "skef10_hk_gsgk",
+          "params": [
+            [
+              "6",
+              "{stock}"
+            ],
+            [
+              "3",
+              "{stock}"
+            ],
+            [
+              "5",
+              "{stock}"
+            ],
+            [
+              "4",
+              "{stock}"
+            ]
+          ],
+          "inline": true
+        }
+      ]
+    },
+    {
+      "menu": "关联证券",
+      "html": "skef10_hk_glzq",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hk_glzq",
+          "call_name": "skef10_hk_glzq",
+          "params": [
+            [
+              "6",
+              "{stock}"
+            ],
+            [
+              "t.value",
+              "{stock}"
+            ]
+          ],
+          "inline": true
+        }
+      ]
+    },
+    {
+      "menu": "高管资料",
+      "html": "skef10_hk_ggzl",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hk_ggzl",
+          "call_name": "skef10_hk_ggzl",
+          "params": [
+            [
+              "2",
+              "{stock}"
+            ],
+            [
+              "3",
+              "{stock}"
+            ],
+            [
+              "1",
+              "{stock}"
+            ]
+          ],
+          "inline": true
+        },
+        {
+          "entry": "CWServ.skef10_hk_idreq",
+          "call_name": "skef10_hk_idreq",
+          "params": [],
+          "inline": false
+        }
+      ]
+    },
+    {
+      "menu": "股本结构",
+      "html": "skef10_hk_gbjg",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hk_gbjg",
+          "call_name": "skef10_hk_gbjg",
+          "params": [
+            [
+              "2",
+              "{stock}"
+            ],
+            [
+              "3",
+              "{stock}"
+            ],
+            [
+              "1",
+              "{stock}"
+            ]
+          ],
+          "inline": true
+        }
+      ]
+    },
+    {
+      "menu": "股东持股",
+      "html": "skef10_hk_gdcg",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hk_gdcg",
+          "call_name": "skef10_hk_gdcg",
+          "params": [
+            [
+              "8",
+              "{stock}",
+              "t.value"
+            ],
+            [
+              "t.value",
+              "{stock}",
+              ""
+            ],
+            [
+              "6",
+              "{stock}",
+              "t.value"
+            ]
+          ],
+          "inline": true
+        },
+        {
+          "entry": "CWServ.skef10_hk_idreq",
+          "call_name": "skef10_hk_idreq",
+          "params": [],
+          "inline": false
+        }
+      ]
+    },
+    {
+      "menu": "财务分析",
+      "html": "skef10_hk_cwfx",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hk_cwfx",
+          "call_name": "skef10_hk_cwfx",
+          "params": [],
+          "inline": false
+        },
+        {
+          "entry": "CWServ.skef10_hk_cwfx_",
+          "call_name": "skef10_hk_cwfx_",
+          "params": [],
+          "inline": false
+        }
+      ]
+    },
+    {
+      "menu": "财务指标",
+      "html": "skef10_hk_cwzb",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hk_cwzb",
+          "call_name": "skef10_hk_cwzb",
+          "params": [],
+          "inline": false
+        }
+      ]
+    },
+    {
+      "menu": "经营分析",
+      "html": "skef10_hk_jyfx",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hk_jyfx",
+          "call_name": "skef10_hk_jyfx",
+          "params": [],
+          "inline": false
+        }
+      ]
+    },
+    {
+      "menu": "行业比较",
+      "html": "skef10_hk_hybj",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hk_hybj",
+          "call_name": "skef10_hk_hybj",
+          "params": [
+            [
+              "1",
+              "{stock}",
+              "0",
+              "0"
+            ],
+            [
+              "3",
+              "{stock}",
+              "0",
+              "0"
+            ]
+          ],
+          "inline": true
+        },
+        {
+          "entry": "CWServ.skef10_hk_hybj_scbxbjzxt",
+          "call_name": "skef10_hk_hybj_scbxbjzxt",
+          "params": [],
+          "inline": false
+        }
+      ]
+    },
+    {
+      "menu": "市场行情",
+      "html": "skef10_hk_schq",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hk_schq",
+          "call_name": "skef10_hk_schq",
+          "params": [
+            [
+              "5",
+              "{stock}"
+            ],
+            [
+              "2",
+              "{stock}"
+            ],
+            [
+              "3",
+              "{stock}"
+            ],
+            [
+              "4",
+              "{stock}"
+            ],
+            [
+              "1",
+              "{stock}"
+            ]
+          ],
+          "inline": true
+        },
+        {
+          "entry": "CWServ.skef10_hk_schq_zjlx",
+          "call_name": "skef10_hk_schq_zjlx",
+          "params": [
+            [
+              "001",
+              "{stock}",
+              "0"
+            ],
+            [
+              "003",
+              "{stock}",
+              "e"
+            ]
+          ],
+          "inline": true
+        }
+      ]
+    },
+    {
+      "menu": "公司资讯",
+      "html": "skef10_hk_gszx",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hk_gszx",
+          "call_name": "skef10_hk_gszx",
+          "params": [
+            [
+              "3",
+              "{stock}"
+            ],
+            [
+              "4",
+              "{stock}"
+            ]
+          ],
+          "inline": true
+        },
+        {
+          "entry": "CWServ.skef10_hk_idreq",
+          "call_name": "skef10_hk_idreq",
+          "params": [],
+          "inline": false
+        }
+      ]
+    },
+    {
+      "menu": "热点题材",
+      "html": "skef10_hk_rdtc",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hk_rdtc",
+          "call_name": "skef10_hk_rdtc",
+          "params": [
+            [
+              "001",
+              "{stock}",
+              "",
+              "0",
+              "0"
+            ]
+          ],
+          "inline": true
+        }
+      ]
+    },
+    {
+      "menu": "深度分析",
+      "html": "skef10_hk_sdfx",
+      "entries": [
+        {
+          "entry": "CWServ.skef10_hk_sdfx_fxysyfx",
+          "call_name": "skef10_hk_sdfx_fxysyfx",
+          "params": [
+            [
+              "{stock}",
+              "t.replace(/-/g",
+              "\"\")",
+              "a.replace(/-/g",
+              "\"\")"
+            ]
+          ],
+          "inline": true
+        },
+        {
+          "entry": "CWServ.skef10_hk_sdfx_gzfx",
+          "call_name": "skef10_hk_sdfx_gzfx",
+          "params": [],
+          "inline": false
+        },
+        {
+          "entry": "CWServ.skef10_hk_sdfx_hqzft",
+          "call_name": "skef10_hk_sdfx_hqzft",
+          "params": [],
+          "inline": false
+        },
+        {
+          "entry": "CWServ.skef10_hk_sdfx_pepb_band",
+          "call_name": "skef10_hk_sdfx_pepb_band",
+          "params": [],
+          "inline": false
+        }
+      ]
+    }
+  ]
+}

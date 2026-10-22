@@ -62,6 +62,7 @@ nav:
   - 使用指南:
       - 产品与能力: PRODUCT.md
       - 通达信 TQ 能力对照: TDX_TQ_CAPABILITY_MAP.md
+      - v3.4.7 发布说明: releases/v3.4.7.md
       - v3.4.6 发布说明: releases/v3.4.6.md
       - v3.4.5 发布说明: releases/v3.4.5.md
       - v3.4.3 发布说明: releases/v3.4.3.md
