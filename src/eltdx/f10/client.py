@@ -11,7 +11,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from eltdx.exceptions import ProtocolError, TransportError
-from eltdx.protocol.unit import split_code
+from eltdx.protocol.unit import MARKET_TO_ID, split_code
 
 from ._http import open_ipv4_first
 
@@ -33,8 +33,30 @@ from .models import (
 
 DEFAULT_TQLEX_BASE_URL = "http://static.tdx.com.cn:7615/TQLEX"
 DEFAULT_LIMIT_BOARD_LADDER_BASE_URL = "http://hot.icfqs.com:7615/TQLEX"
+#: 美股(mgf10) / 港股(hkf10) F10 网关。与 A 股 static 网关不同，page2 带服务端
+#: 二级缓存（响应含 ``HitCache`` / ``hitCache:true``），且 skef10_mg/hk Entry
+#: 主要在此暴露。
+DEFAULT_MG_HK_BASE_URL = "http://page2.tdx.com.cn:7615/TQLEX"
 DEFAULT_QSID = "tdx"
 LIMIT_BOARD_LADDER_ENTRY = "CWServ.cfg_fx_lbtt"
+
+#: 美股/港股/新三板/债券/行业 F10 Entry 前缀，命中时走 ``mg_hk_base_url``（page2）。
+_MG_HK_ENTRY_PREFIXES = (
+    "CWServ.skef10_mg_",
+    "CWServ.skef10_hk_",
+    "CWServ.skef10_sb_",
+    "CWServ.skef10_bond_",
+    "CWServ.skef10_hy_",
+)
+
+#: 期货 F10（qhf10）Entry 前缀（``qhf9_*``），同样只在 page2 网关暴露。
+_QH_ENTRY_PREFIXES = ("CWServ.qhf9_",)
+
+#: 财务指标（cwzb）拼音子标签 → 数字参数。美股带前导零，港股不带。
+_MG_CWZB_SECTIONS = {"jbzb": "001", "ylnl": "002", "cznl": "003", "yynl": "004", "ccznl": "005"}
+_HK_CWZB_SECTIONS = {"jbzb": "1", "ylnl": "2", "cznl": "3", "yynl": "4", "ccznl": "5"}
+#: 港股财务分析（cwfx）拼音子标签 → 数字参数（综合损益/资产负债表/现金流量）。
+_HK_CWFX_SECTIONS = {"zhsyb": "1", "zcfzb": "2", "xjllb": "3"}
 
 #: ``fund_report`` 里需要报告期（``date``）的分区 → ``skef10_jj_tzzh`` 的报告期列表参数。
 #: 未显式传 ``date`` 时，用对应的 ``*bgq`` 参数取最新报告期（与客户端一致）。
@@ -74,6 +96,7 @@ class F10Client:
         *,
         base_url: str = DEFAULT_TQLEX_BASE_URL,
         limit_board_ladder_base_url: str | None = None,
+        mg_hk_base_url: str | None = None,
         timeout: float = 8.0,
         prefer_ipv4: bool = True,
         headers: Mapping[str, str] | None = None,
@@ -84,6 +107,8 @@ class F10Client:
             if limit_board_ladder_base_url is None and base_url == DEFAULT_TQLEX_BASE_URL
             else (limit_board_ladder_base_url or base_url)
         )
+        # 美股/港股 F10 默认走 page2（命中服务端缓存）；传 None 时回退到 base_url。
+        self.mg_hk_base_url = mg_hk_base_url or DEFAULT_MG_HK_BASE_URL
         self.timeout = timeout
         self.prefer_ipv4 = prefer_ipv4
         self.headers = {
@@ -515,6 +540,860 @@ class F10Client:
         entry, params = _section_request(section, table)
         return self.params(entry, *params)
 
+    # ------------------------------------------------------------------
+    # 美股 mgf10 家族（Entry: CWServ.skef10_mg_*，网关 page2）
+    # ------------------------------------------------------------------
+
+    def mg_name(self, code: str) -> F10Response:
+        """美股名称与市场类型（``skef10_mg_idreq``）。"""
+
+        return self.params("CWServ.skef10_mg_idreq", "name", _us_code(code))
+
+    def mg_tips(self, code: str, section: str = "zxdt") -> F10Response:
+        """美股最新提示（``skef10_mg_zxdt``）。
+
+        section: ``zxdt`` 最新动态 / ``sypl`` 首页评论 / ``gsgy`` 公司概要 /
+        ``zysj`` 重要数据。
+        """
+
+        _require_section(section, ("zxdt", "sypl", "gsgy", "zysj"))
+        return self.params("CWServ.skef10_mg_zxdt", section, _us_code(code), "")
+
+    def mg_profile(self, code: str) -> F10Response:
+        """美股公司概况（``skef10_mg_gsgk``）。"""
+
+        return self.params("CWServ.skef10_mg_gsgk", "001", _us_code(code))
+
+    def mg_finance(self, code: str, section: str = "zcfzb") -> F10Response:
+        """美股财务分析（``skef10_mg_cwfx``）。
+
+        section: ``zcfzb`` 资产负债表 / ``lyb`` 利润表 / ``xjllb`` 现金流量表。
+        """
+
+        _require_section(section, ("zcfzb", "lyb", "xjllb"))
+        return self.params("CWServ.skef10_mg_cwfx", section, _us_code(code))
+
+    def mg_finance_indicator(self, code: str, section: str = "jbzb") -> F10Response:
+        """美股财务指标（``skef10_mg_cwzb``）。
+
+        section: ``jbzb`` 基本指标 / ``ylnl`` 营运能力 / ``cznl`` 成长能力 /
+        ``yynl`` 盈利能力 / ``ccznl`` 偿债能力（内部映射到数字 ``001``~``005``）。
+        """
+
+        _require_section(section, tuple(_MG_CWZB_SECTIONS))
+        return self.params("CWServ.skef10_mg_cwzb", _MG_CWZB_SECTIONS[section], _us_code(code))
+
+    def mg_business(self, code: str) -> F10Response:
+        """美股经营分析（``skef10_mg_jyfx``）。"""
+
+        return self.params("CWServ.skef10_mg_jyfx", _us_code(code))
+
+    def mg_industry(self, code: str) -> F10Response:
+        """美股行业分析（``skef10_mg_hyfx``）。"""
+
+        return self.params("CWServ.skef10_mg_hyfx", "001", _us_code(code), "4", "1")
+
+    def mg_industry_compare(self, code: str) -> F10Response:
+        """美股行业对比（``skef10_mg_hydb``）。"""
+
+        return self.params("CWServ.skef10_mg_hydb", "001", _us_code(code), "", "0", "0")
+
+    def mg_dividend(self, code: str, section: str = "fh") -> F10Response:
+        """美股分红融资（``skef10_mg_fhrz``）。
+
+        section: ``fh`` 分红 / ``cf`` 融资。
+        """
+
+        _require_section(section, ("fh", "cf"))
+        return self.params("CWServ.skef10_mg_fhrz", _us_code(code), section)
+
+    def mg_capital(self, code: str, section: str = "001", page: int = 1) -> F10Response:
+        """美股股本结构（``skef10_mg_gbjg``）。
+
+        section: ``001`` 股本结构 / ``002`` 股本变动公告。
+        """
+
+        _require_section(section, ("001", "002"))
+        if section == "001":
+            return self.params("CWServ.skef10_mg_gbjg", "001", _us_code(code), 1)
+        return self.params("CWServ.skef10_mg_gbjg", "002", _us_code(code), page)
+
+    def mg_shareholders(
+        self,
+        code: str,
+        section: str = "006",
+        *,
+        page: int = 1,
+        page_size: int = 10,
+    ) -> F10Response:
+        """美股股东权益（``skef10_mg_gbgd``）。
+
+        section 为数字子标签（``003``/``004``/``005``/``006``/``007``/
+        ``008``/``011``/``014`` 等）；``006`` 为股东权益主表，其余带分页。
+        """
+
+        if section == "006":
+            return self.params("CWServ.skef10_mg_gbgd", "006", _us_code(code), 1, 10)
+        return self.params("CWServ.skef10_mg_gbgd", section, _us_code(code), page, page_size)
+
+    def mg_directors(self, code: str, section: str = "ds") -> F10Response:
+        """美股董事高管（``skef10_mg_dsgg``）。
+
+        section: ``ds`` 董事 / ``gg`` 高管 / ``lrdjg`` 历任董监高。
+        """
+
+        _require_section(section, ("ds", "gg", "lrdjg"))
+        return self.params("CWServ.skef10_mg_dsgg", _us_code(code), section)
+
+    def mg_market(
+        self,
+        code: str,
+        section: str = "001",
+        *,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> F10Response:
+        """美股市场行情（``skef10_mg_schq``）。
+
+        section: ``001`` 行情 / ``003`` 资金流向。
+        """
+
+        _require_section(section, ("001", "003"))
+        if section == "001":
+            return self.params("CWServ.skef10_mg_schq", "001", _us_code(code), page, page_size)
+        return self.params("CWServ.skef10_mg_schq", "003", _us_code(code), 0, 0)
+
+    def mg_announcements(self, code: str) -> F10Response:
+        """美股公司公告（``skef10_mg_gsbd``）。"""
+
+        return self.params("CWServ.skef10_mg_gsbd", "gsgg", _us_code(code))
+
+    def mg_rating(self, code: str, section: str = "001") -> F10Response:
+        """美股公司评级（``skef10_mg_gspj``）。section: ``001``/``002``/``003``。"""
+
+        return self.params("CWServ.skef10_mg_gspj", section, _us_code(code))
+
+    def mg_topic(self, code: str) -> F10Response:
+        """美股热点题材（``skef10_mg_rdtc``）。"""
+
+        return self.params("CWServ.skef10_mg_rdtc", "001", _us_code(code), "", "4", "1")
+
+    def mg_deep_analysis(self, code: str, section: str = "001") -> F10Response:
+        """美股深度分析（``skef10_mg_sdfx``）。section: ``001``/``002``。"""
+
+        return self.params("CWServ.skef10_mg_sdfx", section, _us_code(code))
+
+    # ------------------------------------------------------------------
+    # 港股 hkf10 家族（Entry: CWServ.skef10_hk_*，网关 page2）
+    # ------------------------------------------------------------------
+
+    def hk_name(self, code: str) -> F10Response:
+        """港股名称与市场类型（``skef10_hk_idreq``）。"""
+
+        return self.params("CWServ.skef10_hk_idreq", "name", _hk_code(code))
+
+    def hk_tips(self, code: str, section: str = "1") -> F10Response:
+        """港股最新提示（``skef10_hk_zxts``）。section 为数字子标签 ``1``~``5``。"""
+
+        return self.params("CWServ.skef10_hk_zxts", section, _hk_code(code))
+
+    def hk_events(self, code: str, section: str = "1") -> F10Response:
+        """港股公司大事（``skef10_hk_gsds``）。section 为数字子标签 ``1``~``6``。"""
+
+        return self.params("CWServ.skef10_hk_gsds", section, _hk_code(code))
+
+    def hk_profile(self, code: str, section: str = "1") -> F10Response:
+        """港股公司概况（``skef10_hk_gsgk``）。section 为数字子标签 ``1``~``6``。"""
+
+        return self.params("CWServ.skef10_hk_gsgk", section, _hk_code(code))
+
+    def hk_related(self, code: str, section: str = "6") -> F10Response:
+        """港股关联证券（``skef10_hk_glzq``）。section 为数字子标签（如 ``6``）。"""
+
+        return self.params("CWServ.skef10_hk_glzq", section, _hk_code(code))
+
+    def hk_executives(self, code: str, section: str = "1") -> F10Response:
+        """港股高管资料（``skef10_hk_ggzl``）。section: ``1``/``2``/``3``。"""
+
+        return self.params("CWServ.skef10_hk_ggzl", section, _hk_code(code))
+
+    def hk_capital(self, code: str, section: str = "1") -> F10Response:
+        """港股股本结构（``skef10_hk_gbjg``）。section: ``1``/``2``/``3``。"""
+
+        return self.params("CWServ.skef10_hk_gbjg", section, _hk_code(code))
+
+    def hk_shareholders(self, code: str, section: str = "1") -> F10Response:
+        """港股股东持股（``skef10_hk_gdcg``）。section 为数字子标签 ``1``~``13``。"""
+
+        return self.params("CWServ.skef10_hk_gdcg", section, _hk_code(code), "")
+
+    def hk_finance(self, code: str, section: str = "zcfzb") -> F10Response:
+        """港股财务分析（``skef10_hk_cwfx``）。
+
+        section: ``zcfzb`` 资产负债表 / ``zhsyb`` 综合损益表 / ``xjllb`` 现金流量表
+        （内部映射到数字 ``2``/``1``/``3``）。
+        """
+
+        _require_section(section, tuple(_HK_CWFX_SECTIONS))
+        return self.params("CWServ.skef10_hk_cwfx", _HK_CWFX_SECTIONS[section], _hk_code(code))
+
+    def hk_finance_indicator(self, code: str, section: str = "jbzb") -> F10Response:
+        """港股财务指标（``skef10_hk_cwzb``）。
+
+        section: ``jbzb`` 基本指标 / ``ylnl`` 营运能力 / ``cznl`` 成长能力 /
+        ``yynl`` 盈利能力 / ``ccznl`` 偿债能力（内部映射到数字 ``1``~``5``）。
+        """
+
+        _require_section(section, tuple(_HK_CWZB_SECTIONS))
+        return self.params("CWServ.skef10_hk_cwzb", _HK_CWZB_SECTIONS[section], _hk_code(code))
+
+    def hk_business(self, code: str, section: str = "1") -> F10Response:
+        """港股经营分析（``skef10_hk_jyfx``）。section 为数字子标签。"""
+
+        return self.params("CWServ.skef10_hk_jyfx", section, _hk_code(code))
+
+    def hk_industry_compare(self, code: str, section: str = "1") -> F10Response:
+        """港股行业比较（``skef10_hk_hybj``）。section: ``1``/``3``。"""
+
+        return self.params("CWServ.skef10_hk_hybj", section, _hk_code(code), "0", "0")
+
+    def hk_market(self, code: str, section: str = "3") -> F10Response:
+        """港股市场行情（``skef10_hk_schq``）。section 为数字子标签。
+
+        实测（2026-10-22，00700）：``3``~``4``~``6``~``7`` 有数据
+        （245/246/242/51 行），``1``/``2``/``5`` 对该股返回空
+        （子表为空或数据缺失）；默认取数据最全的 ``3``。
+        """
+
+        return self.params("CWServ.skef10_hk_schq", section, _hk_code(code))
+
+    def hk_capital_flow(self, code: str, section: str = "001") -> F10Response:
+        """港股资金流向（``skef10_hk_schq_zjlx``，市场行情页的资金流向表）。
+
+        实测（2026-10-22，00700）：``001`` 20 行，``003`` 空（图表数据）。
+        """
+
+        return self.params("CWServ.skef10_hk_schq_zjlx", section, _hk_code(code), "0")
+
+    def hk_news(self, code: str, section: str = "3") -> F10Response:
+        """港股公司资讯（``skef10_hk_gszx``）。section: ``3``/``4``。"""
+
+        return self.params("CWServ.skef10_hk_gszx", section, _hk_code(code))
+
+    def hk_topic(self, code: str) -> F10Response:
+        """港股热点题材（``skef10_hk_rdtc``）。"""
+
+        return self.params("CWServ.skef10_hk_rdtc", "001", _hk_code(code), "", "0", "0")
+
+    def hk_pepb_band(
+        self,
+        code: str,
+        *,
+        sjfw: str = "",
+        tab_value: str = "",
+        hqzq: str = "",
+    ) -> F10Response:
+        """港股深度分析·PE/PB band（``skef10_hk_sdfx_pepb_band``）。"""
+
+        return self.params(
+            "CWServ.skef10_hk_sdfx_pepb_band", "001", _hk_code(code), sjfw, tab_value, hqzq
+        )
+
+    def hk_valuation(self, code: str, item_id: str = "") -> F10Response:
+        """港股深度分析·估值分析（``skef10_hk_sdfx_gzfx``）。"""
+
+        return self.params("CWServ.skef10_hk_sdfx_gzfx", _hk_code(code), item_id)
+
+    def hk_price_chart(self, code: str) -> F10Response:
+        """港股深度分析·行情涨跌图（``skef10_hk_sdfx_hqzft``）。"""
+
+        return self.params("CWServ.skef10_hk_sdfx_hqzft", _hk_code(code))
+
+    def hk_analyst_forecast(self, code: str, start: str = "", end: str = "") -> F10Response:
+        """港股深度分析·分析师盈利预测（``skef10_hk_sdfx_fxysyfx``）。
+
+        两个日期参数会去掉 ``-`` 后传给服务端（与客户端一致）。
+        **实测空日期返回 0 行**（2026-10-22，00700）：不传时默认取近一年
+        （今天往前 365 天 ~ 今天），近一年区间实测 53 行。
+        """
+
+        if not start or not end:
+            today = date.today()
+            start = start or today.replace(year=today.year - 1).isoformat()
+            end = end or today.isoformat()
+        return self.params(
+            "CWServ.skef10_hk_sdfx_fxysyfx",
+            _hk_code(code),
+            start.strip().replace("-", ""),
+            end.strip().replace("-", ""),
+        )
+
+    # ------------------------------------------------------------------
+    # 新三板 sbf10 家族（Entry: CWServ.skef10_sb_*，网关 page2）
+    #
+    # 代码为 6 位数字（如 ``430047``），不带市场前缀；Params 统一为
+    # ``[code, section]``。注意新三板的公司概况/财务也可走 A 股家族
+    # （``tdxf10_gg_*``），sb 家族是其补充（股本/股东/行业比较/现金流等）。
+    # ------------------------------------------------------------------
+
+    def sb_name(self, code: str) -> F10Response:
+        """新三板名称与市场类型（``skef10_sb_idreq``）。"""
+
+        return self.params("CWServ.skef10_sb_idreq", "name", _code6(code))
+
+    def sb_profile(self, code: str, section: str = "001") -> F10Response:
+        """新三板公司概况（``skef10_sb_gsgk``）。section 为子标签。"""
+
+        return self.params("CWServ.skef10_sb_gsgk", _code6(code), section)
+
+    def sb_tips(self, code: str, section: str = "001") -> F10Response:
+        """新三板最新提示（``skef10_sb_zxts``）。section 为子标签。"""
+
+        return self.params("CWServ.skef10_sb_zxts", _code6(code), section)
+
+    def sb_events(self, code: str, section: str = "ydjy") -> F10Response:
+        """新三板交易大事（``skef10_sb_jyds``）。section: ``ydjy`` 异动交易。"""
+
+        return self.params("CWServ.skef10_sb_jyds", _code6(code), section)
+
+    def sb_capital(self, code: str, section: str = "gbjg") -> F10Response:
+        """新三板股本结构（``skef10_sb_gbjg``）。section: ``gbjg`` 股本结构。"""
+
+        return self.params("CWServ.skef10_sb_gbjg", _code6(code), section)
+
+    def sb_shareholders(self, code: str, section: str = "sdgd") -> F10Response:
+        """新三板股东研究（``skef10_sb_gdyj``）。section: ``sdgd`` 十大股东。"""
+
+        return self.params("CWServ.skef10_sb_gdyj", _code6(code), section)
+
+    def sb_compliance(self, code: str, section: str = "001") -> F10Response:
+        """新三板合规运营（``skef10_sb_hgyy``）。section 为子标签。"""
+
+        return self.params("CWServ.skef10_sb_hgyy", _code6(code), section)
+
+    def sb_dividend(self, code: str, section: str = "fh") -> F10Response:
+        """新三板分红融资（``skef10_sb_fhrz``）。section 为子标签。"""
+
+        return self.params("CWServ.skef10_sb_fhrz", _code6(code), section)
+
+    def sb_finance(self, code: str, section: str = "zcfzb") -> F10Response:
+        """新三板财务分析（``skef10_sb_cwfx``）。
+
+        section: ``zcfzb`` 资产负债表 / ``xjllb`` 现金流量表。
+        """
+
+        return self.params("CWServ.skef10_sb_cwfx", _code6(code), section)
+
+    def sb_business(self, code: str, section: str = "001") -> F10Response:
+        """新三板经营分析（``skef10_sb_jyfx``）。section 为子标签。"""
+
+        return self.params("CWServ.skef10_sb_jyfx", _code6(code), section)
+
+    def sb_major_events(self, code: str, section: str = "001") -> F10Response:
+        """新三板重大事项（``skef10_sb_zdsx``）。section 为子标签。"""
+
+        return self.params("CWServ.skef10_sb_zdsx", _code6(code), section)
+
+    def sb_news(self, code: str, section: str = "001") -> F10Response:
+        """新三板公司资讯（``skef10_sb_gszx``）。section 为子标签。"""
+
+        return self.params("CWServ.skef10_sb_gszx", _code6(code), section)
+
+    def sb_industry_compare(self, code: str, section: str = "hyxx") -> F10Response:
+        """新三板行业比较（``skef10_sb_hybj``）。section: ``hyxx`` 行业信息。"""
+
+        return self.params("CWServ.skef10_sb_hybj", _code6(code), section)
+
+    # ------------------------------------------------------------------
+    # 债券 zqf10 家族（Entry: CWServ.skef10_bond_*，网关 page2）
+    #
+    # 通达信把债券 F10 按类型分 8 个子家族（gzhg 国债回购 / gz 国债 / gzdfz
+    # 地方债 / gzzcz / kzz 可转债 / qyz 企业债 / gsz 公司债 / kjhz 可交换债），
+    # 此处先封装最常用的**可转债（kzz）**；其余类型的 Entry 命名同构
+    # （``skef10_bond_<type>_<menu>``），可仿照扩展。
+    # 代码为 6 位数字（如 ``113043``），沪市债券段见 normalize_code。
+    # ------------------------------------------------------------------
+
+    def bond_profile(self, code: str) -> F10Response:
+        """可转债债券概况（``skef10_bond_kzz_zqgk``）。"""
+
+        return self.params("CWServ.skef10_bond_kzz_zqgk", "sdcyrbgq", _code6(code), "")
+
+    def bond_finance(self, code: str, section: str = "zcfzb") -> F10Response:
+        """可转债财务分析（``skef10_bond_kzz_cwfx``）。section 为子标签。"""
+
+        return self.params("CWServ.skef10_bond_kzz_cwfx", section, _code6(code))
+
+    def bond_rating(self, code: str, section: str = "pjzst") -> F10Response:
+        """可转债债券评级（``skef10_bond_kzz_zqpj``）。
+
+        section: ``pjzst`` 评级状态 / ``fxjgzst`` 发行机构评级状态。
+        """
+
+        return self.params("CWServ.skef10_bond_kzz_zqpj", section, _code6(code))
+
+    def bond_conversion(self, code: str, section: str = "zgjg") -> F10Response:
+        """可转债转股情况（``skef10_bond_kzz_zg``）。
+
+        section: ``zgjg`` 转股价格 / ``zgjgzs`` 转股结果 / ``zgqk`` 转股情况。
+        """
+
+        return self.params("CWServ.skef10_bond_kzz_zg", section, _code6(code))
+
+    def bond_rate(self, code: str, section: str = "zqll") -> F10Response:
+        """可转债债券利率（``skef10_bond_kzz_zqll``）。
+
+        section: ``zqll`` 债券利率 / ``zbz`` 转股价。
+        """
+
+        return self.params("CWServ.skef10_bond_kzz_zqll", section, _code6(code))
+
+    def bond_announcements(self, code: str, section: str = "1") -> F10Response:
+        """可转债资金资讯 / 公告（``skef10_bond_kzz_zjzx``）。section 为子标签。"""
+
+        return self.params("CWServ.skef10_bond_kzz_zjzx", _code6(code), section)
+
+    # ------------------------------------------------------------------
+    # 债券 zqf10 家族·其余类型（国债 gz / 国债回购 gzhg / 企业债 qyz /
+    # 公司债 gsz（复用 qyz Entry）/ 可交换债 kjhz / ABS zczq）
+    #
+    # 参数模式（实测确认）：
+    # * 概况/财务/评级/利率等：``[section, code, sc]``，``sc`` 为市场码
+    #   （``1`` 沪 / ``0`` 深，与 MacClient 的 market 一致）；
+    # * 国债回购：``[section, code]``（无 sc）；
+    # * 债券公告（zjzx）：``[code, sc]``（无 section）。
+    # 各 section 语义见各方法 docstring；子标签命名与客户端 HTML 一致。
+    # ------------------------------------------------------------------
+
+    def gz_profile(self, code: str, section: str = "zqgk") -> F10Response:
+        """国债/地方政府债债券概况（``skef10_bond_gz_zjgk``）。
+
+        section: ``zqgk`` 债券概况 / ``fxgk`` 发行概况。
+        """
+
+        return self.params(
+            "CWServ.skef10_bond_gz_zjgk", section, _bond_code(code), _bond_sc(code)
+        )
+
+    def gz_interest(self, code: str, section: str = "fxqk") -> F10Response:
+        """国债付息情况（``skef10_bond_gz_fxqk``）。
+
+        section: ``fxqk`` 付息情况 / ``xjlfx`` 付息兑付。
+        """
+
+        return self.params(
+            "CWServ.skef10_bond_gz_fxqk", section, _bond_code(code), _bond_sc(code)
+        )
+
+    def gz_market_data(self, code: str, section: str = "dzjy") -> F10Response:
+        """国债债券数据（``skef10_bond_gz_zjsj``）。
+
+        section: ``dzjy`` 大宗交易 / ``zsbl`` 招标比例。
+        """
+
+        return self.params(
+            "CWServ.skef10_bond_gz_zjsj", section, _bond_code(code), _bond_sc(code)
+        )
+
+    def gz_rating(self, code: str, section: str = "dfzf") -> F10Response:
+        """国债/地方债债券评级（``skef10_bond_gz_zjpj``）。
+
+        section: ``dfzf`` 地方债评级。
+        """
+
+        return self.params(
+            "CWServ.skef10_bond_gz_zjpj", section, _bond_code(code), _bond_sc(code)
+        )
+
+    def gz_finance(self, code: str) -> F10Response:
+        """国债财务分析（``skef10_bond_gz_cwfx``）。"""
+
+        return self.params("CWServ.skef10_bond_gz_cwfx", "t", _bond_code(code), _bond_sc(code))
+
+    def qyz_profile(self, code: str, section: str = "zqzl") -> F10Response:
+        """企业债/公司债债券概况（``skef10_bond_qyz_zqgk``）。
+
+        section: ``zqzl`` 债券资料 / ``xtfhr`` 信托发行人 / ``fhrjbzl`` 发行人基本信息。
+        """
+
+        return self.params(
+            "CWServ.skef10_bond_qyz_zqgk", section, _bond_code(code), _bond_sc(code)
+        )
+
+    def qyz_interest(self, code: str, section: str = "fxqk") -> F10Response:
+        """企业债/公司债付息兑付（``skef10_bond_qyz_xjlfx``）。
+
+        section: ``fxqk`` 付息情况 / ``xjlfx`` 付息兑付 / ``febd`` 份额变动。
+        """
+
+        return self.params(
+            "CWServ.skef10_bond_qyz_xjlfx", section, _bond_code(code), _bond_sc(code)
+        )
+
+    def qyz_guarantee(self, code: str) -> F10Response:
+        """企业债/公司债债券担保（``skef10_bond_qyz_zqdb``）。"""
+
+        return self.params(
+            "CWServ.skef10_bond_qyz_zqdb", "dbsm", _bond_code(code), _bond_sc(code)
+        )
+
+    def qyz_rating(self, code: str, section: str = "zjpjzst") -> F10Response:
+        """企业债/公司债债券评级（``skef10_bond_qyz_zjpj``）。
+
+        section: ``zjpjzst`` 中债评级状态 / ``zjxypj`` 中债信用评级 /
+        ``fxjgpj`` 发行机构评级 / ``fxjgzst`` 发行机构评级状态。
+        """
+
+        return self.params(
+            "CWServ.skef10_bond_qyz_zjpj", section, _bond_code(code), _bond_sc(code)
+        )
+
+    def qyz_rate(self, code: str) -> F10Response:
+        """企业债/公司债债券利率（``skef10_bond_qyz_zjlv``）。"""
+
+        return self.params(
+            "CWServ.skef10_bond_qyz_zjlv", "zqlv", _bond_code(code), _bond_sc(code)
+        )
+
+    def qyz_review(self, code: str) -> F10Response:
+        """公司债公司评述（``skef10_bond_qyz_gsps``）。"""
+
+        return self.params(
+            "CWServ.skef10_bond_qyz_gsps", _bond_code(code), _bond_sc(code)
+        )
+
+    def gzhg_info(self, code: str) -> F10Response:
+        """国债回购债券信息（``skef10_bond_gzhg_zqxx``）。"""
+
+        return self.params("CWServ.skef10_bond_gzhg_zqxx", "zqgk", _code6(code))
+
+    def gzhg_quotes(self, code: str, section: str = "bpzs") -> F10Response:
+        """国债回购债券数据（``skef10_bond_gzhg_zqxx``）。
+
+        section: ``bpzs`` 报价张数 / ``hgzs`` 回购张数 / ``zqsj`` 债券数据 /
+        ``hgdpll`` 回购抵押利率。
+        """
+
+        return self.params("CWServ.skef10_bond_gzhg_zqxx", section, _code6(code))
+
+    def zczq_profile(self, code: str) -> F10Response:
+        """ABS 债券概况（``skef10_bond_zczqh_zqgk``）。"""
+
+        return self.params(
+            "CWServ.skef10_bond_zczqh_zqgk", _bond_code(code), _bond_sc(code)
+        )
+
+    def zczq_finance(self, code: str) -> F10Response:
+        """ABS 财务分析（``skef10_bond_zczqh_cwfx``）。"""
+
+        return self.params(
+            "CWServ.skef10_bond_zczqh_cwfx", "t", _bond_code(code), _bond_sc(code)
+        )
+
+    def zczq_rating(self, code: str, section: str = "pjzst") -> F10Response:
+        """ABS 债券评级（``skef10_bond_zczqh_zqpj``）。
+
+        section: ``pjzst`` 评级状态 / ``fxjgzst`` 发行机构评级状态。
+        """
+
+        return self.params(
+            "CWServ.skef10_bond_zczqh_zqpj", section, _bond_code(code), _bond_sc(code)
+        )
+
+    def kjhz_profile(self, code: str) -> F10Response:
+        """可交换债债券概况（``skef10_bond_kjhz_zqgk``）。"""
+
+        return self.params(
+            "CWServ.skef10_bond_kjhz_zqgk", _bond_code(code), _bond_sc(code)
+        )
+
+    def kjhz_finance(self, code: str) -> F10Response:
+        """可交换债财务分析（``skef10_bond_kjhz_cwfx``）。"""
+
+        return self.params("CWServ.skef10_bond_kjhz_cwfx", "t", _bond_code(code))
+
+    def kjhz_interest(self, code: str, section: str = "fxqk") -> F10Response:
+        """可交换债付息情况（``skef10_bond_kjhz_fxqk``）。
+
+        section: ``fxqk`` 付息情况 / ``xjlfx`` 付息兑付。
+        """
+
+        return self.params("CWServ.skef10_bond_kjhz_fxqk", section, _bond_code(code))
+
+    def kjhz_guarantee(self, code: str) -> F10Response:
+        """可交换债债券担保（``skef10_bond_kjhz_zqdb``）。"""
+
+        return self.params("CWServ.skef10_bond_kjhz_zqdb", "dbsm", _bond_code(code))
+
+    def kjhz_rating(self, code: str, section: str = "pjzst") -> F10Response:
+        """可交换债债券评级（``skef10_bond_kjhz_zqpj``）。
+
+        section: ``pjzst`` 评级状态 / ``fxjgzst`` 发行机构评级状态 /
+        ``fxjgpj`` 发行机构评级 / ``xypj`` 信用评级。
+        """
+
+        return self.params("CWServ.skef10_bond_kjhz_zqpj", section, _bond_code(code))
+
+    def kjhz_exchange(self, code: str, section: str = "jgtzzst") -> F10Response:
+        """可交换债交换情况（``skef10_bond_kjhz_jhqk``）。
+
+        section: ``jgtzzst`` 交换投资状态 / ``jhjbqk`` 交换基本情况 /
+        ``jhjgtz`` 交换价格。
+        """
+
+        return self.params("CWServ.skef10_bond_kjhz_jhqk", section, _bond_code(code))
+
+    def kjhz_rate(self, code: str, section: str = "zqll") -> F10Response:
+        """可交换债债券利率（``skef10_bond_kjhz_zqll``）。
+
+        section: ``zqll`` 债券利率 / ``zst`` 指数。
+        """
+
+        return self.params("CWServ.skef10_bond_kjhz_zqll", section, _bond_code(code))
+
+    def bond_terms(self, code: str, section: str = "hstk") -> F10Response:
+        """债券条款（``skef10_bond_kzz_lltk``，可转债/可交换债共用）。
+
+        section: ``hstk`` 回售条款 / ``shtk`` 赎回条款 / ``xztk`` 下修条款 /
+        ``zqll`` 债券利率。
+        """
+
+        return self.params("CWServ.skef10_bond_kzz_lltk", section, _code6(code))
+
+    def bond_bulletin(self, code: str) -> F10Response:
+        """债券公告 / 资讯（``skef10_bond_zjzx``，各类型通用）。"""
+
+        return self.params("CWServ.skef10_bond_zjzx", _bond_code(code), _bond_sc(code))
+
+    # ------------------------------------------------------------------
+    # 行业 hyf10 家族（Entry: CWServ.skef10_hy_*，网关 page2）
+    #
+    # ``hy`` 为通达信行业板块代码（6 位数字，如 ``881319`` 半导体，
+    # 可由 MacClient.get_board_list() 获取）。参数模式：
+    # * ``[hy]``：总览/介绍/名单类；
+    # * ``[section, hy]``：排名/数据类（section 为子标签）；
+    # * ``[section, hy, flag]``：部分数据类带方向/周期标志。
+    # ------------------------------------------------------------------
+
+    def hy_summary(self, hy: str, section: str = "hqtj") -> F10Response:
+        """行业总览（``skef10_hy_*``，一页多表）。
+
+        section: ``hqtj`` 行情统计 / ``hyzq`` 行业行情 / ``hygy`` 行业供应 /
+        ``zszfb`` 指数分布。
+        """
+
+        entry = {
+            "hqtj": "CWServ.skef10_hy_hqtj",
+            "hyzq": "CWServ.skef10_hy_hyzq",
+            "hygy": "CWServ.skef10_hy_hygy",
+            "zszfb": "CWServ.skef10_hy_zszfb",
+        }[section]
+        return self.params(entry, hy)
+
+    def hy_stage_rise(self, hy: str, flag: str = "e") -> F10Response:
+        """行业阶段涨幅（``skef10_hy_jdzf``）。"""
+
+        return self.params("CWServ.skef10_hy_jdzf", hy, flag)
+
+    def hy_profile(self, hy: str) -> F10Response:
+        """行业介绍（``skef10_hy_hyzl_hyjs``）。"""
+
+        return self.params("CWServ.skef10_hy_hyzl_hyjs", hy)
+
+    def hy_commentary(self, hy: str, section: str = "001") -> F10Response:
+        """行业评论库（``skef10_hy_hyzl_hyplk``）。section 为子标签。"""
+
+        return self.params("CWServ.skef10_hy_hyzl_hyplk", section, hy)
+
+    def hy_news(self, hy: str, section: str = "hydt") -> F10Response:
+        """行业最新动态（``skef10_hy_zxdt``）。
+
+        section: ``hydt`` 行业动态 / ``hyzt`` 行业专题。
+        """
+
+        return self.params("CWServ.skef10_hy_zxdt", section, hy)
+
+    def hy_members_rank(self, hy: str, section: str = "cwzkpm") -> F10Response:
+        """行业成份股排名（5 个 Entry 共用 section 语义）。
+
+        section: ``cwzkpm`` 财务指标排名（Params ``["002", hy, "", "e", ""]``）/
+        ``gsgmpm`` 股本规模排名 / ``gzsppm`` 估值水平排名（``01`` 市盈率/``02`` 市净率）/
+        ``scbxpm`` 市场表现排名（``scpm`` 涨跌幅/``sczf`` 涨跌幅方向）/
+        ``zysrpm`` 主营收入排名。
+        """
+
+        if section == "cwzkpm":
+            return self.params("CWServ.skef10_hy_hydw_cwzkpm", "002", hy, "", "e", "")
+        if section == "gsgmpm":
+            return self.params("CWServ.skef10_hy_hydw_gsgmpm", hy)
+        if section == "gzsppm":
+            return self.params("CWServ.skef10_hy_hydw_gzsppm", "01", hy, "o")
+        if section == "scbxpm":
+            return self.params("CWServ.skef10_hy_hydw_scbxpm", "scpm", "", hy)
+        if section == "zysrpm":
+            return self.params("CWServ.skef10_hy_hydw_zysrpm", "001", hy, "")
+        raise ValueError(f"unknown hy_members_rank section: {section!r}")
+
+    def hy_capital_stats(self, hy: str, section: str = "001") -> F10Response:
+        """行业板块资金统计（``skef10_hy_hysj_bxzjtj``）。
+
+        section: ``001`` 板块资金 / ``002`` 板块资金（另一种口径）。
+        """
+
+        return self.params("CWServ.skef10_hy_hysj_bxzjtj", section, hy, "n" if section == "001" else "")
+
+    def hy_fund_holdings(self, hy: str, section: str = "1") -> F10Response:
+        """行业基金持仓（``skef10_hy_hysj_jjzb``）。section 为子标签。"""
+
+        return self.params("CWServ.skef10_hy_hysj_jjzb", section, hy, "")
+
+    def hy_capital_flow(self, hy: str, section: str = "001") -> F10Response:
+        """行业资金流向（``skef10_hy_hysj_zjlx``）。
+
+        section: ``001`` 资金流向 / ``002`` 资金流向（另一种口径）。
+        """
+
+        return self.params("CWServ.skef10_hy_hysj_zjlx", section, hy)
+
+    def hy_analyst_index(self, hy: str, section: str = "001") -> F10Response:
+        """行业分析师指数（``skef10_hy_hyyj_fxszs``）。section 为子标签。"""
+
+        return self.params("CWServ.skef10_hy_hyyj_fxszs", section, hy, "", "")
+
+    def hy_major_holders(self, hy: str) -> F10Response:
+        """行业某名单（``skef10_hy_hyyj_hymzgd``）。"""
+
+        return self.params("CWServ.skef10_hy_hyyj_hymzgd", hy)
+
+    def hy_rating_summary(self, hy: str, section: str = "001") -> F10Response:
+        """行业评级汇总（``skef10_hy_hyyj_hypjhz``）。section 为子标签。"""
+
+        return self.params("CWServ.skef10_hy_hyyj_hypjhz", section, hy, "")
+
+    def hy_index(self, hy: str) -> F10Response:
+        """行业指数（``skef10_hy_idsy``）。"""
+
+        return self.params("CWServ.skef10_hy_idsy", "002", hy)
+
+    # ------------------------------------------------------------------
+    # 期货 qhf10 家族（Entry: CWServ.qhf9_*，网关 page2）
+    #
+    # JS 里 Entry 写为 ``qhf9_*``（不带前缀），由 req.js 的 CallTQL 自动补
+    # ``CWServ.``；区分商品（``qhf9_sp_*``）与股指（``qhf9_gz_*``）两套。
+    # ``code`` 为品种代码（商品如 ``rb`` 螺纹钢；股指如 ``IF``/``IC``）。
+    # ------------------------------------------------------------------
+
+    def qh_position_report(
+        self,
+        code: str,
+        section: str = "cjcc",
+        *,
+        date: str = "",
+        end_date: str = "",
+        index: bool = False,
+    ) -> F10Response:
+        """期货持仓报告（``CWServ.qhf9_*_ccbg_*``）。
+
+        section: ``cjcc`` 仓差层次 / ``cjjg`` 持仓结构 / ``jcgc`` 会员席位 /
+        ``ccjj`` 成交均价 / ``ykfx`` 盈亏分析。
+        ``cjcc``/``cjjg`` 只需 ``date``（单日）；``jcgc``/``ccjj``/``ykfx``
+        需要日期区间 ``date``~``end_date``（实测空日期返回 0 行）。
+        ``index=True`` 走股指（``qhf9_gz_*``）Entry，否则商品（``qhf9_sp_*``）。
+        """
+
+        prefix = "CWServ.qhf9_gz_ccbg_" if index else "CWServ.qhf9_sp_ccbg_"
+        suffix = {"cjcc": "cjcc", "cjjg": "cjjg", "jcgc": "jcgc", "ccjj": "ccjj", "ykfx": "ykfx"}[section]
+        d1 = date.strip().replace("-", "")
+        d2 = end_date.strip().replace("-", "")
+        if section in ("cjcc",):
+            return self.params(prefix + suffix, "1", code, d1)
+        if section == "cjjg":
+            return self.params(prefix + suffix, "1", code, d1, "")
+        return self.params(prefix + suffix, "1", code, d1, d2, "")
+
+    def qh_basis_spread(self, code: str, section: str = "001", period: str = "1Y") -> F10Response:
+        """期货基差价差分析（``qhf9_sp_jcjcfx``）。
+
+        section: ``001`` 基差走势 / ``002`` 基差数据（``period`` 周期）/
+        ``003`` 价差日期列表 / ``004`` 价差数据 / ``005`` 跨期价差列表 /
+        ``006`` 跨品种价差。
+        """
+
+        return self.params("CWServ.qhf9_sp_jcjcfx", section, code, period, "", "")
+
+    def qh_warehouse_receipt(self, code: str, *, date: str = "") -> F10Response:
+        """期货仓单日报（``CWServ.qhf9_sp_ckrb_ckrb``）。
+
+        实测需传日期（``YYYYMMDD``），空日期返回 0 行。
+        """
+
+        return self.params("CWServ.qhf9_sp_ckrb_ckrb", "1", code, date.strip().replace("-", ""))
+
+    def qh_inventory(self, code: str) -> F10Response:
+        """期货库存报告（``CWServ.qhf9_sp_kcbg_kcbg``）。
+
+        注意：实测部分品种返回 0 行，参数形式可能因品种而异，
+        调用前建议先用 ``params`` 直接试探。
+        """
+
+        return self.params("CWServ.qhf9_sp_kcbg_kcbg", "1", code)
+
+    def qh_variety_info(self, code: str, section: str = "pzjj") -> F10Response:
+        """期货品种资料（``CWServ.qhf9_*_pzzl_*``）。
+
+        section: ``pzjj`` 品种简介（``[code, "1"]``）/ ``hyjj`` 行业简介 /
+        ``xgzq`` 相关证券（后两者为 ``[code]`` 单参）。
+        """
+
+        if section == "pzjj":
+            return self.params("CWServ.qhf9_sp_pzzl_pzjj", code, "1")
+        entry = {
+            "hyjj": "CWServ.qhf9_sp_pzzl_hyjj",
+            "xgzq": "CWServ.qhf9_sp_pzzl_xgzq",
+        }[section]
+        return self.params(entry, code)
+
+    def qh_index_info(self, code: str, section: str = "zsgk") -> F10Response:
+        """股指期货指数资料（``CWServ.qhf9_gz_zszl_*``）。
+
+        section: ``zsgk`` 指数概况 / ``lsjg`` 历史价格。
+        ``code`` 为指数代码（实测 ``399300`` 沪深300 可用，``000300`` 返回空）。
+        """
+
+        return self.params("CWServ.qhf9_gz_zszl_" + section, "1" if section == "zsgk" else "2", code)
+
+    def qh_index_valuation(
+        self, code: str = "000300", section: str = "dtpe", *, start: str = "", end: str = ""
+    ) -> F10Response:
+        """股指期货指数估值（``CWServ.qhf9_gz_zsgz_*``）。
+
+        section: ``dtpe`` 动态市盈率 / ``lspe`` 历史市盈率 / ``xjfh`` 现金分红。
+        ``code`` 为指数代码（客户端写死 ``000300`` 沪深300）；``start``/``end``
+        为日期区间（``YYYYMMDD``）。
+        """
+
+        return self.params(
+            "CWServ.qhf9_gz_zsgz_" + section,
+            "1",
+            code,
+            start.strip().replace("-", ""),
+            end.strip().replace("-", ""),
+        )
+
+    def qh_weights(self, code: str = "399300", section: str = "zxcfg", *, date: str = "") -> F10Response:
+        """股指期货成份权重（``CWServ.qhf9_gz_cfg_*``）。
+
+        section: ``zxcfg`` 最新成份 / ``lscfg`` 历史成份 / ``cfgqz`` 成份权重 /
+        ``cfghyfb`` 成份行业分布 / ``xwpl`` 新闻评论。
+        ``code`` 为指数代码（客户端用 ``zsinfo.code``，IF→``399300``）；
+        ``date`` 为截止日期（``YYYYMMDD``，空为最新）。
+        """
+
+        d = date.strip().replace("-", "")
+        if section == "cfghyfb":
+            return self.params("CWServ.qhf9_gz_cfg_cfghyfb", "1", code)
+        return self.params("CWServ.qhf9_gz_cfg_" + section, "1", code, d)
+
     def market_report(
         self,
         code: str = "",
@@ -832,8 +1711,13 @@ class F10Client:
 
         return self.params("CWServ.tdxf10_gg_cwfx", _code6(code), report_type, "")
 
-    def finance_diagnosis(self, code: str, section: str = "yynl", scope: str = "") -> F10Response:
-        """财务诊断。"""
+    def finance_diagnosis(self, code: str, section: str = "zzyj", scope: str = "") -> F10Response:
+        """财务诊断（增减异常）。
+
+        实测（2026-10-22）：服务端仅 ``zzyj``（增减异常）子表有数据；
+        历史 section（``yynl`` 盈利能力等）已随页面改版下线，传了返回空。
+        ``t0`` 为标志行（``isjr``），``t1`` 才是异常科目列表。
+        """
 
         return self.params("CWServ.tdxf10_gg_cwzd", section, _code6(code), scope)
 
@@ -854,8 +1738,14 @@ class F10Client:
 
         return self.params("CWServ.tdxf10_gg_zxts_rqpm", _code6(code), section)
 
-    def governance(self, code: str, section: str = "wgcl", arg: str = "") -> F10Response:
-        """资本运作治理。section=wgcl 为违规处理，dbmx 为担保明细。"""
+    def governance(self, code: str, section: str = "gljy", arg: str = "") -> F10Response:
+        """资本运作治理。section=gljy 为关联交易（数据最全）。
+
+        现行页面（gg_zbyz.js）的 5 个 section：``dbmx`` 担保明细 /
+        ``gljy`` 关联交易 / ``gqtz`` 股权转让 / ``xmtz`` 项目投资 /
+        ``zjly`` 资金运用。历史 section ``wgcl``（违规处理）服务端仍返回
+        （多数公司 0 行，属数据缺失而非接口问题）。
+        """
 
         return self.params("CWServ.tdxf10_gg_zbyz", section, _code6(code), arg)
 
@@ -1005,11 +1895,162 @@ class F10Client:
             "PageSize": str(page_size),
             "modname": "mod_tcihq.dll",
         }
-        if str(req_id) in {"200742", "200745", "200747"}:
+        if str(req_id) in {"200740", "200742", "200745", "200747"}:
             payload["zq_num"] = str(zq_num)
         if extra:
             payload.update(extra)
         return self.call("HQServ.hq_nlp_tcihq", [payload])
+
+    # ------------------------------------------------------------------
+    # 个股总评（ggzp）与深度分析（sdfx）页面的语义化封装
+    #
+    # 这两个页面共用 ``HQServ.hq_nlp_tcihq``（题材/资金/排名）与
+    # ``HQServ.hq_nlp_gpsj``（估值/走势）两个服务；底层 req_id 已可由
+    # :meth:`theme_market` / :meth:`valuation` 直接传，这里按页面语义
+    # 暴露具名方法。实测（2026-10-22，平安 601318 / 茅台 600519）全部可用。
+    # ------------------------------------------------------------------
+
+    def stock_stage_gain(
+        self, code: str, *, days: int | str = 60, page_size: int = 10
+    ) -> F10Response:
+        """个股阶段涨幅日线序列（``hq_nlp_tcihq`` ReqId 200740）。
+
+        ``t0`` 为区间统计（``T011`` 区间涨幅 / ``T012`` 区间振幅），
+        ``t1`` 为日线序列（``N001`` 日期、``N002~N010`` 价格与涨跌幅）。
+        ``days`` 为回看天数（客户端默认 60）。
+        """
+
+        return self.theme_market(
+            code, 200740, page_size=page_size, zq_num=days
+        )
+
+    def stock_main_funds(
+        self, code: str, *, days: int | str = 30, page_size: int = 10
+    ) -> F10Response:
+        """个股主力资金流日序列（``hq_nlp_tcihq`` ReqId 200742）。
+
+        ``t1`` 每行：``N001`` 行业名、``N002`` 日期、``N003~N006``
+        主力流入/流出/净额/占比（口径随服务端）。
+        """
+
+        return self.theme_market(
+            code, 200742, page_size=page_size, zq_num=days
+        )
+
+    def stock_industry_rank(
+        self, code: str, *, days: int | str = 30, page_size: int = 10
+    ) -> F10Response:
+        """个股所属行业与行业内排名（``hq_nlp_tcihq`` ReqId 200745）。
+
+        ``t0`` 为归属信息：``hy_setcode`` / ``hy_code`` / ``hy_name`` /
+        ``cfg_num``（行业内标的数）/ ``rank``（排名）；
+        ``t1`` 为行业指数近期走势（``N001`` 日期 / ``N002`` 点位）。
+        """
+
+        return self.theme_market(
+            code, 200745, page_size=page_size, zq_num=days
+        )
+
+    def stock_industry_pct_rank(
+        self, code: str, *, days: int | str = 30, page_size: int = 10
+    ) -> F10Response:
+        """个股在所属行业内的日涨跌幅排名（``hq_nlp_tcihq`` ReqId 200747）。
+
+        ``t1`` 每行：``N001`` 日期、``N002`` 嵌套数组
+        ``[排名, setcode, code, name, 涨跌幅]``。
+        """
+
+        return self.theme_market(
+            code, 200747, page_size=page_size, zq_num=days
+        )
+
+    def stock_board_member_quotes(
+        self,
+        board_code: str,
+        *,
+        board_market: int = 1,
+        page: int = -1,
+        page_size: int = -1,
+    ) -> F10Response:
+        """关联板块的成分股行情（``hq_nlp_tcihq`` ReqId 200744）。
+
+        ``board_code`` / ``board_market`` 为板块代码与市场（如 ``881001`` 沪）；
+        板块列表可由 :meth:`theme_market`（200743）获得。
+        ``t1`` 每行：``N001`` setcode、``N002`` code、``N003`` name、
+        ``N004`` / ``N005`` 涨跌幅与量比。
+        """
+
+        payload = {
+            "ReqId": "200744",
+            "setcode": str(board_market),
+            "code": _code6(board_code),
+            "Page": page,
+            "PageSize": str(page_size),
+            "modname": "mod_tcihq.dll",
+        }
+        return self.call("HQServ.hq_nlp_tcihq", [payload])
+
+    def stock_valuation_percentile(
+        self,
+        code: str,
+        kind: str = "0",
+        *,
+        page: int = -1,
+        page_size: int = 5,
+    ) -> F10Response:
+        """个股估值历史分位（``hq_nlp_gpsj`` ReqId 200192）。
+
+        ``kind``：``0`` PE(TTM) / ``1`` PB(MRQ) / ``2`` 市现率 / ``3`` 市销率。
+        ``t1`` 每行：``DATE`` 日期、``value`` 估值、``bfw`` 百分位。
+        """
+
+        return self.valuation(
+            code, 200192, page=page, page_size=page_size, extra={"Type": kind}
+        )
+
+    def stock_pepb_percentile(
+        self,
+        code: str,
+        indicator: str = "0",
+        *,
+        window: str = "1Y",
+        period: str = "0",
+        page: int = 1,
+        page_size: int = 300,
+    ) -> F10Response:
+        """个股 PE/PB 历史与分位（``hq_nlp_gpsj`` ReqId 200124，深度分析估值带）。
+
+        ``indicator``：``0`` PE(TTM) / ``1`` PB(MRQ) / ``2`` 市现率 / ``3`` 市销率；
+        ``window`` 时间范围（``1Y`` / ``3Y`` / ``5Y`` / ``10Y``）；
+        ``period`` 行情周期（``0`` 日 / ``1`` 周 / ``2`` 月）。
+        ``t0`` 每行：``N001`` 日期、``N002`` 指标值、``N003``/``N004`` 分位；
+        ``t1`` 为区间统计（``TotalNum`` / ``Min`` / ``Mid``）。
+        """
+
+        return self.valuation(
+            code,
+            200124,
+            page=page,
+            page_size=page_size,
+            extra={"sjfw": window, "zb": indicator, "hqzq": period},
+        )
+
+    def stock_history_trend(self, code: str) -> F10Response:
+        """个股年度历史走势（``hq_nlp_gpsj`` ReqId 200135）。
+
+        ``t0`` 每行一个年度（``N001`` 年份、``N002~N014`` 年度涨跌幅与估值）。
+        """
+
+        return self.valuation(code, 200135)
+
+    def stock_finance_weights(self, code: str, section: str = "zcfzb") -> F10Response:
+        """财务指标权重（``CWServ.tdxf10_gg_zxtscwbq``，最新提示页）。
+
+        ``section`` 为财务报告期 key（由最新提示页的财务概况列表给出）。
+        实测部分 key 返回空——属数据缺失，调用前建议先取 ``digest``。
+        """
+
+        return self.params("CWServ.tdxf10_gg_zxtscwbq", _code6(code), section)
 
     def valuation(
         self,
@@ -1074,11 +2115,12 @@ class F10Client:
         return self.call("HQServ.hq_nlp_gpsj", [payload])
 
     def _post(self, entry: str, body: Any) -> F10Response:
-        base_url = (
-            self.limit_board_ladder_base_url
-            if entry == LIMIT_BOARD_LADDER_ENTRY
-            else self.base_url
-        )
+        if entry == LIMIT_BOARD_LADDER_ENTRY:
+            base_url = self.limit_board_ladder_base_url
+        elif entry.startswith(_MG_HK_ENTRY_PREFIXES) or entry.startswith(_QH_ENTRY_PREFIXES):
+            base_url = self.mg_hk_base_url
+        else:
+            base_url = self.base_url
         url = f"{base_url}?{urlencode({'Entry': entry})}"
         data = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         request = Request(url, data=data, headers=self.headers, method="POST")
@@ -1196,6 +2238,71 @@ def _row_dict(cells: Sequence[F10Cell]) -> dict[str, Any]:
 
 def _code6(code: str) -> str:
     return split_code(code)[2]
+
+
+def _us_code(code: str) -> str:
+    """美股代码规范化 → 裸大写代码（如 ``NVDA``）。
+
+    接受 ``NVDA`` / ``nvda`` / ``us.NVDA`` / ``74.NVDA``，去掉市场前缀、转大写。
+    美股代码含字母，可能带 ``-`` / ``.``（如 ``BRK-B``），不做长度强制。
+    """
+
+    text = str(code).strip()
+    if "." in text:
+        text = text.split(".")[-1]
+    text = text.upper()
+    # 至少一个字母或数字（拒绝 "-" / "--" 这类纯符号），其余字符限字母数字与连字符
+    if not text or not any(c.isalnum() for c in text):
+        raise ProtocolError(f"invalid US code: {code!r}")
+    if not all(c.isalnum() or c == "-" for c in text):
+        raise ProtocolError(f"invalid US code: {code!r}")
+    return text
+
+
+def _hk_code(code: str) -> str:
+    """港股代码规范化 → 5 位数字代码（如 ``00700``）。
+
+    接受 ``00700`` / ``700`` / ``hk.00700`` / ``31.00700``，去掉市场前缀，
+    前导补零到 5 位。
+    """
+
+    text = str(code).strip()
+    if "." in text:
+        text = text.split(".")[-1]
+    # 去前缀后必须全是数字（拒绝 "00700A" 这类混入字母的输入）
+    if not text.isdigit():
+        raise ProtocolError(f"invalid HK code: {code!r}")
+    return text.zfill(5)
+
+
+def _bond_code(code: str) -> str:
+    """债券代码规范化 → 6 位数字代码（如 ``113043``）。
+
+    接受 ``113043`` / ``sh113043`` / ``sz128043``；不推断市场（沪深债券
+    代码段高度重叠，如 ``110``/``113`` 沪深都有），仅取 6 位数字。
+    """
+
+    text = str(code).strip()
+    if len(text) == 8 and text[:2] in MARKET_TO_ID:
+        text = text[2:]
+    if len(text) != 6 or not text.isdigit():
+        raise ProtocolError(f"invalid bond code: {code!r}")
+    return text
+
+
+def _bond_sc(code: str) -> str:
+    """债券 F10 的市场码参数 ``sc``（实测：``1`` 沪 / ``0`` 深）。
+
+    与 ``MacClient`` 的 market 约定一致。无法从代码推断时（如未带前缀的
+    裸代码且段重叠）默认 ``1``（沪市债券段更常见）；显式 ``sh``/``sz``
+    前缀优先。
+    """
+
+    text = str(code).strip().lower()
+    if len(text) == 8 and text[:2] in MARKET_TO_ID:
+        return "1" if text[:2] == "sh" else "0"
+    # 沪深重叠段（110/113/120/122/124 等）无法纯代码推断，默认沪市。
+    return "1"
 
 
 def _require_section(section: str, valid: Sequence[str]) -> None:
