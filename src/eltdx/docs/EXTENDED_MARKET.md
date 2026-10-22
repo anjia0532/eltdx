@@ -351,6 +351,60 @@ with MacExClient.from_best_host() as c:            # 走 MAC_EX_HOSTS，端口 7
 
 在扩展行情（7727）连接上先登录（`0x2454`），再使用 goods 系列命令；断线后 `_execute` 会自动重连并重新登录。
 
+## 期货：连续合约与分时
+
+期货走扩展行情的市场码：`28` 郑商所 / `29` 大商所 / `30` 上期所 / `47` 中金所
+（`ExMarket.ZZ_FUTURES` / `DL_FUTURES` / `SH_FUTURES` / `CFFEX_FUTURES`）。
+另有 `60`（`MAIN_FUTURES_CONTRACT`），实测在 MAC-EX 主站返回 0 个标的，
+**主力连续请用各交易所市场内的 `L` 系列代码**。
+
+### 连续合约命名（与常见 `L0` 惯例不同）
+
+通达信扩展行情把连续合约命名为 `{品种}L7` / `L8` / `L9`，含义由服务端名称直接给出：
+
+| 代码 | 名称 | 含义 |
+| --- | --- | --- |
+| `AUL7` | 黄金次连 | 次主力连续 |
+| `AUL8` | 黄金主连 | **主力连续**（收盘价与当前主力月份合约完全一致） |
+| `AUL9` | 黄金加权 | 加权指数（各月份按持仓/成交加权） |
+
+实测（2026-10-22）：`AUL8` 与主力 `AU2612` 的 pre_close / open / high / low / close / vol
+逐项相同，确认 `L8` = 主力连续；`L7`（883.90）、`L9`（883.12）与主力（881.46）不同。
+覆盖品种：AU/AG/AD/AL/AO/BC/BR/BU/CU/EC/FU/HC/LU/NI/NR/OP/PB/RB/RU/SC/SN/SP/SS/WR/ZN 等，
+每个品种三个连续代码（共 69 个）。
+
+```python
+from eltdx.ex import MacExClient
+from eltdx.mac import Period
+
+with MacExClient("116.205.135.205", 7727, 10.0) as c:
+    # 沪金主连分时（555 个点：21:00 夜盘 → 14:59 日盘）
+    chart = c.goods_tick_chart(30, "AUL8")
+    print(chart.name, chart.pre_close, chart.close, len(chart.charts))
+    for tick in chart.charts[:3]:
+        print(tick.time, tick.price, tick.avg, tick.vol)
+
+    # 缩略采样（图表用，约 112 点）
+    points = c.goods_chart_sampling(30, "AUL8")
+
+    # 多周期 K 线
+    for period in (Period.MIN_1, Period.MIN_5, Period.MIN_60, Period.DAILY):
+        bars = c.goods_kline(30, "AUL8", period)
+        print(period.name, len(bars), bars[-1].datetime, bars[-1].close)
+```
+
+### 实测要点
+
+- **分时点数随交易时段变化**：沪金 555 点（夜盘 21:00—02:30 + 日盘 09:00—15:00）、
+  螺纹 345 点（夜盘 21:00—23:00 + 日盘），不是固定 240 点。
+- **历史分时可取**：`goods_tick_chart(30, "AUL8", date(2026, 10, 21))` 返回 555 个
+  有效价格点（`charts` 逐点完整），但**汇总字段 `open`/`high`/`low`/`close` 为 0**
+  （只有 `pre_close` 有值）——取历史分时时只信 `charts`，不要用 summary。
+- **`momentum` 字段不可靠**：分时点里的 `momentum` 按 float32 解析出 `3e-40` 量级的
+  垃圾值，说明该 4 字节不是浮点语义（疑似整型或保留位）。目前**请忽略该字段**，
+  其余 `time` / `price` / `avg` / `vol` 均正确。
+- K 线各周期（1/5/15/30/60 分钟、日线）均返回 700 根，可直接用于技术指标。
+
 ## 说明
 
 - 三个子包均为**纯 Python 同步实现**，只依赖标准库；不提供 asyncio 版本。
