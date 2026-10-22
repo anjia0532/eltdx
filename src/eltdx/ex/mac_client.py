@@ -38,7 +38,8 @@ from eltdx.ex.mac_models import (
     MacTransaction,
 )
 from eltdx.ex.transport.sync import ExTdxConnection, ping_ex_all
-from eltdx.exceptions import TransportError
+from eltdx.exceptions import ProtocolError, TransportError
+from eltdx.ex.enums import ExMarket
 from eltdx.mac.bitmap import FieldBit
 from eltdx.mac.codec import build_mac_request
 
@@ -79,6 +80,8 @@ class MacExClient:
         self._conn = ExTdxConnection(self._host, port, timeout, mac_ex_mode=True)
         self._connected = False
         self._bounds_cache: dict[int, tuple[int, int]] = {}
+        # 宏观指标（市场 38）代码缓存：name -> GoodsItem
+        self._macro_cache: dict[str, GoodsItem] = {}
 
     @classmethod
     def from_best_host(
@@ -175,6 +178,109 @@ class MacExClient:
     # 商品列表
     # ------------------------------------------------------------------ #
 
+    # ------------------------------------------------------------------ #
+    # 宏观指标（市场 38 = ExMarket.MACRO_INDICATOR）
+    #
+    # 通达信「宏观数据」页（T0002/cloud_dax/HGSJ.sp，GPType=88）的数据源：
+    # 指标是市场 38 的特殊证券，代码格式 ``{类别}_{指标}``（如 ``1_GDP``）。
+    # 该页面是**客户端原生页面**（非 web），因此 JS 缓存里没有它，
+    # 只能走扩展行情协议（7727）。
+    # ------------------------------------------------------------------ #
+
+    #: 宏观指标类别 → 中文名（对齐通达信「宏观数据」页左侧分组）。
+    MACRO_CATEGORIES: dict[str, str] = {
+        "1": "国民经济",
+        "2": "物价",
+        "3": "景气指数",
+        "4": "对外经济",
+        "5": "货币金融",
+        "6": "房地产与其他",
+        "7": "证券市场",
+        "8": "美国经济",
+        "9": "利率与回购",
+    }
+
+    def _macro_code(self, code: str) -> str:
+        """规范化宏观指标代码 → ``{类别}_{指标}``（如 ``1_GDP``）。
+
+        已带类别前缀（含 ``_``）时原样返回；裸代码（``GDP``）时在全部指标
+        中查找后缀匹配：唯一命中直接用，多个命中抛 ``ValueError`` 列出候选
+        （如 ``XAU`` 同时属于类别 5 与 8），无命中抛 ``ProtocolError``。
+        """
+
+        text = str(code).strip()
+        if "_" in text:
+            return text
+        if not self._macro_cache:
+            self._macro_cache = {item.name: item for item in self.macro_indicators()}
+        candidates = [name for name in self._macro_cache if name.partition("_")[2] == text]
+        if len(candidates) == 1:
+            return candidates[0]
+        if len(candidates) > 1:
+            raise ValueError(
+                f"ambiguous macro code {code!r}; candidates: {', '.join(sorted(candidates))}"
+            )
+        raise ProtocolError(f"unknown macro indicator: {code!r}")
+
+    def macro_indicators(self) -> list[GoodsItem]:
+        """列出全部宏观指标（市场 38，实测 217 个，9 个类别）。
+
+        名称在 ``GoodsItem.name``（``年度国内生产总值`` 等，随报价/列表下发）。
+        结果按 ``index`` 排序；重复调用会命中实例缓存（``_macro_cache``）。
+        """
+
+        if self._macro_cache:
+            return list(self._macro_cache.values())
+        items = self.goods_list(ExMarket.MACRO_INDICATOR, 0, 600)
+        self._macro_cache = {item.name: item for item in items}
+        return items
+
+    def macro_quotes(
+        self,
+        codes: "str | Iterable[str]",
+        fields: Any = None,
+    ) -> list[MacQuoteField]:
+        """批量获取宏观指标最新值。
+
+        ``codes`` 支持完整代码（``1_GDP``）或裸代码（``GDP``，自动补类别）。
+        返回的 ``MacQuoteField.fields`` 含 ``close``（最新值）、``pre_close``
+        （前值）等；宏观指标无成交量（``vol``/``amount`` 恒 0）。
+
+        注意：宏观指标按报告期更新（月/季/年），非交易时段推送，
+        ``pre_close`` 通常是上一个报告期的值。
+        """
+
+        if isinstance(codes, str):
+            codes = [codes]
+        if not codes:
+            return []
+        resolved = [(ExMarket.MACRO_INDICATOR, self._macro_code(c)) for c in codes]
+        return self.goods_quotes(resolved, fields)
+
+    def macro_kline(
+        self,
+        code: str,
+        period: Period = Period.MONTHLY,
+        start: int = 0,
+        count: int = 800,
+        adjust: Adjust = Adjust.NONE,
+    ) -> list[MacBar]:
+        """获取宏观指标历史序列（K 线）。
+
+        ``period`` 应与指标发布频率匹配：GDP 用 ``YEARLY``/``QUARTERLY``，
+        CPI/PPI/PMI/M2 等用 ``MONTHLY``，利率（SHIBOR/R007）用 ``DAILY``。
+        ``MacBar.close`` 即该报告期的指标值；``vol``/``amount`` 恒 0。
+        """
+
+        return self.goods_kline(
+            ExMarket.MACRO_INDICATOR,
+            self._macro_code(code),
+            period=period,
+            start=start,
+            count=count,
+            adjust=adjust,
+        )
+
     def goods_count(self, market: int | None = None) -> int:
         """获取扩展市场商品总数；``market=None`` 返回全市场总数。
 
@@ -183,7 +289,6 @@ class MacExClient:
             **该命令在部分扩展行情主站上恒返回 0**，此时自动退回 EX 元数据
             （``GetExInstrumentInfoCmd``）二分定位市场边界后相减计数。
         """
-
         if market is None:
             return self._execute(GetExInstrumentCountCmd())
         cmd = GoodsListCmd(market, 0, 1)
