@@ -1421,6 +1421,83 @@ class _McpTools:
 
         return docs_index()
 
+    # ------------------------------------------------------------------
+    # v3.4.7 新增：F10 扩展家族 / 个股分析 / 宏观指标
+    #
+    # 契约测试（tests/contracts/test_runtime_surfaces_contract.py）按
+    # ``_McpTools`` 的方法签名推导 input_schema，因此这里必须提供同名
+    # 方法；实现委托给模块级函数，保持单一构造点。
+    # ------------------------------------------------------------------
+
+    def f10_digest(
+        self,
+        code: str,
+        section: str = "tips",
+        page: int = 1,
+        page_size: int = 20,
+        timeout: float = 8.0,
+    ) -> dict[str, Any]:
+        """Query the F10 "latest tips" page (8 sections)."""
+
+        return f10_digest(
+            code, section=section, page=page, page_size=page_size, timeout=timeout
+        )
+
+    def us_stock_f10(
+        self, code: str, section: str = "profile", timeout: float = 8.0
+    ) -> dict[str, Any]:
+        """Query US-stock (mgf10) F10."""
+
+        return us_stock_f10(code, section=section, timeout=timeout)
+
+    def hk_stock_f10(
+        self, code: str, section: str = "profile", timeout: float = 8.0
+    ) -> dict[str, Any]:
+        """Query HK-stock (hkf10) F10."""
+
+        return hk_stock_f10(code, section=section, timeout=timeout)
+
+    def bond_f10(
+        self,
+        code: str,
+        kind: str = "convertible",
+        section: str = "profile",
+        timeout: float = 8.0,
+    ) -> dict[str, Any]:
+        """Query bond (zqf10) F10 by bond kind."""
+
+        return bond_f10(code, kind=kind, section=section, timeout=timeout)
+
+    def industry_f10(
+        self, industry_code: str, section: str = "summary", timeout: float = 8.0
+    ) -> dict[str, Any]:
+        """Query industry (hyf10) F10 by board code."""
+
+        return industry_f10(industry_code, section=section, timeout=timeout)
+
+    def stock_analysis(
+        self, code: str, section: str = "industry_rank", timeout: float = 8.0
+    ) -> dict[str, Any]:
+        """Query stock-analysis (ggzp/sdfx) data."""
+
+        return stock_analysis(code, section=section, timeout=timeout)
+
+    def macro_indicators(self, timeout: float = 10.0) -> dict[str, Any]:
+        """List all macro indicators (market 38)."""
+
+        return macro_indicators(timeout=timeout)
+
+    def macro_data(
+        self,
+        codes: str,
+        period: str = "monthly",
+        history: bool = False,
+        timeout: float = 10.0,
+    ) -> dict[str, Any]:
+        """Query macro indicator values."""
+
+        return macro_data(codes, period=period, history=history, timeout=timeout)
+
 
 def create_mcp_server():
     """Create the MCP SDK 2 server."""
@@ -1475,14 +1552,14 @@ def create_mcp_server():
         ("eltdx_limit_up_down_list", tools.limit_up_down_list),
         ("eltdx_limit_board_ladder", tools.limit_board_ladder),
         ("eltdx_company_profile", tools.company_profile),
-        ("eltdx_f10_digest", f10_digest),
-        ("eltdx_us_stock_f10", us_stock_f10),
-        ("eltdx_hk_stock_f10", hk_stock_f10),
-        ("eltdx_bond_f10", bond_f10),
-        ("eltdx_industry_f10", industry_f10),
-        ("eltdx_stock_analysis", stock_analysis),
-        ("eltdx_macro_indicators", macro_indicators),
-        ("eltdx_macro_data", macro_data),
+        ("eltdx_f10_digest", tools.f10_digest),
+        ("eltdx_us_stock_f10", tools.us_stock_f10),
+        ("eltdx_hk_stock_f10", tools.hk_stock_f10),
+        ("eltdx_bond_f10", tools.bond_f10),
+        ("eltdx_industry_f10", tools.industry_f10),
+        ("eltdx_stock_analysis", tools.stock_analysis),
+        ("eltdx_macro_indicators", tools.macro_indicators),
+        ("eltdx_macro_data", tools.macro_data),
         ("eltdx_hot_topics", tools.hot_topics),
         ("eltdx_finance_report", tools.finance_report),
         ("eltdx_company_news", tools.company_news),
