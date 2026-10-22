@@ -149,11 +149,16 @@ def find_lc1_bar_file(
     code: str,
     vipdoc: str | Path | None = None,
 ) -> Path:
-    """根据市场和代码定位 ``.lc1`` 分钟线文件路径。"""
+    """根据市场和代码定位 ``.lc1`` 分钟线文件路径。
+
+    标准通达信目录布局里 **``.lc1`` 在 ``minline``**，只有 ``.lc5`` / ``.5``
+    在 ``fzline``。早期三个查找函数一律用 ``fzline``，导致标准安装下找不到
+    ``.lc1`` 文件。
+    """
 
     vipdoc_path = resolve_vipdoc(vipdoc)
     exchange = market_to_exchange(market)
-    return vipdoc_path / exchange / "fzline" / f"{exchange}{code}.lc1"
+    return vipdoc_path / exchange / "minline" / f"{exchange}{code}.lc1"
 
 
 def find_lc5_bar_file(

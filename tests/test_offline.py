@@ -536,3 +536,289 @@ class TestAppendRejectsPartialTail:
         assert write_daily_bar(filepath, [_make_daily_bar(day=4), _make_daily_bar(day=5)]) == 2
         assert write_daily_bar(filepath, [_make_daily_bar(day=6)]) == 1
         assert len(read_daily_bar(filepath)) == 3
+
+
+# ---------------------------------------------------------------------------
+# 第二轮评审回归项
+# ---------------------------------------------------------------------------
+
+
+def _build_block_cfg(entries: list[tuple[str, str]]) -> bytes:
+    """构造 ``blocknew.cfg``：每条 120 字节（50B 名称 + 70B 文件名）。"""
+
+    data = bytearray()
+    for name, filename in entries:
+        data += name.encode("gbk").ljust(50, b"\x00")[:50]
+        data += filename.encode("gbk").ljust(70, b"\x00")[:70]
+    return bytes(data)
+
+
+class TestLastBarDatetimeAlignment:
+    """回归：``get_last_*_bar_datetime()`` 未按记录长度对齐。
+
+    残尾文件上 ``seek(size - record_size)`` 落在错误偏移，读出的是「伪末条」。
+    """
+
+    def test_last_min_bar_datetime_ignores_partial_tail(self, tmp_path: Path) -> None:
+        from eltdx.offline import get_last_min_bar_datetime
+
+        filepath = tmp_path / "sh600000.lc1"
+        write_min_bar(filepath, [_make_min_bar(day=6), _make_min_bar(day=7)])
+        expected = get_last_min_bar_datetime(filepath)
+        assert expected is not None and expected[2] == 7
+
+        with filepath.open("ab") as handle:
+            handle.write(b"\x01\x02\x03")  # 残尾，不足一条记录
+
+        assert get_last_min_bar_datetime(filepath) == expected
+
+    def test_last_5min_bar_datetime_ignores_partial_tail(self, tmp_path: Path) -> None:
+        from eltdx.offline import get_last_5min_bar_datetime
+
+        filepath = tmp_path / "sh600000.5"
+        write_min_bar(filepath, [_make_min_bar(day=6), _make_min_bar(day=7)])
+        expected = get_last_5min_bar_datetime(filepath)
+        assert expected is not None and expected[2] == 7
+
+        with filepath.open("ab") as handle:
+            handle.write(b"\x01\x02\x03")
+
+        assert get_last_5min_bar_datetime(filepath) == expected
+
+
+class TestSecurityCoefficients:
+    """回归：``SZ_BOND`` 量系数写成了 1.0，债券成交量放大 100 倍。"""
+
+    def test_sz_bond_volume_coefficient(self, tmp_path: Path) -> None:
+        from eltdx.offline.daily_bar import security_coefficients
+
+        _, vol_coeff = security_coefficients("sz123456.day")
+        assert vol_coeff == pytest.approx(0.01)
+
+    def test_sz_bond_volume_scaled_on_read(self, tmp_path: Path) -> None:
+        filepath = tmp_path / "sz123456.day"
+        raw = struct.pack("<IIIIIfII", 20260102, 10500, 10600, 10400, 10500, 12345.0, 10000, 0)
+        filepath.write_bytes(raw)
+
+        bars = read_daily_bar(filepath)
+        assert bars[0].close == pytest.approx(10.5)
+        assert bars[0].volume == pytest.approx(100.0)
+
+
+class TestBarFileLocations:
+    """回归：``.lc1`` 在标准布局里位于 ``minline``，不是 ``fzline``。"""
+
+    def test_lc1_uses_minline(self, tmp_path: Path) -> None:
+        from eltdx.offline import find_lc1_bar_file
+
+        assert find_lc1_bar_file(0, "600000", tmp_path).parent.name == "minline"
+
+    def test_lc5_and_5_use_fzline(self, tmp_path: Path) -> None:
+        from eltdx.offline import find_5min_bar_file, find_lc5_bar_file
+
+        assert find_lc5_bar_file(0, "600000", tmp_path).parent.name == "fzline"
+        assert find_5min_bar_file(0, "600000", tmp_path).parent.name == "fzline"
+
+
+class TestCustomerBlockPathTraversal:
+    """回归：``blocknew.cfg`` 里的文件名未校验，可跳出板块目录读取任意文件。"""
+
+    def _prepare(self, tmp_path: Path, blk_filename: str) -> Path:
+        block_dir = tmp_path / "blocknew"
+        block_dir.mkdir()
+        (block_dir / "blocknew.cfg").write_bytes(
+            _build_block_cfg([("测试板块", blk_filename)])
+        )
+        return block_dir
+
+    @pytest.mark.parametrize(
+        "bad_name",
+        ["../evil", "..\\evil", "/etc/passwd", "C://Windows//win", "sub/dir", ".."],
+    )
+    def test_rejects_path_components(self, tmp_path: Path, bad_name: str) -> None:
+        from eltdx.exceptions import ResourceFormatError
+        from eltdx.offline import read_customer_block
+
+        block_dir = self._prepare(tmp_path, bad_name)
+        with pytest.raises(ResourceFormatError, match="非法|越界"):
+            read_customer_block(block_dir)
+
+    def test_normal_name_still_works(self, tmp_path: Path) -> None:
+        from eltdx.offline import read_customer_block
+
+        block_dir = self._prepare(tmp_path, "ZXG")
+        (block_dir / "ZXG.blk").write_text("1600000\n0000001\n", encoding="utf-8")
+        blocks = read_customer_block(block_dir)
+        assert [b.block_type for b in blocks] == ["ZXG"]
+        assert blocks[0].codes == ("600000", "000001")
+
+
+class TestBlockTruncatedRecords:
+    """回归：``read_block`` 遇到截断记录直接 ``break``，静默丢掉尾部数据。"""
+
+    def test_truncated_block_file_raises(self, tmp_path: Path) -> None:
+        from eltdx.exceptions import ResourceFormatError
+
+        filepath = tmp_path / "block_zs.dat"
+        data = _build_block_dat("银行", ["600000"])
+        filepath.write_bytes(data[: len(data) - 10])  # 切掉记录尾巴
+
+        with pytest.raises(ResourceFormatError, match="截断"):
+            read_block(filepath)
+
+    def test_complete_block_file_ok(self, tmp_path: Path) -> None:
+        filepath = tmp_path / "block_zs.dat"
+        filepath.write_bytes(_build_block_dat("银行", ["600000"]))
+        assert len(read_block(filepath)) == 1
+
+
+class TestHistoryFinancialLimits:
+    """回归：``history_financial`` 的 ZIP 路径无任何限额、``report_size`` 被静默截断。"""
+
+    def test_parse_rejects_report_size_not_multiple_of_four(self) -> None:
+        from eltdx.exceptions import ResourceFormatError
+        from eltdx.offline import parse_financial_dat
+
+        # <1hI1H3L>：unknown, report_date, max_count, unknown1, report_size, unknown2
+        header = struct.pack("<1hI1H3L", 0, 20260331, 0, 0, 6, 0)
+        with pytest.raises(ResourceFormatError, match="report_size"):
+            parse_financial_dat(header)
+
+    def test_parse_rejects_absurd_report_size(self) -> None:
+        from eltdx.exceptions import ResourceFormatError
+        from eltdx.offline import parse_financial_dat
+
+        header = struct.pack("<1hI1H3L", 0, 20260331, 0, 0, 4 * 10_000_000, 0)
+        with pytest.raises(ResourceFormatError, match="字段数超出上限"):
+            parse_financial_dat(header)
+
+    def test_zip_rejects_too_many_entries(self, tmp_path: Path) -> None:
+        import zipfile
+
+        from eltdx.exceptions import ResourceFormatError
+
+        path = tmp_path / "gpcw.zip"
+        with zipfile.ZipFile(path, "w") as archive:
+            for i in range(5):
+                archive.writestr(f"x{i}.bin", b"0")
+
+        from eltdx.offline import history_financial as hf
+
+        original = hf.MAX_HISTORY_ZIP_ENTRIES
+        hf.MAX_HISTORY_ZIP_ENTRIES = 2
+        try:
+            with pytest.raises(ResourceFormatError, match="条目过多"):
+                from eltdx.offline import read_history_financial
+
+                read_history_financial(path)
+        finally:
+            hf.MAX_HISTORY_ZIP_ENTRIES = original
+
+    def test_zip_rejects_oversized_dat(self, tmp_path: Path) -> None:
+        import zipfile
+
+        from eltdx.exceptions import ResourceFormatError
+        from eltdx.offline import history_financial as hf
+
+        path = tmp_path / "gpcw.zip"
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("gpcw.dat", b"\x00" * 1024)
+
+        original = hf.MAX_HISTORY_DAT_BYTES
+        hf.MAX_HISTORY_DAT_BYTES = 16
+        try:
+            with pytest.raises(ResourceFormatError, match="解压后超出上限"):
+                from eltdx.offline import read_history_financial
+
+                read_history_financial(path)
+        finally:
+            hf.MAX_HISTORY_DAT_BYTES = original
+
+
+class TestHistoryFinancialMemoryAmplification:
+    """回归：异常 DAT 的索引条目可反复指向同一段数据，造成内存放大。
+
+    复核方构造的样本：约 18–21 KB 的 DAT 即可产生约 31 MB 峰值内存
+    （约 8M 个 float）。单条记录的字段数有限制，但**条数**由 ``max_count``
+    决定，且索引偏移完全由文件内容控制。
+    """
+
+    @staticmethod
+    def _dat(max_count: int, report_size: int, offsets, blob_size: int | None = None) -> bytes:
+        header = struct.pack("<1hI1H3L", 0, 20260331, max_count, 0, report_size, 0)
+        index_fmt = "<6s1c1L"
+        index_size = struct.calcsize(index_fmt)
+        header_size = struct.calcsize("<1hI1H3L")
+        data_start = header_size + max_count * index_size
+        # 数据段要容纳最大偏移：默认按「递增 offset」构造给足
+        # （start + (max_count-1) + report_size），调用方可按需放大。
+        if blob_size is None:
+            blob_size = report_size + max_count
+        blob = bytes(bytearray(blob_size))
+        data = bytearray(header)
+        for i in range(max_count):
+            data += struct.pack(index_fmt, f"{i:06d}".encode(), b"\x00", offsets(i, data_start))
+        data += blob
+        return bytes(data)
+
+    def test_duplicate_index_offsets_are_rejected(self) -> None:
+        from eltdx.exceptions import ResourceFormatError
+        from eltdx.offline import parse_financial_dat
+
+        # 1600 条索引全部指向同一段 4 KB 数据 → 早前会解出 1600 份完整 float 列表
+        dat = self._dat(1600, 4096, lambda i, start: start)
+        with pytest.raises(ResourceFormatError, match="偏移重复"):
+            parse_financial_dat(dat)
+
+    def test_duplicate_offsets_stay_small_in_memory(self) -> None:
+        import tracemalloc
+
+        from eltdx.exceptions import ResourceFormatError
+        from eltdx.offline import parse_financial_dat
+
+        dat = self._dat(1600, 4096, lambda i, start: start)
+        tracemalloc.start()
+        try:
+            with pytest.raises(ResourceFormatError):
+                parse_financial_dat(dat)
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        # 拒绝必须发生在解压/展开之前，峰值内存不能随索引条数线性增长
+        assert peak < 4 * 1024 * 1024
+
+    def test_offset_overlapping_but_unique_is_capped_by_total_floats(self) -> None:
+        """偏移互不重复、但大量重叠时，由总解析量上限兜底。"""
+
+        from eltdx.exceptions import ResourceFormatError
+        from eltdx.offline import parse_financial_dat
+
+        # 5000 条索引、每条 1024 个字段，偏移逐个 +1 字节（互不重复）
+        dat = self._dat(5000, 4096, lambda i, start: start + i)
+        with pytest.raises(ResourceFormatError, match="总解析量"):
+            parse_financial_dat(dat)
+
+    def test_normal_dat_is_unaffected(self) -> None:
+        from eltdx.offline import parse_financial_dat
+
+        # 每条索引占独立一段、互不重叠 —— 正常财报布局
+        def offsets(i: int, start: int) -> int:
+            return start + i * 12
+
+        dat = self._dat(50, 12, offsets, blob_size=12 * 50)
+        records = parse_financial_dat(dat)
+        assert len(records) == 50
+        assert records[0][0] == "000000"
+        assert records[-1][0] == "000049"
+
+    def test_zip_entry_point_also_rejects_duplicates(self, tmp_path: Path) -> None:
+        import zipfile
+
+        from eltdx.exceptions import ResourceFormatError
+        from eltdx.offline import read_history_financial
+
+        path = tmp_path / "gpcw20260331.zip"
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("gpcw.dat", self._dat(1600, 4096, lambda i, start: start))
+        with pytest.raises(ResourceFormatError, match="偏移重复"):
+            read_history_financial(path)

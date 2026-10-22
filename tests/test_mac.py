@@ -1543,3 +1543,186 @@ def test_max_frame_unzipped_matches_header_field_width() -> None:
     """上限应与帧头 unzipsize 的 2 字节宽度一致（<IIIHH）。"""
 
     assert MAX_FRAME_UNZIPPED_BYTES == 0xFFFF
+
+
+# --------------------------------------------------------------------------- #
+# 第二轮评审回归项
+# --------------------------------------------------------------------------- #
+
+
+def test_decompress_limited_rejects_truncated_stream() -> None:
+    """回归：截断的 zlib 流 ``eof`` 为 False，但输出仍可能完整。
+
+    只检查 ``unconsumed_tail`` / ``unused_data`` 会把它们当成合法响应放过去。
+    """
+
+    payload = b"hello-world" * 10
+    full = zlib.compress(payload, 9)
+    assert decompress_limited(full, MAX_FRAME_UNZIPPED_BYTES) == payload
+
+    for cut in (1, 2, 4):
+        with pytest.raises(zlib.error):
+            decompress_limited(full[:-cut], MAX_FRAME_UNZIPPED_BYTES)
+
+
+def test_symbol_bar_seconds_period_keeps_intraday_time() -> None:
+    """回归：``SECONDS`` 漏在 ``is_intraday`` 之外 → time_num 被丢弃，退化成 00:00。"""
+
+    head = struct.pack("<H22s", 0, b"600000") + struct.pack("<HBHI", 4, 0, 1, 0)
+    # 34200 秒 = 09:30:00
+    bar = struct.pack("<II7f", 20240102, 34200, 10.0, 11.0, 9.0, 10.5, 1000.0, 200.0, 300.0)
+    res = SymbolBarCmd(0, "600000", Period.SECONDS).parse_response(head + bar)
+    assert res[0].datetime.date() == date(2024, 1, 2)
+    assert res[0].datetime.time() == time(9, 30, 0)
+
+
+def test_symbol_bar_seconds_period_keeps_seconds() -> None:
+    """回归：``time_num`` 是当日秒数，只取到分钟会让相邻秒级 K 线塌成同一时刻。
+
+    34201 = 09:30:01，34202 = 09:30:02 —— 二者必须能区分。
+    """
+
+    head = struct.pack("<H22s", 0, b"600000") + struct.pack("<HBHI", 4, 0, 2, 0)
+    b1 = struct.pack("<II7f", 20240102, 34201, 10.0, 11.0, 9.0, 10.5, 1000.0, 200.0, 300.0)
+    b2 = struct.pack("<II7f", 20240102, 34202, 10.5, 11.2, 10.4, 11.1, 1100.0, 210.0, 310.0)
+    res = SymbolBarCmd(0, "600000", Period.SECONDS).parse_response(head + b1 + b2)
+
+    assert len(res) == 2
+    assert res[0].datetime.time() == time(9, 30, 1)
+    assert res[1].datetime.time() == time(9, 30, 2)
+    assert res[0].datetime < res[1].datetime
+
+
+def test_symbol_bar_daily_still_ignores_time() -> None:
+    """日线及以上仍然不带时间，避免误把 SECONDS 的修复外溢。"""
+
+    head = struct.pack("<H22s", 0, b"600000") + struct.pack("<HBHI", 4, 0, 1, 0)
+    bar = struct.pack("<II7f", 20240102, 34200, 10.0, 11.0, 9.0, 10.5, 1000.0, 200.0, 300.0)
+    res = SymbolBarCmd(0, "600000", Period.DAILY).parse_response(head + bar)
+    assert res[0].datetime == datetime(2024, 1, 2)
+
+
+@pytest.mark.parametrize("days", [0, -1, 6, 99])
+def test_tick_charts_rejects_out_of_range_days(days: int) -> None:
+    """回归：``days`` 无校验，而响应头固定只有 5 个日期/昨收槽位。"""
+
+    with pytest.raises(ValueError, match="days"):
+        TickChartsCmd(0, "600000", days=days)
+
+
+def test_parse_tick_charts_clamps_bogus_day_count() -> None:
+    """回归：响应 count>5 时 ``date_ints[d]`` 会 IndexError。"""
+
+    hdr = struct.pack("<H22s", 0, b"600000")
+    hdr += struct.pack("<5I", 20240102, 0, 0, 0, 0)
+    hdr += struct.pack("<5f", 9.5, 0, 0, 0, 0)
+    hdr += struct.pack("<HBHH", 9, 0, 100, 0)  # 谎报 9 天
+    tail = struct.pack(
+        "<44sBHf5x2I5ffIf12s2fI",
+        "浦发银行".encode("gbk").ljust(44, b"\x00"),
+        2, 0, 1.0, 20240102, 93000,
+        9.5, 9.6, 10.0, 9.4, 9.9, 0.1,
+        12345, 67890.0, b"", 1.2, 9.8, 0,
+    )
+    res = TickChartsCmd(0, "600000").parse_response(hdr + tail)
+    # 只有第 1 个日期槽有值 -> 只应产出 1 天，其余空槽不能拿去构造 date(0,0,0)
+    assert len(res.charts) == 1
+    assert res.charts[0].date == date(2024, 1, 2)
+
+
+def test_parse_tick_charts_survives_zero_page_size() -> None:
+    """page_size=0 不能让后续整除崩掉。"""
+
+    hdr = struct.pack("<H22s", 0, b"600000")
+    hdr += struct.pack("<5I", 20240102, 0, 0, 0, 0)
+    hdr += struct.pack("<5f", 9.5, 0, 0, 0, 0)
+    hdr += struct.pack("<HBHH", 1, 0, 0, 0)
+    tail = struct.pack(
+        "<44sBHf5x2I5ffIf12s2fI",
+        b"", 2, 0, 1.0, 20240102, 93000,
+        9.5, 9.6, 10.0, 9.4, 9.9, 0.1,
+        12345, 67890.0, b"", 1.2, 9.8, 0,
+    )
+    res = TickChartsCmd(0, "600000").parse_response(hdr + tail)
+    assert res.code == "600000"
+
+
+def test_dual_semantic_bits_use_stock_names() -> None:
+    """回归：canonical 名取了板块语义，个股行情返回 ``limit_up_count`` 等错误键。"""
+
+    expected = {
+        0x5D: "BID2_VOLUME",
+        0x5E: "ASK2_VOLUME",
+        0x88: "BID5_VOLUME",
+        0x8B: "ASK5_VOLUME",
+    }
+    for value, name in expected.items():
+        member = FieldBit._value2member_map_[value]
+        assert member.name == name
+        assert member.field_name == name.lower()
+
+    # 板块语义仍可通过别名访问
+    assert FieldBit.LIMIT_UP_COUNT is FieldBit.BID2_VOLUME
+    assert FieldBit.UP_COUNT is FieldBit.BID5_VOLUME
+
+
+def test_symbol_quotes_returns_stock_volume_keys() -> None:
+    """个股报价的盘口量必须是 ``bid2_volume`` 这类键。"""
+
+    bits = [FieldBit.BID2_VOLUME.value, FieldBit.BID5_VOLUME.value]
+    bitmap = bytearray(20)
+    for b in bits:
+        bitmap[b // 8] |= 1 << (b % 8)
+    body = bytes(bitmap) + struct.pack("<IH", 1, 1)
+    body += struct.pack("<H22s44s", 0, b"600000", "x".encode("gbk"))
+    body += struct.pack("<II", 12345, 6789)
+    res = SymbolQuotesCmd([(0, "600000")]).parse_response(body)
+    assert set(res[0].fields) == {"bid2_volume", "bid5_volume"}
+
+
+def test_board_members_applies_field_postprocess() -> None:
+    """回归：0x122C 漏了 FIELD_POSTPROCESS，AH_CODE 不补零、类型也不一致。"""
+
+    bitmap = bytearray(20)
+    bitmap[FieldBit.AH_CODE.value // 8] |= 1 << (FieldBit.AH_CODE.value % 8)
+    body = bytes(bitmap) + struct.pack("<IH", 1, 1)
+    body += struct.pack("<H22s44s", 0, b"600000", "x".encode("gbk"))
+    body += struct.pack("<I", 1)
+    res = BoardMembersQuotesCmd(21001).parse_response(body)
+    assert res[0].fields["ah_code"] == "00001"
+
+
+def test_board_members_ah_code_matches_symbol_quotes() -> None:
+    """同一个字段在 0x122B / 0x122C 上语义必须一致。"""
+
+    bitmap = bytearray(20)
+    bitmap[FieldBit.AH_CODE.value // 8] |= 1 << (FieldBit.AH_CODE.value % 8)
+    row = struct.pack("<H22s44s", 0, b"600000", "x".encode("gbk"))
+    sym = SymbolQuotesCmd([(0, "600000")]).parse_response(
+        bytes(bitmap) + struct.pack("<IH", 1, 1) + row + struct.pack("<I", 600519)
+    )
+    bmk = BoardMembersQuotesCmd(21001).parse_response(
+        bytes(bitmap) + struct.pack("<IH", 1, 1) + row + struct.pack("<I", 600519)
+    )
+    assert sym[0].fields["ah_code"] == bmk[0].fields["ah_code"] == "600519"
+
+
+def test_connect_twice_closes_previous_connection() -> None:
+    """回归：重复 ``connect()`` 直接覆盖 ``self._conn``，旧 socket 泄漏。"""
+
+    first = FakeSocket(_handshake_bytes())
+    second = FakeSocket(_handshake_bytes())
+    sockets = [first, second]
+
+    client = MacClient(
+        hosts=["10.0.0.1"],
+        socket_factory=lambda f, t: sockets.pop(0) if sockets else FakeSocket(b""),
+    )
+    client.connect()
+    assert first.connected and not first.closed
+
+    client.connect()
+    assert second.connected
+    assert first.closed, "被替换掉的旧连接必须关闭"
+    assert not second.closed
+    client.close()

@@ -24,7 +24,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from eltdx.exceptions import ResourceFormatError
-from eltdx.offline.history_financial import parse_financial_dat, parse_financial_file_list
+from eltdx.offline.history_financial import (
+    parse_financial_dat,
+    parse_financial_file_list,
+    read_dat_from_zip,
+)
 from eltdx.offline.models import FinancialFileInfo, FinancialRecord
 
 if TYPE_CHECKING:
@@ -85,11 +89,19 @@ def download_archive(client: object, filename: str) -> bytes:
     """从计算服务器下载指定财报 zip 的原始字节。
 
     Args:
-        client: 暴露 ``resources.download_file(path) -> bytes`` 的对象。
+        client: 暴露 ``resources.download_file(path, *, max_bytes=...) -> bytes``
+            的对象。
         filename: 财报 zip 路径，如 ``"tdxfin/gpcw20260331.zip"``。
+
+    Note:
+        显式传 ``max_bytes``，让传输层在**读取过程中**就封顶。旧实现先完整下载
+        再比对 64 MiB —— 若底层 ``download_file`` 没有上限，超大响应会先被完整
+        分配进内存再报错，限额形同虚设。
     """
 
-    return client.resources.download_file(filename)  # type: ignore[attr-defined]
+    return client.resources.download_file(  # type: ignore[attr-defined]
+        filename, max_bytes=MAX_FINANCIAL_ZIP_BYTES
+    )
 
 
 def download_records(client: object, filename: str) -> list[FinancialRecord]:
@@ -110,6 +122,7 @@ def download_records(client: object, filename: str) -> list[FinancialRecord]:
     if not zip_bytes:
         return []
 
+    # 传输层已按 max_bytes 截断；这里是兜底（例如自定义 client 忽略了该参数）。
     if len(zip_bytes) > MAX_FINANCIAL_ZIP_BYTES:
         raise ResourceFormatError(
             f"财报 zip 超出压缩体积上限 {MAX_FINANCIAL_ZIP_BYTES} 字节: {filename} "
@@ -118,25 +131,14 @@ def download_records(client: object, filename: str) -> list[FinancialRecord]:
 
     try:
         with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
-            infos = archive.infolist()
-            if len(infos) > MAX_FINANCIAL_ZIP_ENTRIES:
-                raise ResourceFormatError(
-                    f"财报 zip 条目过多: {len(infos)} > {MAX_FINANCIAL_ZIP_ENTRIES}"
-                )
-            dat_infos = [info for info in infos if info.filename.endswith(".dat")]
-            if not dat_infos:
-                raise ResourceFormatError(f"财报 zip 中未找到 .dat 文件: {filename}")
-            info = dat_infos[0]
-            # 在**解压前**校验声明的解压后大小：一个几 KB 的 zip 可以声明（并实际
-            # 压缩）几百 MB，不设限就会在校验之前把内存吃光。
-            if info.flag_bits & 0x1:
-                raise ResourceFormatError(f"财报 zip 条目已加密: {info.filename}")
-            if info.file_size > MAX_FINANCIAL_DAT_BYTES:
-                raise ResourceFormatError(
-                    f"财报 .dat 解压后超出上限 {MAX_FINANCIAL_DAT_BYTES} 字节: "
-                    f"{info.filename} (声明 {info.file_size} 字节)"
-                )
-            dat_data = archive.read(info.filename)
+            # 统一的 zip 校验：条目数 / .dat 存在性 / 重名 / 加密 / 解压后大小，
+            # 并且按 ZipInfo 读取（不是按文件名，避免同名条目绕过校验）。
+            dat_data = read_dat_from_zip(
+                archive,
+                max_dat_bytes=MAX_FINANCIAL_DAT_BYTES,
+                max_entries=MAX_FINANCIAL_ZIP_ENTRIES,
+                source=filename,
+            )
     except zipfile.BadZipFile as exc:
         raise ResourceFormatError(f"无效的财报 zip 文件: {filename}") from exc
 

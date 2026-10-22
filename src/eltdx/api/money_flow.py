@@ -343,8 +343,14 @@ class MoneyFlowApi(ApiBase):
         total = len(candidates)
         with failover.lock:
             if failover.transport is not None:
-                # 本批已经找到过「真有数据」的主机，直接复用，不再开新连接。
-                return query(failover.transport)
+                result = query(failover.transport)
+                if result is not None:
+                    # 本批已经找到过「真有数据」的主机，直接复用，不再开新连接。
+                    return result
+                # 已选主机对**这只票**为空 —— 这仍是标级事实，推不出「它对这只票
+                # 之外的所有票都空」，更推不出「其他候选主机对这只票也空」。
+                # 直接返回会漏数据（复现：批量查两只只回第一只，单查第二只却有）。
+                # 继续按剩余预算试其他候选主机。
             start = failover.cursor % total
             for step in range(min(_MAX_PROBES_PER_CODE, total)):
                 if not failover.take():
@@ -352,6 +358,8 @@ class MoneyFlowApi(ApiBase):
                 host = candidates[(start + step) % total]
                 if host == self._preferred_host:
                     continue  # 已知它对当前数据也空，跳过
+                if host == failover.host:
+                    continue  # 本批已选主机刚对这只票试过且为空，别重复试
                 transport = self._open_host_transport(host)
                 if transport is None:
                     continue

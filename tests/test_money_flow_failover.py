@@ -415,3 +415,60 @@ def test_batch_size_is_still_validated(bad) -> None:
     api = _api(_Factory({}))
     with pytest.raises(ValueError):
         api.daily("sz000001", batch_size=bad)  # type: ignore[arg-type]
+
+
+# --------------------------------------------------------------------------- #
+# 第三轮评审回归项
+# --------------------------------------------------------------------------- #
+
+
+def test_selected_host_empty_still_tries_other_candidates() -> None:
+    """回归：已选主机对当前票为空时直接返回，漏掉其他候选主机上的数据。
+
+    复现路径：批量查两只票。第一只在 h1 查到数据后 h1 被记为「本批已选主机」；
+    第二只在 h1 上返回空 —— 早前实现就此返回空响应，即使 h2 上有第二只的数据。
+    """
+
+    def h1(code: str):
+        # 第一只有数据，第二只空
+        return _one_block() if code == "sz000001" else EMPTY
+
+    def h2(code: str):
+        # 第一只空（避免第一只就落在 h2 上），第二只有数据
+        return EMPTY if code == "sz000001" else _one_block()
+
+    factory = _Factory(
+        {
+            "h1:7709": h1,
+            "h2:7709": h2,
+            "h3:7709": EMPTY,
+        }
+    )
+    api = _api(factory)
+
+    batch = api.daily(["sz000001", "sz000002"])
+    # 两只票各拿到一块数据（替身返回的 block.code 固定为 000001，故按数量断言）
+    assert len(batch.blocks) == 2, f"第二只票漏数据，只拿到 {len(batch.blocks)} 块"
+    assert "h2:7709" in factory.attempts, "第二只在已选主机上为空后应继续试其他候选"
+
+
+def test_selected_host_empty_falls_through_without_extra_budget_abuse() -> None:
+    """已选主机为空时继续探测，但仍受次数预算封顶。"""
+
+    def h1(code: str):
+        return _one_block() if code == "sz000001" else EMPTY
+
+    factory = _Factory(
+        {
+            "h1:7709": h1,
+            "h2:7709": EMPTY,
+            "h3:7709": EMPTY,
+        }
+    )
+    api = _api(factory)
+
+    batch = api.daily(["sz000001", "sz000002"])
+    # 第二只真的所有主机都空 —— 必须返回空而不是抛错（新股/真无数据语义）
+    assert len(batch.blocks) == 1
+    # 预算未被突破：第一只用掉 1 次（h1），第二只最多再用 3 次
+    assert len(factory.attempts) <= 1 + 3

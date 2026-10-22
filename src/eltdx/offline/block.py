@@ -30,6 +30,19 @@ def _infer_category(filename: str) -> int:
     return 0
 
 
+def _is_safe_block_type(value: str) -> bool:
+    """校验 ``blocknew.cfg`` 里的板块文件名部分是否只含叶子名。
+
+    ``blocknew.cfg`` 是外部数据，其中的文件名会被拼成 ``<dir>/<name>.blk``。
+    若出现路径分隔符、盘符或 ``..``，拼接结果会跳出板块目录（绝对路径还会直接
+    覆盖前缀），形成越界读取。这里只接受不含任何路径成分的叶子名。
+    """
+
+    if not value or value in {".", ".."}:
+        return False
+    return not any(ch in value for ch in ("/", "\\", ":"))
+
+
 def read_block(filepath: str | Path) -> list[BlockInfo]:
     """从本地 ``.dat`` 板块文件读取板块数据。
 
@@ -61,9 +74,14 @@ def read_block(filepath: str | Path) -> list[BlockInfo]:
 
     category = _infer_category(filepath.name)
     results: list[BlockInfo] = []
-    for _ in range(count):
+    for index in range(count):
         if pos + _BLOCK_RECORD_SIZE > len(data):
-            break
+            # 与文档承诺一致：记录长度非法就报错，不能静默丢掉尾部数据。
+            # 早期实现直接 ``break``，调用方拿到的是「看起来正常」的残缺列表。
+            raise ResourceFormatError(
+                f"板块文件记录被截断: 第 {index + 1}/{count} 条需要 "
+                f"{_BLOCK_RECORD_SIZE} 字节，实际剩余 {len(data) - pos} 字节（{filepath}）"
+            )
         name = data[pos : pos + _BLOCK_NAME_SIZE].decode("gbk", errors="replace").strip("\x00")
         stock_count = int.from_bytes(data[pos + 9 : pos + 11], "little")
         codes_start = pos + 13
@@ -121,7 +139,18 @@ def read_customer_block(block_dir: str | Path) -> list[CustomerBlock]:
         pos += 120
         if not blk_filename:
             continue
+        if not _is_safe_block_type(blk_filename):
+            # 明确拒绝而不是静默跳过：静默会让「配置被改坏/被投毒」看起来像
+            # 「这个板块不存在」，掩盖了真正的问题。
+            raise ResourceFormatError(
+                f"blocknew.cfg 中的板块文件名非法（疑似路径穿越）: {blk_filename!r}"
+            )
         blk_path = block_dir / f"{blk_filename}.blk"
+        # 二次校验：拼接结果必须仍在 block_dir 之内。
+        if not blk_path.resolve().is_relative_to(block_dir.resolve()):
+            raise ResourceFormatError(
+                f"板块文件解析越界: {blk_path}（必须位于 {block_dir} 内）"
+            )
         if not blk_path.is_file() or not name:
             continue
         codes = tuple(

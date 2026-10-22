@@ -25,6 +25,8 @@ def prepare(tag: str, output: Path) -> None:
     unresolved = [marker for marker in FORBIDDEN_MARKERS if marker in text]
     if unresolved:
         raise ValueError(f"release notes contain unresolved markers: {unresolved!r}")
+    # GitHub displays the release title separately from its Markdown body.
+    text = text.removeprefix(f"# {tag}\n").lstrip("\n")
     output = output.resolve()
     if output == source.resolve():
         raise ValueError("release output must not overwrite the source document")

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import io
+import warnings
 import struct
 import zipfile
 
@@ -30,14 +31,16 @@ from eltdx.financial import (
 
 
 class _FakeResources:
-    """鸭子类型替身：只暴露 ``download_file(path) -> bytes``。"""
+    """鸭子类型替身：只暴露 ``download_file(path, *, max_bytes=None) -> bytes``。"""
 
     def __init__(self, files: dict[str, bytes]) -> None:
         self._files = files
         self.calls: list[str] = []
+        self.max_bytes_seen: list[int | None] = []
 
-    def download_file(self, path: str) -> bytes:
+    def download_file(self, path: str, *, max_bytes: int | None = None) -> bytes:
         self.calls.append(path)
+        self.max_bytes_seen.append(max_bytes)
         return self._files.get(path, b"")
 
 
@@ -248,3 +251,52 @@ class TestDownloadRecordsZipLimits:
         records = download_records(client, "tdxfin/gpcw20260331.zip")
         assert len(records) == 1
         assert records[0].code == "600519"
+
+
+# ---------------------------------------------------------------------------
+# 第二轮评审回归项
+# ---------------------------------------------------------------------------
+
+
+class TestDownloadAndZipGuards:
+    """回归：下载前未传 ``max_bytes``；ZIP 重名条目可绕过校验。"""
+
+    def test_download_archive_passes_max_bytes(self) -> None:
+        """限额必须下推到传输层，否则超大响应会先被完整分配进内存。"""
+
+        import eltdx.financial as financial
+
+        client = _FakeClient({"tdxfin/gpcw20260331.zip": b""})
+        financial.download_archive(client, "tdxfin/gpcw20260331.zip")
+
+        seen = client.resources.max_bytes_seen
+        assert seen == [financial.MAX_FINANCIAL_ZIP_BYTES]
+
+    def test_duplicate_dat_names_rejected(self) -> None:
+        """同名 ``.dat`` 会让 ``archive.read(name)`` 读到后一个，绕过对前一个的校验。"""
+
+        buffer = io.BytesIO()
+        with warnings.catch_warnings():
+            # zipfile 会对重名条目发 UserWarning —— 这里正是要构造这种情况。
+            warnings.simplefilter("ignore", UserWarning)
+            with zipfile.ZipFile(buffer, "w") as archive:
+                archive.writestr("gpcw.dat", b"\x00" * 16)
+                archive.writestr("gpcw.dat", b"\x00" * 4096)
+        client = _FakeClient({"tdxfin/gpcw20260331.zip": buffer.getvalue()})
+
+        with pytest.raises(ResourceFormatError, match="重复"):
+            download_records(client, "tdxfin/gpcw20260331.zip")
+
+    def test_normal_zip_still_reads(self) -> None:
+        dat = _build_dat(stocks=[("600519", 1, [1.5, 2.5, 3.5])])
+        client = _FakeClient({"tdxfin/gpcw20260331.zip": _build_zip(dat)})
+        records = download_records(client, "tdxfin/gpcw20260331.zip")
+        assert [r.code for r in records] == ["600519"]
+
+    def test_report_size_not_multiple_of_four_rejected(self) -> None:
+        """``report_size // 4`` 的静默截断改为显式报错。"""
+
+        dat = bytearray(struct.pack("<1hI1H3L", 0, 20260331, 0, 0, 6, 0))
+        client = _FakeClient({"tdxfin/gpcw20260331.zip": _build_zip(bytes(dat))})
+        with pytest.raises(ResourceFormatError, match="report_size"):
+            download_records(client, "tdxfin/gpcw20260331.zip")
