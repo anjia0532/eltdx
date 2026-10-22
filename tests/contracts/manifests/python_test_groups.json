@@ -53,7 +53,13 @@
       "tests/test_offline.py",
       "tests/test_trade_batch.py",
       "tests/test_subscription.py",
-      "tests/test_board_members.py"
+      "tests/test_board_members.py",
+      "tests/test_f10_boundaries.py",
+      "tests/test_f10_stock_analysis.py",
+      "tests/test_macro_indicators.py",
+      "tests/test_f10_extended.py",
+      "tests/packaging/test_console_scripts.py",
+      "tests/test_price_rules.py"
     ],
     "round5-loopback": [
       "tests/integration/test_loopback_concurrency.py",
