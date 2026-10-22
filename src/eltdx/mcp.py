@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import threading
 from collections import OrderedDict
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import asynccontextmanager, contextmanager
@@ -433,6 +434,228 @@ def company_profile(code: str, *, section: str = "8", timeout: float = 8.0) -> A
         host=None,
         connect=False,
     )
+
+
+def f10_digest(code: str, *, section: str = "tips", page: int = 1, page_size: int = 20, timeout: float = 8.0) -> dict[str, Any]:
+    """Query the F10 "latest tips" page (8 sections)."""
+
+    return _call_f10(
+        lambda client: client.digest(code, section=section, page=page, page_size=page_size),
+        timeout=timeout,
+    )
+
+
+def us_stock_f10(code: str, *, section: str = "profile", timeout: float = 8.0) -> dict[str, Any]:
+    """Query US-stock (mgf10) F10: profile / finance / business / rating."""
+
+    sections = {
+        "profile": lambda c: c.mg_profile(code),
+        "finance": lambda c: c.mg_finance(code),
+        "business": lambda c: c.mg_business(code),
+        "rating": lambda c: c.mg_rating(code),
+        "announcements": lambda c: c.mg_announcements(code),
+    }
+    if section not in sections:
+        raise ValueError(f"unknown section: {section!r}; expected one of: {', '.join(sorted(sections))}")
+    return _call_f10(sections[section], timeout=timeout)
+
+
+def hk_stock_f10(code: str, *, section: str = "profile", timeout: float = 8.0) -> dict[str, Any]:
+    """Query HK-stock (hkf10) F10: profile / finance / capital / news."""
+
+    sections = {
+        "profile": lambda c: c.hk_profile(code),
+        "finance": lambda c: c.hk_finance(code),
+        "capital": lambda c: c.hk_capital(code),
+        "news": lambda c: c.hk_news(code),
+        "capital_flow": lambda c: c.hk_capital_flow(code),
+    }
+    if section not in sections:
+        raise ValueError(f"unknown section: {section!r}; expected one of: {', '.join(sorted(sections))}")
+    return _call_f10(sections[section], timeout=timeout)
+
+
+def bond_f10(code: str, *, kind: str = "convertible", section: str = "profile", timeout: float = 8.0) -> dict[str, Any]:
+    """Query bond (zqf10) F10 by bond kind.
+
+    ``kind``: ``convertible`` 可转债 / ``treasury`` 国债 / ``corporate`` 企业债、公司债 /
+    ``repo`` 国债回购 / ``exchange`` 可交换债 / ``abs`` ABS。
+    ``section``: ``profile`` / ``finance`` / ``rating`` / ``interest`` / ``terms`` / ``announcements``。
+    """
+
+    profiles = {
+        "convertible": lambda c: c.bond_profile(code),
+        "treasury": lambda c: c.gz_profile(code),
+        "corporate": lambda c: c.qyz_profile(code),
+        "repo": lambda c: c.gzhg_info(code),
+        "exchange": lambda c: c.kjhz_profile(code),
+        "abs": lambda c: c.zczq_profile(code),
+    }
+    if kind not in profiles:
+        raise ValueError(f"unknown kind: {kind!r}; expected one of: {', '.join(sorted(profiles))}")
+    call = profiles[kind]
+    if section == "profile":
+        pass
+    elif section == "finance":
+        finance = {
+            "convertible": lambda c: c.bond_finance(code),
+            "treasury": lambda c: c.gz_finance(code),
+            "corporate": lambda c: c.qyz_review(code),
+            "exchange": lambda c: c.kjhz_finance(code),
+            "abs": lambda c: c.zczq_finance(code),
+        }
+        call = finance[kind]
+    elif section == "rating":
+        rating = {
+            "convertible": lambda c: c.bond_rating(code),
+            "treasury": lambda c: c.gz_rating(code),
+            "corporate": lambda c: c.qyz_rating(code),
+            "exchange": lambda c: c.kjhz_rating(code),
+            "abs": lambda c: c.zczq_rating(code),
+        }
+        call = rating[kind]
+    elif section == "interest":
+        interest = {
+            "treasury": lambda c: c.gz_interest(code),
+            "corporate": lambda c: c.qyz_interest(code),
+            "exchange": lambda c: c.kjhz_interest(code),
+        }
+        call = interest[kind]
+    elif section == "terms":
+        call = lambda c: c.bond_terms(code)  # noqa: E731
+    elif section == "announcements":
+        call = lambda c: c.bond_bulletin(code)  # noqa: E731
+    else:
+        raise ValueError(f"unknown section: {section!r}")
+    return _call_f10(call, timeout=timeout)
+
+
+def industry_f10(industry_code: str, *, section: str = "summary", timeout: float = 8.0) -> dict[str, Any]:
+    """Query industry (hyf10) F10 by board code (e.g. 881319 半导体)."""
+
+    sections = {
+        "summary": lambda c: c.hy_summary(industry_code, "hqtj"),
+        "profile": lambda c: c.hy_profile(industry_code),
+        "news": lambda c: c.hy_news(industry_code),
+        "members": lambda c: c.hy_members_rank(industry_code, "cwzkpm"),
+        "capital_flow": lambda c: c.hy_capital_flow(industry_code),
+        "index": lambda c: c.hy_index(industry_code),
+    }
+    if section not in sections:
+        raise ValueError(f"unknown section: {section!r}; expected one of: {', '.join(sorted(sections))}")
+    return _call_f10(sections[section], timeout=timeout)
+
+
+def stock_analysis(code: str, *, section: str = "industry_rank", timeout: float = 8.0) -> dict[str, Any]:
+    """Query stock-analysis (ggzp/sdfx) data: industry rank / stage gain / valuation."""
+
+    sections = {
+        "industry_rank": lambda c: c.stock_industry_rank(code),
+        "stage_gain": lambda c: c.stock_stage_gain(code),
+        "main_funds": lambda c: c.stock_main_funds(code),
+        "pepb_percentile": lambda c: c.stock_pepb_percentile(code),
+        "valuation_percentile": lambda c: c.stock_valuation_percentile(code),
+        "history_trend": lambda c: c.stock_history_trend(code),
+    }
+    if section not in sections:
+        raise ValueError(f"unknown section: {section!r}; expected one of: {', '.join(sorted(sections))}")
+    return _call_f10(sections[section], timeout=timeout)
+
+
+def macro_indicators(timeout: float = 10.0) -> dict[str, Any]:
+    """List all macro indicators (market 38, 217 items, 9 categories)."""
+
+    result: dict[str, Any] = {}
+
+    def work() -> None:
+        from eltdx.ex.mac_client import MAC_EX_HOSTS, MacExClient
+
+        client = MacExClient(MAC_EX_HOSTS[0], 7727, timeout)
+        client.connect()
+        try:
+            items = client.macro_indicators()
+            result["count"] = len(items)
+            result["indicators"] = [
+                {"code": item.name, "category": item.name.partition("_")[0]}
+                for item in items
+            ]
+        finally:
+            client.close()
+
+    thread = threading.Thread(target=work, daemon=True)
+    thread.start()
+    thread.join(timeout + 10)
+    if thread.is_alive() or "count" not in result:
+        raise TimeoutError("macro_indicators timed out")
+    return result
+
+
+def macro_data(
+    codes: str,
+    *,
+    period: str = "monthly",
+    history: bool = False,
+    timeout: float = 10.0,
+) -> dict[str, Any]:
+    """Query macro indicator values (e.g. "GDP,CPI,PMI,M2").
+
+    ``period``: ``daily`` / ``weekly`` / ``monthly`` / ``quarterly`` / ``yearly``
+    (only used when ``history=True``).
+    """
+
+    from eltdx.mac.enums import Period
+
+    period_map = {
+        "daily": Period.DAILY,
+        "weekly": Period.WEEKLY,
+        "monthly": Period.MONTHLY,
+        "quarterly": Period.QUARTERLY,
+        "yearly": Period.YEARLY,
+    }
+    if period not in period_map:
+        raise ValueError(f"unknown period: {period!r}; expected one of: {', '.join(sorted(period_map))}")
+    code_list = [c.strip() for c in codes.split(",") if c.strip()]
+    if not code_list:
+        raise ValueError("codes 不能为空")
+    result: dict[str, Any] = {"quotes": []}
+
+    def work() -> None:
+        from eltdx.ex.mac_client import MAC_EX_HOSTS, MacExClient
+
+        client = MacExClient(MAC_EX_HOSTS[0], 7727, timeout)
+        client.connect()
+        try:
+            for quote in client.macro_quotes(code_list):
+                result["quotes"].append(
+                    {
+                        "code": quote.code,
+                        "name": quote.name,
+                        "latest": quote.fields.get("close"),
+                        "previous": quote.fields.get("pre_close"),
+                    }
+                )
+            if history:
+                result["history"] = {}
+                for code in code_list:
+                    try:
+                        bars = client.macro_kline(code, period_map[period])
+                        result["history"][code] = [
+                            {"date": bar.datetime.date().isoformat(), "value": bar.close}
+                            for bar in bars
+                        ]
+                    except Exception:  # noqa: BLE001
+                        result["history"][code] = []
+        finally:
+            client.close()
+
+    thread = threading.Thread(target=work, daemon=True)
+    thread.start()
+    thread.join(timeout * (len(code_list) + 2))
+    if thread.is_alive():
+        raise TimeoutError("macro_data timed out")
+    if not result["quotes"]:
+        raise ValueError(f"未取到任何宏观指标: {codes!r}")
+    return result
 
 
 def limit_up_down_list(
@@ -1252,6 +1475,14 @@ def create_mcp_server():
         ("eltdx_limit_up_down_list", tools.limit_up_down_list),
         ("eltdx_limit_board_ladder", tools.limit_board_ladder),
         ("eltdx_company_profile", tools.company_profile),
+        ("eltdx_f10_digest", f10_digest),
+        ("eltdx_us_stock_f10", us_stock_f10),
+        ("eltdx_hk_stock_f10", hk_stock_f10),
+        ("eltdx_bond_f10", bond_f10),
+        ("eltdx_industry_f10", industry_f10),
+        ("eltdx_stock_analysis", stock_analysis),
+        ("eltdx_macro_indicators", macro_indicators),
+        ("eltdx_macro_data", macro_data),
         ("eltdx_hot_topics", tools.hot_topics),
         ("eltdx_finance_report", tools.finance_report),
         ("eltdx_company_news", tools.company_news),
