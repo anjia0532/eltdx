@@ -274,6 +274,8 @@ client.bars.get("sz000001", period="day", all_pages=True, page_size=800)
 | 沪深股通持仓       | `client.f10.northbound_holding()`                       | [`CWServ.tdxf10_gg_zlcc`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-zlcc)               | 返回沪股通 / 深股通持股比例、持股数量、变动股数、收盘价等序列             | [文档](docs/methods/F10-沪深股通持仓.md)    |
 | 详情正文         | `client.f10.detail()`                                   | [`CWServ.tdxf10_gg_idreq`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-idreq)             | 按记录 ID 返回正文标题和正文内容；常接热点题材事件、违规处理等详情          | [文档](docs/methods/F10-详情正文.md)      |
 | 新闻 / 公告 / 路演 | `client.f10.news()` / `announcements()` / `roadshows()` | [`CWSearch.tzx_rcache`](docs/F10_7615.md#entry-cwsearch-tzx-rcache)                   | 返回新闻、公告、路演列表；含标题、日期、来源、公告类型、PDF 地址等          | [文档](docs/methods/F10-新闻公告路演.md)    |
+| 市场资讯（要闻速递 / 各频道） | `client.f10.market_news()` / `channel_news()` | `CWServ.tdxi_zxxwsy` / `tdxi_zxxwnews` | 全市场资讯流：`market_news` 取首页要闻（滚动 / 今日焦点 / 要闻速递 / 正面 / 负面 / 精华 / 最新提示 / 机构调研）；`channel_news` 按频道号取各栏目（财经 / 股票 / 新股 / 港股 / 美股 / 基金 / 期货 / 理财 / 外汇 / 债券 / 期权，共 84 个） | [文档](docs/methods/F10-市场资讯.md) |
+| 资讯频道枚举 | `client.f10.news_channels()` | —（静态） | 返回全部资讯频道号 + 中文名，配合 `channel_news` 使用 | [文档](docs/methods/F10-市场资讯.md) |
 
 常规 F10 返回 `F10Response`；`client.f10.limit_board_ladder()` 返回 `LimitBoardLadder`。常用结果分别在 `response.rows` 或模型的 `rows`，完整说明见 [F10_7615.md](docs/F10_7615.md)。
 

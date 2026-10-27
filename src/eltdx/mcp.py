@@ -1416,6 +1416,37 @@ class _McpTools:
             timeout=timeout,
         )
 
+    def market_news(
+        self, tab: int = 3, page: int = 1, page_size: int = 50, timeout: float = 8.0
+    ) -> dict[str, Any]:
+        """Query 资讯首页要闻流（tdxi_zxxwsy）。
+
+        tab：1 滚动资讯 / 2 今日焦点 / 3 要闻速递 / 4 正面消息 / 5 负面消息 /
+        6 精华集锦 / 7 最新提示 / 9 机构调研。
+        """
+        page = _bounded_int("page", page, minimum=1, maximum=10_000)
+        page_size = _bounded_int("page_size", page_size, minimum=1, maximum=100)
+        return _call_f10(
+            lambda client: client.market_news(tab, page=page, page_size=page_size),
+            timeout=timeout,
+        )
+
+    def channel_news(
+        self, channel: int, page: int = 1, page_size: int = 50, timeout: float = 8.0
+    ) -> dict[str, Any]:
+        """按频道号查询资讯栏目新闻（tdxi_zxxwnews），频道号见 ``news_channels``。"""
+        page = _bounded_int("page", page, minimum=1, maximum=10_000)
+        page_size = _bounded_int("page_size", page_size, minimum=1, maximum=100)
+        return _call_f10(
+            lambda client: client.channel_news(channel, page=page, page_size=page_size),
+            timeout=timeout,
+        )
+
+    def news_channels(self) -> list[dict[str, Any]]:
+        """返回全部资讯频道（频道号 + 中文名），用于 ``channel_news``。"""
+        from .f10.news import NEWS_CHANNEL_LABELS
+
+        return [{"channel": cid, "name": name} for cid, name in sorted(NEWS_CHANNEL_LABELS.items())]
     def docs_index(self) -> dict[str, str]:
         """Return MCP resource URIs for the main eltdx documents."""
 
@@ -1563,6 +1594,9 @@ def create_mcp_server():
         ("eltdx_hot_topics", tools.hot_topics),
         ("eltdx_finance_report", tools.finance_report),
         ("eltdx_company_news", tools.company_news),
+        ("eltdx_market_news", tools.market_news),
+        ("eltdx_channel_news", tools.channel_news),
+        ("eltdx_news_channels", tools.news_channels),
         ("eltdx_docs_index", tools.docs_index),
     )
     for name, function in registrations:
