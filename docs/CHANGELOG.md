@@ -1,5 +1,16 @@
 # 变更记录
 
+## v3.4.8 - 2026-10-27
+
+> 新增市场资讯模块：要闻速递 + 84 个资讯频道（Python / CLI / MCP / HTTP / 文档）。
+
+### 新增（市场资讯）
+
+- `F10Client.market_news()` / `channel_news()` / `news_channels()`（`tdxi_zxxwsy` / `tdxi_zxxwnews`）。
+- `eltdx.f10.news`：`NewsHomeTab`、`NewsChannel`（84 频道）、标签/分组、`extract_news_rows()`。
+- CLI `eltdx f10 market-news / channel-news / news-channels`；MCP 三个工具；HTTP 通用 RPC 自动暴露。
+- 文档 `docs/methods/F10-市场资讯.md`。
+
 ## v3.4.7 - 2026-10-22
 
 > 汇总 2026-10-17 之后的全部改动：upstream PR #20 后半批修复的本地同步、
