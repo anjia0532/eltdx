@@ -30,6 +30,7 @@ from .models import (
     LimitBoardLadder,
     LimitBoardLadderRow,
 )
+from .news import NEWS_CHANNEL_LABELS, NewsChannel, NewsHomeTab
 
 DEFAULT_TQLEX_BASE_URL = "http://static.tdx.com.cn:7615/TQLEX"
 DEFAULT_LIMIT_BOARD_LADDER_BASE_URL = "http://hot.icfqs.com:7615/TQLEX"
@@ -1875,6 +1876,52 @@ class F10Client:
 
         return self.cache_list(code, "ly")
 
+    # ------------------------------------------------------------------
+    # 市场资讯（通达信 7615「资讯」页；枚举与字段说明见 eltdx.f10.news）
+    # ------------------------------------------------------------------
+    def news_channels(self) -> list[tuple[int, str]]:
+        """返回全部资讯频道 ``[(频道号, 栏目名), ...]``（静态枚举，不发网络请求）。
+
+        频道号用于 :meth:`channel_news`；分组见 :data:`eltdx.f10.news.NEWS_CHANNEL_GROUPS`。
+        """
+        return sorted(NEWS_CHANNEL_LABELS.items())
+
+    def market_news(
+        self,
+        tab: "NewsHomeTab | int" = NewsHomeTab.HEADLINES,
+        *,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> F10Response:
+        """「资讯首页」顶部要闻流，底层 Entry ``CWServ.tdxi_zxxwsy``。
+
+        Params = ``[tab, page, page_size]``，``tab`` 见 :class:`eltdx.f10.news.NewsHomeTab`
+        （默认 ``HEADLINES`` 要闻速递）。新闻行在响应 ``result_sets[1].rows``，
+        可用 :func:`eltdx.f10.news.extract_news_rows` 提取。
+        """
+        return self.call(
+            "CWServ.tdxi_zxxwsy",
+            {"Params": [str(int(tab)), str(page), str(page_size)]},
+        )
+
+    def channel_news(
+        self,
+        channel: "NewsChannel | int",
+        *,
+        page: int = 1,
+        page_size: int = 50,
+        query1: str = "1",
+        keyword: str = "",
+    ) -> F10Response:
+        """按频道号拉取栏目新闻，底层 Entry ``CWServ.tdxi_zxxwnews``。
+
+        Params = ``[query1(常为 "1"), 频道号, page, page_size, keyword]``；
+        频道号见 :class:`eltdx.f10.news.NewsChannel`。新闻行在 ``result_sets[1].rows``。
+        """
+        return self.call(
+            "CWServ.tdxi_zxxwnews",
+            {"Params": [str(query1), str(int(channel)), str(page), str(page_size), keyword]},
+        )
     def theme_market(
         self,
         code: str,

@@ -293,6 +293,9 @@ _F10_ACTIONS: tuple[str, ...] = (
     "limit-board",
     "fund",
     "market",
+    "market-news",
+    "channel-news",
+    "news-channels",
     "detail",
 )
 
@@ -901,6 +904,16 @@ def cmd_f10(args: argparse.Namespace) -> int:
     if action == "limit-board":
         return emit(args, client.limit_up_down_list(args.date or None))
 
+    if action == "news-channels":
+        return emit(args, [{"channel": cid, "name": name} for cid, name in client.news_channels()])
+    if action == "market-news":
+        tab = args.tab if args.tab is not None else (int(args.arg) if args.arg else 3)
+        return emit(args, client.market_news(int(tab), page=page, page_size=page_size))
+    if action == "channel-news":
+        raw = args.channel if args.channel is not None else args.arg
+        if raw is None:
+            return fail("f10 channel-news 需要 --channel（频道号，见 `eltdx f10 news-channels`）")
+        return emit(args, client.channel_news(int(raw), page=page, page_size=page_size))
     if action == "market":
         # ``market_new_shares`` / ``market_capital`` 不需要代码，允许省略。
         market_codes = _codes(args.code)
@@ -1462,6 +1475,8 @@ def build_parser() -> argparse.ArgumentParser:
     _add_code_positional(p, nargs="*")
     p.add_argument("--section", default=None, help="分区，见 `eltdx f10 sections`")
     p.add_argument("--arg", default=None, help="分区附加参数（如 kind / reqtype / 排序键）")
+    p.add_argument("--tab", type=int, default=None, help="要闻流编号（market-news：1滚动 2今日焦点 3要闻速递 4正面 5负面 6精华 7最新提示 9机构调研）")
+    p.add_argument("--channel", type=int, default=None, help="频道号（channel-news，见 `eltdx f10 news-channels`）")
     p.add_argument("--date", default=None, help="日期（YYYYMMDD 或 YYYY-MM-DD）")
     p.add_argument("--report-date", default=None, help="报告期（YYYYMMDD）")
     p.add_argument("--topic", default=None, help="题材 ID（topic-compare）")

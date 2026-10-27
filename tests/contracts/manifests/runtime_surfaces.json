@@ -338,6 +338,21 @@
         "signature": "()",
         "output": "object"
       },
+      "eltdx_market_news": {
+        "method": "market_news",
+        "signature": "(tab=3, page=1, page_size=50, timeout=8.0)",
+        "output": "object"
+      },
+      "eltdx_channel_news": {
+        "method": "channel_news",
+        "signature": "(channel, page=1, page_size=50, timeout=8.0)",
+        "output": "object"
+      },
+      "eltdx_news_channels": {
+        "method": "news_channels",
+        "signature": "()",
+        "output": "array"
+      },
       "eltdx_f10_digest": {
         "method": "f10_digest",
         "signature": "(code, section='tips', page=1, page_size=20, timeout=8.0)",

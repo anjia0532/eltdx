@@ -21,6 +21,15 @@ from .models import (
     LimitBoardLadder,
     LimitBoardLadderRow,
 )
+from .news import (
+    NEWS_CHANNEL_GROUPS,
+    NEWS_CHANNEL_LABELS,
+    NewsChannel,
+    NewsHomeTab,
+    channel_name,
+    extract_news_rows,
+    home_tab_name,
+)
 
 __all__ = [
     "DEFAULT_TQLEX_BASE_URL",
@@ -39,5 +48,12 @@ __all__ = [
     "IpoEntry",
     "LimitBoardLadder",
     "LimitBoardLadderRow",
+    "NEWS_CHANNEL_GROUPS",
+    "NEWS_CHANNEL_LABELS",
+    "NewsChannel",
+    "NewsHomeTab",
+    "channel_name",
+    "extract_news_rows",
+    "home_tab_name",
     "parse_tqlex_response",
 ]
