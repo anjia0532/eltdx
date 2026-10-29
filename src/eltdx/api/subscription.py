@@ -142,14 +142,26 @@ class QuoteSubscription:
         self._stopped = True
 
     def run_once(self, *, timeout: float | None = None) -> int:
-        """轮询一帧推送并派发，返回本轮派发的记录数（无帧返回 0）。"""
+        """轮询一帧推送并派发，返回本轮派发的记录数（无帧或轮询出错返回 0）。
+
+        ``poll_push`` 本身出错（超时、连接断开、服务端无响应等）时同样交给
+        ``on_error`` —— 文档承诺它兜底「轮询出错或回调抛错」，轮询异常此前直接
+        向上抛，会让 ``run()`` 整个退出订阅循环，与「暂时性错误应可恢复」的预期不符。
+        """
 
         if self._stopped:
             return 0
         effective = self._timeout if timeout is None else timeout
         if effective is not None and effective < 0:
             raise ValueError("timeout 必须 >= 0")
-        frame = self._api.poll_push(timeout=effective, parse=True)
+        try:
+            frame = self._api.poll_push(timeout=effective, parse=True)
+        except Exception as exc:  # noqa: BLE001 - 与 _dispatch 一致，统一走 on_error
+            if self._on_error is None:
+                raise  # 未设置兜底时保留向上抛错的行为
+            self._on_error(exc)
+            # 轮询错误按暂时性处理：本轮结束、不计帧，run() 继续下一轮。
+            return 0
         self._frames += 1
         if frame is None:
             return 0
