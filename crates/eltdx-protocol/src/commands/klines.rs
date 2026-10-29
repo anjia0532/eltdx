@@ -220,7 +220,11 @@ pub fn parse_klines_payload(
             volume_raw,
             amount_raw,
             volume_wire_value,
-            volume_lots: volume_wire_value / 100.0,
+            volume_lots: if request.code.is_convertible_bond() {
+                volume_wire_value
+            } else {
+                volume_wire_value / 100.0
+            },
             amount: get_volume(amount_raw),
             open_delta_raw,
             close_delta_raw,
@@ -339,6 +343,41 @@ mod tests {
         payload.extend_from_slice(&[0_u8; 8]);
         let parsed = parse_klines_payload(&payload, request);
         assert!(matches!(parsed, Ok(series) if series.bars.len() == 1));
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod convertible_tests {
+    use super::*;
+
+    #[test]
+    fn convertible_kline_quantity_is_already_in_bond_lots() -> Result<(), ProtocolError> {
+        // A synthetic day bar with compact-float volume 2 and zero amount.
+        let mut payload = vec![1, 0];
+        payload.extend_from_slice(&20_261_027_u32.to_le_bytes());
+        payload.extend_from_slice(&[10, 0, 0, 0]);
+        payload.extend_from_slice(&0x4000_0000_u32.to_le_bytes());
+        payload.extend_from_slice(&0_u32.to_le_bytes());
+        for code in [
+            "sh110076", "sh113692", "sh118075", "sz123288", "sz127089", "sz128136", "sz000001",
+        ] {
+            let request = KlinesRequest::new(
+                NormalizedCode::parse(code)?,
+                KlinePeriod::normalize("day")?,
+                0,
+                1,
+                AdjustMode::None,
+                0,
+                KlineKind::Stock,
+            )?;
+            let result = parse_klines_payload(&payload, request)?;
+            assert_eq!(result.bars[0].volume_wire_value, 2.0);
+            assert_eq!(
+                result.bars[0].volume_lots,
+                if code == "sz000001" { 0.02 } else { 2.0 }
+            );
+        }
         Ok(())
     }
 }

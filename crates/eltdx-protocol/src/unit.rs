@@ -10,6 +10,8 @@ use crate::limits::MAX_VARINT_BYTES;
 pub const SHANGHAI_UTC_OFFSET_SECONDS: i32 = 8 * 60 * 60;
 const PRICING_ETF_PREFIXES: [&str; 8] = ["15", "16", "50", "51", "52", "53", "56", "58"];
 const MAX_NORMALIZED_ARGUMENT_BYTES: usize = 64;
+const SH_CONVERTIBLE_PREFIXES: [&str; 3] = ["110", "113", "118"];
+const SZ_CONVERTIBLE_PREFIXES: [&str; 3] = ["123", "127", "128"];
 
 static SECURITY_DECIMALS: OnceLock<RwLock<HashMap<String, u8>>> = OnceLock::new();
 
@@ -115,6 +117,13 @@ impl NormalizedCode {
             Some(explicit) => explicit,
             None => match number.as_bytes().first().copied() {
                 Some(b'9') if number.starts_with("92") => Market::Beijing,
+                Some(b'1')
+                    if SH_CONVERTIBLE_PREFIXES
+                        .iter()
+                        .any(|p| number.starts_with(p)) =>
+                {
+                    Market::Shanghai
+                }
                 Some(b'6' | b'9') => Market::Shanghai,
                 Some(b'0' | b'1' | b'2' | b'3') => Market::Shenzhen,
                 Some(b'8') => Market::Beijing,
@@ -131,6 +140,19 @@ impl NormalizedCode {
             market: normalized_market,
             number: number.to_owned(),
         })
+    }
+
+    /// Known public convertible-bond ranges; do not infer units for other bonds.
+    pub fn is_convertible_bond(&self) -> bool {
+        match self.market {
+            Market::Shanghai => SH_CONVERTIBLE_PREFIXES
+                .iter()
+                .any(|p| self.number.starts_with(p)),
+            Market::Shenzhen => SZ_CONVERTIBLE_PREFIXES
+                .iter()
+                .any(|p| self.number.starts_with(p)),
+            Market::Beijing => false,
+        }
     }
 
     pub fn full_code(&self) -> String {
@@ -914,6 +936,28 @@ mod tests {
         assert!(matches!(etf, Ok(ref code) if price_divisor(code) == 10));
         assert!(matches!(stock, Ok(ref code) if price_divisor(code) == 1));
         assert_eq!(get_volume(0), 0.0);
+    }
+
+    #[test]
+    fn bare_convertible_codes_select_the_correct_market() -> Result<(), ProtocolError> {
+        for code in ["110076", "113692", "118075"] {
+            assert_eq!(
+                NormalizedCode::parse(code)?.market(),
+                super::Market::Shanghai
+            );
+        }
+        for code in ["123288", "127089", "128136"] {
+            assert_eq!(
+                NormalizedCode::parse(code)?.market(),
+                super::Market::Shenzhen
+            );
+        }
+        // Explicit markets remain authoritative; normalization is not a listing check.
+        assert_eq!(
+            NormalizedCode::parse("sz113692")?.market(),
+            super::Market::Shenzhen
+        );
+        Ok(())
     }
 
     #[test]

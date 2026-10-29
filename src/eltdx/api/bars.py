@@ -104,7 +104,7 @@ class BarApi(ApiBase):
         next_start = start
         pages = 0
         first_page = None
-        bars = []
+        pages_bars = []
         while True:
             page = self._get_page(
                 code,
@@ -121,10 +121,13 @@ class BarApi(ApiBase):
                 return page
             if first_page is None:
                 first_page = page
-            bars.extend(page.bars)
+            pages_bars.append(tuple(page.bars))
             pages += 1
             if page.count == 0:
-                return replace(first_page, request_count=len(bars), bars=tuple(bars))
+                # Offsets select newest pages first; each page is oldest-first.
+                # Reverse pages only, preserving native order within each page.
+                bars = tuple(bar for part in reversed(pages_bars) for bar in part)
+                return replace(first_page, request_count=len(bars), bars=bars, raw_payload=b"")
             if max_pages is not None and pages >= max_pages:
                 raise RuntimeError("bars.get reached max_pages before the server returned an empty page")
             next_start += page.count

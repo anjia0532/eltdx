@@ -118,7 +118,7 @@ def test_complete_pagination_merges_blocks_in_order_without_objects(monkeypatch)
         m.setattr(models, "_trade_tick_at", lambda *a: pytest.fail("eager tick conversion"))
         result = api.all_history_batch("sz000001", "2026-09-11", include_raw=True)
         assert result.column("volume") == (100, 101, 102, 103)
-    assert result.to_page() == replace(models.response_from_dto(dto(ROWS)), request_count=4)
+    assert result.to_page() == replace(models.response_from_dto(dto(ROWS)), request_count=4, raw_payload=b"")
     assert [p['start'] for _, p in transport.calls] == [0, 1, 3, 4]
     assert all(c == 0x0FC6 and p['include_raw'] is True for c, p in transport.calls)
     for method in ('actual_trades', 'auction_snapshots', 'opening_matches', 'after_hours_trades'):
@@ -214,3 +214,26 @@ def test_native_wire_fixture_has_identical_bulk_fields(case, include_raw):
     assert to_jsonable(eager) == to_jsonable(batch)
     for name in batch.columns:
         assert batch.column(name) == tuple(getattr(t, name) for t in eager.ticks)
+
+
+@pytest.mark.parametrize('bulk', [False, True])
+@pytest.mark.parametrize('historical', [False, True])
+def test_convertible_aggregated_trades_do_not_claim_single_page_raw(bulk, historical):
+    from eltdx.api.trades import TradeApi
+    class Transport:
+        def execute(self, command, payload):
+            start = payload['start']
+            # Source offsets run newest first; rows within pages stay in wire order.
+            rows = {0: (row(2),), 1: (row(0), row(1)), 3: ()}[start]
+            return models.response_from_dto(dto(rows, start=start, code='sh113692'))
+    api = TradeApi(Transport())
+    if historical:
+        method = api.all_history_batch if bulk else api.all_history
+        page = method('sh113692', '2026-09-11', page_size=2)
+    else:
+        method = api.all_today_batch if bulk else api.all_today
+        page = method('sh113692', page_size=2)
+    if bulk:
+        page = page.to_page()
+    assert [t.absolute_index for t in page.ticks] == [10, 11, 12]
+    assert page.count == 3 and page.raw_payload == b''

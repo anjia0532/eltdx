@@ -121,3 +121,106 @@ def test_market_enum_matches_string_mapping() -> None:
         assert normalize_market(member) == member.code
         assert market_to_id(member.code) == int(member)
         assert market_to_id(member) == int(member)
+
+
+@pytest.mark.parametrize('number', ['110076', '113692', '118075'])
+def test_convertible_bond_bare_codes_use_shanghai_in_python_and_native(number):
+    from eltdx.protocol.commands.codec import build_command_frame
+    assert normalize_code(number) == 'sh' + number
+    native = build_command_frame(0x0FC5, {'code': number, 'count': 1}, 1)
+    assert native.data[0] == 1
+
+
+@pytest.mark.parametrize('number', ['123288', '127089', '128136'])
+def test_convertible_bond_bare_codes_keep_shenzhen(number):
+    from eltdx.protocol.commands.codec import build_command_frame
+    assert normalize_code(number) == 'sz' + number
+    assert build_command_frame(0x0FC5, {'code': number, 'count': 1}, 1).data[0] == 0
+
+
+def _signed_wire_integer(value):
+    magnitude = abs(value)
+    result = bytearray([(magnitude & 0x3f) | (0x40 if value < 0 else 0)])
+    magnitude >>= 6
+    if magnitude:
+        result[0] |= 0x80
+    while magnitude:
+        part = magnitude & 0x7f
+        magnitude >>= 7
+        result.append(part | (0x80 if magnitude else 0))
+    return bytes(result)
+
+
+@pytest.mark.parametrize('code', ['sh110076', 'sh113692', 'sh118075', 'sz123288', 'sz127089', 'sz128136'])
+@pytest.mark.parametrize('command', [0x0FC5, 0x0FC6])
+def test_convertible_ticks_keep_milli_precision_wire_volume_and_status(code, command):
+    import struct
+    from eltdx.protocol.commands.codec import parse_command_response
+    from eltdx.protocol.frame import ResponseFrame
+    # Hand-built protocol input: a price followed by a negative one-milli delta.
+    # Same-minute records must remain distinct; auction quantities stay uninterpreted.
+    records = b''.join(
+        struct.pack('<H', 9 * 60 + 25) + b''.join(_signed_wire_integer(v) for v in values)
+        for values in [(125528, 23, 1, 2, 0), (-1, -23, 1, 8, 0)]
+    )
+    payload = struct.pack('<H', 2) + (struct.pack('<f', 125.0) if command == 0x0FC6 else b'') + records
+    request = {'code': code, 'start': 17, 'count': 2, 'include_raw': True}
+    if command == 0x0FC6:
+        request['trading_date'] = '2026-10-27'
+    frame = ResponseFrame(0, 1, command, len(payload), len(payload), payload, b'')
+    page = parse_command_response(command, frame, request)
+    assert [t.price for t in page.ticks] == [125.528, 125.527]
+    assert [t.price_milli for t in page.ticks] == [125528, 125527]
+    assert [t.price_acc_raw for t in page.ticks] == [125528, 125527]
+    assert [t.volume for t in page.ticks] == [23, -23]
+    assert [t.absolute_index for t in page.ticks] == [17, 18]
+    assert page.ticks[0].is_opening_match and page.ticks[1].is_auction_snapshot
+    assert page.ticks[1].auction_matched_volume is None
+    assert page.raw_payload == payload
+
+
+def test_convertible_trade_price_delta_property():
+    """Adversarial wire deltas: no rounding away a one-milli movement."""
+    import struct
+    from hypothesis import given, settings, strategies as st
+    from eltdx.protocol.commands.codec import parse_command_response
+    from eltdx.protocol.frame import ResponseFrame
+
+    @settings(max_examples=80, deadline=None, derandomize=True)
+    @given(st.sampled_from(['sh110076', 'sh113692', 'sh118075', 'sz123288', 'sz127089', 'sz128136']),
+           st.integers(min_value=20, max_value=1_000_000_000),
+           st.integers(min_value=-9, max_value=9))
+    def check(code, initial, delta):
+        records = b''.join(
+            struct.pack('<H', 900) + b''.join(_signed_wire_integer(v) for v in [change, 1, 1, 0, 0])
+            for change in [initial, delta]
+        )
+        payload = struct.pack('<H', 2) + records
+        frame = ResponseFrame(0, 1, 0x0FC5, len(payload), len(payload), payload, b'')
+        page = parse_command_response(0x0FC5, frame, {'code': code, 'count': 2})
+        assert [x.price_acc_raw for x in page.ticks] == [initial, initial + delta]
+        assert [x.price_milli for x in page.ticks] == [initial, initial + delta]
+        assert [x.price for x in page.ticks] == [initial / 1000, (initial + delta) / 1000]
+    check()
+
+
+@pytest.mark.parametrize('code', ['sh110076', 'sh113692', 'sh118075', 'sz123288', 'sz127089', 'sz128136'])
+@pytest.mark.parametrize('period', ['day', '1m', '5m'])
+def test_convertible_kline_volume_lots_are_bond_lots_not_stock_hundreds(code, period):
+    import struct
+    from eltdx.protocol.commands.codec import parse_command_response
+    from eltdx.protocol.frame import ResponseFrame
+    time_bytes = (struct.pack('<I', 20261027) if period == 'day' else
+                  struct.pack('<HH', ((2026-2004) << 11) + 1027, 571))
+    payload = (struct.pack('<H', 1) + time_bytes +
+               b''.join(_signed_wire_integer(v) for v in [125000, 528, 1000, -500]) +
+               struct.pack('<II', 0x40000000, 0))
+    frame = ResponseFrame(0, 1, 0x052D, len(payload), len(payload), payload, b'')
+    request = {'code': code, 'period': period, 'count': 1, 'kind': 'stock', 'include_raw': True}
+    series = parse_command_response(0x052D, frame, request)
+    bond = series.bars[0]
+    assert bond.volume_wire_value == 2 and bond.volume_lots == 2
+    assert bond.close == 125.528 and bond.volume_raw == 0x40000000
+    assert series.raw_payload == payload and bond.record_hex
+    stock = parse_command_response(0x052D, frame, dict(request, code='sz000001')).bars[0]
+    assert stock.volume_wire_value == 2 and stock.volume_lots == .02

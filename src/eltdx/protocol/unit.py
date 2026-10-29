@@ -79,6 +79,7 @@ def normalize_code(code: str) -> str:
 
     * ``5`` → 沪市基金：``51x`` ETF、``50x``/``502`` LOF、``55x``/``511`` 货币基金、
       ``56x`` 跨境 ETF、``58x`` 科创 ETF、``580``/``581``/``582`` 权证；
+    * ``110``/``113``/``118`` → 沪市可转债；
     * ``6``/``9`` → 沪市 A 股 / B 股；
     * ``0``/``1``/``2``/``3`` → 深市主板、基金、B 股、创业板；
     * ``4``/``8`` → 北交所（``430xxx``/``83xxxx``/``87xxxx``/``88xxxx``）；
@@ -93,7 +94,7 @@ def normalize_code(code: str) -> str:
     if text.startswith("92"):
         return "bj" + text
     # 5 开头是沪市基金/ETF/权证号段（缺失时 ETF/LOF/货基会被误判为无法识别）。
-    if text.startswith(("5", "6", "9")):
+    if text.startswith(("5", "6", "9", "110", "113", "118")):
         return "sh" + text
     if text.startswith(("0", "1", "2", "3")):
         return "sz" + text

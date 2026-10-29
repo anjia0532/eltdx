@@ -118,6 +118,10 @@ K 线响应和单根 K 线。
 | `raw_payload`                     | 响应 payload                |
 | `record_hex`                      | 单条 K 线记录原文                |
 
+普通股票 K 线的 `volume_wire_value` 为股，`volume_lots = volume_wire_value / 100`；已验证的沪市 `110/113/118`、深市 `123/127/128` 可转债原生数量为手，`volume_lots = volume_wire_value`，一手对应 10 张。`volume_raw` 仍是原始压缩字段，不是可直接使用的数量。其他债券品种的单位不能由这些前缀推断。
+
+自动分页聚合的 `KlineSeries.raw_payload` 为空；一页响应不能代表多页合并结果。需要逐页原文时使用手动分页和 `include_raw=True`；逐条 `record_hex` 不变。
+
 ## FileContentChunk
 
 `0x06b9` 服务器文件读取结果。
@@ -477,3 +481,9 @@ JSON 导出与转换后的 `TradePage` 结构一致。详见[历史成交批量�
 `client.codes.count()`、`client.codes.all()`、`client.corporate.capital_changes()`、`client.corporate.finance_batch()`、实时快照、分时、成交明细和 K 线均不缓存。
 
 短线统计资源可用 `refresh_stats=True` 强制刷新；清空 Helper 缓存使用 `client.clear_cache()`。
+
+## 可转债分笔数量与价格
+
+沪市 `110/113/118`、深市 `123/127/128` 的 `TradeTick.price_acc_raw` 以千分之一元编码，`price=price_acc_raw/1000`，`price_milli=price_acc_raw`。报价/分时精度元数据与成交协议不同，不能用报价的 `decimal=4` 再除一次分笔价。普通成交的 `volume` 保留原生手数，一手为 10 张；`status_raw=8` 的竞价快照数量不解释成成交量。
+
+`all_today/all_history` 及对应批量接口返回按时间顺序合并的记录，保留页内顺序和 `absolute_index`，`raw_payload` 为空；`today/history` 单页仍可通过 `include_raw=True` 获取原文。完整分页只表示已读到服务端空页，不保证交易所逐笔完整性。

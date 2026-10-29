@@ -373,7 +373,7 @@ class TdxClient:
             if len(code) == 6 and code.isdigit():
                 if code.startswith("92") or code.startswith("8"):
                     markets.add("bj")
-                elif code.startswith(("6", "9")):
+                elif code.startswith(("6", "9", "110", "113", "118")):
                     markets.add("sh")
                 elif code.startswith(("0", "1", "2", "3")):
                     markets.add("sz")

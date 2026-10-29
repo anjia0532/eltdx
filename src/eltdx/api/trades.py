@@ -220,7 +220,7 @@ class TradeApi(ApiBase):
             pages.append(page)
             if page.count == 0:
                 blocks = tuple(block for part in reversed(pages) for block in part._blocks)
-                return replace(pages[0], start=0, request_count=start, _blocks=blocks)
+                return replace(pages[0], start=0, request_count=start, _blocks=blocks, raw_payload=b"")
             if max_pages is not None and len(pages) >= max_pages:
                 raise RuntimeError("trade pagination reached max_pages before an empty page")
             start += page.count
@@ -260,7 +260,7 @@ class TradeApi(ApiBase):
             if page.count == 0:
                 # As with all_history(), reverse pages, not rows within a page.
                 blocks = tuple(block for part in reversed(pages) for block in part._blocks)
-                return replace(pages[0], start=0, request_count=start, _blocks=blocks)
+                return replace(pages[0], start=0, request_count=start, _blocks=blocks, raw_payload=b"")
             if max_pages is not None and len(pages) >= max_pages:
                 raise RuntimeError("trade pagination reached max_pages before an empty page")
             start += page.count
@@ -374,7 +374,7 @@ class TradeApi(ApiBase):
                 # preserving each page's wire order to build chronological
                 # output without sorting away same-minute trade order.
                 ticks = tuple(tick for page_ticks in reversed(pages_ticks) for tick in page_ticks)
-                return replace(first_page, start=0, request_count=len(ticks), ticks=ticks)
+                return replace(first_page, start=0, request_count=len(ticks), ticks=ticks, raw_payload=b"")
             if max_pages is not None and pages >= max_pages:
                 raise RuntimeError("trade pagination reached max_pages before an empty page")
             start += page.count
