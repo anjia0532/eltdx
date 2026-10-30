@@ -7,6 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Barrier, BrokenBarrierError, Thread
 
 from eltdx import F10Client, TdxClient
+from eltdx.exceptions import ProtocolError
 from eltdx.f10 import parse_tqlex_response
 from eltdx.f10.fields import describe_field_notes, describe_fields, field_labels_for
 
@@ -574,6 +575,28 @@ class _RecordingF10Client(F10Client):
         return parse_tqlex_response(entry, body, {"ErrorCode": 0, "ResultSets": []})
 
 
+class _BgqRecordingF10Client(_RecordingF10Client):
+    """替身：``*bgq`` 报告期列表请求返回给定 ``rq``，其余请求返回空表。"""
+
+    def __init__(self, rq: str) -> None:
+        super().__init__()
+        self._rq = rq
+
+    def _post(self, entry, body):
+        self.calls.append((entry, body))
+        params = body.get("Params", []) if isinstance(body, dict) else []
+        if params and str(params[0]).endswith("bgq"):
+            raw = {
+                "ErrorCode": 0,
+                "ResultSets": [
+                    {"ResultSetKey": "table0", "ColName": ["rq"], "Content": [[self._rq]]}
+                ],
+            }
+        else:
+            raw = {"ErrorCode": 0, "ResultSets": []}
+        return parse_tqlex_response(entry, body, raw)
+
+
 _F10_CODE = "000034"
 
 # 每个新方法的全部 section → (entry, Params)，用默认参数（page=1/page_size=20/
@@ -641,8 +664,8 @@ _NEW_F10_METHOD_SECTIONS = {
         "company": ("CWServ.skef10_jj_jjzl", ["2", "000034", "", "1", "1", "20"]),
         "basic": ("CWServ.skef10_jj_jjzl", ["4", "000034", "", "1", "1", "20"]),
         "seats": ("CWServ.skef10_jj_jjzl", ["5", "000034", "", "1", "1", "20"]),
-        "scale": ("CWServ.skef10_jj_gmfe", ["4", "000034", "", ""]),
-        "scale_history": ("CWServ.skef10_jj_gmfe", ["1", "000034", "", ""]),
+        "scale": ("CWServ.skef10_jj_gmfe", ["0", "000034", "", ""]),
+        "scale_history": ("CWServ.skef10_jj_gmfe", ["0", "000034", "", ""]),
         "nav": ("CWServ.skef10_jj_jzhb", ["0", "000034", "0", ""]),
         "nav_period": ("CWServ.skef10_jj_jzhb", ["1", "000034", "0", ""]),
         "nav_rank": ("CWServ.skef10_jj_jzhb", ["3", "000034", "0", ""]),
@@ -680,12 +703,15 @@ _NEW_F10_METHOD_SECTIONS = {
         "board_trend": ("CWServ.skef10_bk_ydfx", ["000034"]),
         "index_info": ("CWServ.skef10_zs_getinfo", ["000034"]),
         "index_profile": ("CWServ.skef10_zs_jbxx_zsgk", ["000034"]),
+        "index_valuation": ("CWServ.skef10_zs_jbxx_gzxx", ["001", "000034", "", ""]),
         "index_tracking": ("CWServ.skef10_zs_jbxx_gzbd", ["000034", "1", "20"]),
         "index_flow": ("CWServ.skef10_zs_zjdx", ["004_1", "000034", "", "", "1", "20"]),
         "index_flow_members": ("CWServ.skef10_zs_cfgsj_cfgjcsj", ["001", "000034", "1", "20"]),
         "index_notices": ("CWServ.skef10_zs_jrts", ["001", "000034", "1", "20"]),
         "market_basic": ("CWServ.skef10_dpzx_jbxx", ["002", "000034"]),
         "market_margin": ("CWServ.skef10_dpzx_rzrq", ["001", "000034"]),
+        "market_margin_summary": ("CWServ.skef10_dpzx_rzrq", ["002", "000034"]),
+        "market_margin_investors": ("CWServ.skef10_dpzx_rzrq", ["003", "1m"]),
         "market_new_shares": ("CWServ.skef10_dpzx_xgfx", ["002"]),
         "market_capital": ("CWServ.skef10_dpzx_scgl", ["004"]),
     },
@@ -719,6 +745,14 @@ def _call_new_method(client, method, section):
     return getattr(client, method)(_F10_CODE, section)
 
 
+#: ``fund_report`` 里未传 ``date`` 时会先取报告期列表的分区 → 探测参数。
+_FUND_REPORT_PERIOD_PROBES = {
+    "industry_allocation": "hyfbbgq",
+    "bond_allocation": "zczqbgq",
+    "futures_allocation": "ccqhmxbgq",
+}
+
+
 def test_new_f10_methods_use_expected_default_sections() -> None:
     client = _RecordingF10Client()
 
@@ -744,7 +778,17 @@ def test_new_f10_sections_build_expected_requests(method, section) -> None:
 
     _call_new_method(client, method, section)
 
-    assert client.calls == [(entry, {"Params": params})]
+    if method == "fund_report" and section in _FUND_REPORT_PERIOD_PROBES:
+        # 未传 date 时会先取报告期列表（替身返回空 → date 仍为空），再发详情请求。
+        assert client.calls == [
+            (
+                "CWServ.skef10_jj_tzzh",
+                {"Params": [_FUND_REPORT_PERIOD_PROBES[section], _F10_CODE, ""]},
+            ),
+            (entry, {"Params": params}),
+        ]
+    else:
+        assert client.calls == [(entry, {"Params": params})]
 
 
 def test_new_f10_methods_forward_optional_arguments() -> None:
@@ -776,6 +820,62 @@ def test_new_f10_methods_forward_optional_arguments() -> None:
         ("CWServ.skef10_jj_etfzj", {"Params": ["etfzjlx", "510300", "20260101"]}),
         ("CWServ.skef10_jj_gmfe", {"Params": ["3", "510300", "", "20260101"]}),
         ("CWServ.skef10_bk_scgl", {"Params": ["003", "880472", "3", "7"]}),
+    ]
+
+
+def test_fund_report_auto_resolves_report_period() -> None:
+    client = _BgqRecordingF10Client("20260630")
+
+    client.fund_report(_F10_CODE, "industry_allocation")
+
+    assert client.calls == [
+        ("CWServ.skef10_jj_tzzh", {"Params": ["hyfbbgq", _F10_CODE, ""]}),
+        ("CWServ.skef10_jj_tzzh", {"Params": ["hyfb", _F10_CODE, "20260630"]}),
+    ]
+
+
+def test_fund_report_explicit_date_skips_report_period_probe() -> None:
+    client = _RecordingF10Client()
+
+    client.fund_report(_F10_CODE, "futures_allocation", date="20251231")
+
+    assert client.calls == [
+        ("CWServ.skef10_jj_tzzh", {"Params": ["ccqhmx", _F10_CODE, "20251231"]}),
+    ]
+
+
+def test_market_report_allows_code_less_sections() -> None:
+    client = _RecordingF10Client()
+
+    client.market_report("", "market_new_shares")
+    client.market_report("", "market_capital")
+
+    assert client.calls == [
+        ("CWServ.skef10_dpzx_xgfx", {"Params": ["002"]}),
+        ("CWServ.skef10_dpzx_scgl", {"Params": ["004"]}),
+    ]
+
+
+def test_market_report_code_sections_still_require_code() -> None:
+    client = _RecordingF10Client()
+
+    with pytest.raises(ProtocolError):
+        client.market_report("", "index_info")
+
+    assert client.calls == []
+
+
+def test_market_report_index_margin_sections_share_one_entry() -> None:
+    """指数两融：002 是日序列汇总，003 是投资者情况统计。"""
+
+    client = _RecordingF10Client()
+
+    client.market_report("000001", "market_margin_summary")
+    client.market_report("000001", "market_margin_investors", arg="6m")
+
+    assert client.calls == [
+        ("CWServ.skef10_dpzx_rzrq", {"Params": ["002", "000001"]}),
+        ("CWServ.skef10_dpzx_rzrq", {"Params": ["003", "6m"]}),
     ]
 
 

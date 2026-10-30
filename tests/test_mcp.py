@@ -989,7 +989,7 @@ def test_mcp_sdk2_lists_tools_and_reads_resources() -> None:
         async with Client(create_mcp_server()) as client:
             tools = await client.list_tools()
             tool_names = {tool.name for tool in tools.tools}
-            assert len(tool_names) == 24
+            assert len(tool_names) == 32
             assert {
                 "eltdx_quote",
                 "eltdx_kline",
@@ -1046,7 +1046,7 @@ def test_mcp_sdk2_real_stdio_process() -> None:
         )
         async with Client(stdio_client(parameters), mode="legacy") as client:
             tools = await client.list_tools()
-            assert len(tools.tools) == 24
+            assert len(tools.tools) == 32
             result = await client.call_tool("eltdx_docs_index", {})
             assert result.structured_content["MCP"] == "eltdx://docs/mcp"
             document = await client.read_resource("eltdx://docs/mcp")

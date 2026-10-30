@@ -1,0 +1,220 @@
+"""订阅式实时行情推送。
+
+对齐通达信 TQ ``subscribe_hq`` / ``subscribe`` 的心智模型：订阅一组代码，
+行情每推来一帧就回调一次。底层复用 eltdx 既有的
+「0x0547 refresh 激活 + push 队列轮询」机制，不引入新协议。
+
+典型用法::
+
+    def on_quote(record):
+        print(record.full_code, record.last_price)
+
+    sub = client.quotes.subscribe(["sh600000", "sz000001"], on_quote)
+    sub.run()                      # 阻塞轮询，Ctrl+C 或 sub.stop() 退出
+    # 或自控循环：
+    #   while running:
+    #       sub.run_once()          # 单轮 poll + 派发
+"""
+
+from __future__ import annotations
+
+import time
+from collections.abc import Callable, Iterable, Sequence
+from typing import Any
+
+from eltdx.models.quote import QuoteRefreshRecord
+
+from .base import ApiBase
+
+__all__ = ["QuoteSubscription"]
+
+#: 回调签名：每条刷新记录触发一次。
+QuoteCallback = Callable[[QuoteRefreshRecord], Any]
+#: 错误回调签名：轮询或用户回调抛错时触发。
+ErrorCallback = Callable[[BaseException], Any]
+
+
+def _normalize_codes(codes: str | Iterable[str]) -> tuple[str, ...]:
+    """接受单个代码或代码序列，去重且保持顺序。"""
+
+    if isinstance(codes, str):
+        codes = [codes]
+    seen: dict[str, None] = {}
+    for code in codes:
+        text = str(code).strip()
+        if text:
+            seen.setdefault(text, None)
+    if not seen:
+        raise ValueError("subscribe 需要至少一个证券代码")
+    return tuple(seen)
+
+
+class QuoteSubscription:
+    """一组代码的实时行情订阅句柄。
+
+    参数:
+        api: 发起订阅的 :class:`eltdx.api.quotes.QuoteApi`。
+        codes: 证券代码（``sh600000`` 形式），也用作派发白名单。
+        callback: 每条刷新记录触发一次，参数为
+            :class:`eltdx.models.quote.QuoteRefreshRecord`
+            （含 ``full_code``、最新价、五档、成交额等）。
+        timeout: 单次 ``poll_push`` 的阻塞超时（秒）。默认 0.5 ——
+            既能及时响应 ``stop()``，又不会空转烧 CPU。
+        filter_codes: 只派发 ``codes`` 中的记录（默认开启，防串流）。
+        on_error: 轮询出错或回调抛错时的兜底；不提供则异常直接向上抛。
+        reactivate_interval: 定期重新激活订阅的间隔（秒）。
+            部分服务端的推送兴趣会过期，需要周期性 refresh 续期；
+            默认 ``None`` 不自动续期，由调用方按需 ``activate()``。
+
+    线程模型:
+        单线程阻塞轮询。``stop()`` 设计为可从信号处理函数或其它线程安全调用。
+    """
+
+    def __init__(
+        self,
+        api: ApiBase,
+        codes: str | Iterable[str],
+        callback: QuoteCallback,
+        *,
+        timeout: float = 0.5,
+        filter_codes: bool = True,
+        on_error: ErrorCallback | None = None,
+        reactivate_interval: float | None = None,
+    ) -> None:
+        if not callable(callback):
+            raise TypeError("callback 必须是可调用对象")
+        if timeout is not None and timeout < 0:
+            raise ValueError("timeout 必须 >= 0")
+        if reactivate_interval is not None and reactivate_interval <= 0:
+            raise ValueError("reactivate_interval 必须 > 0")
+        self._api = api
+        self._codes = _normalize_codes(codes)
+        self._callback = callback
+        self._timeout = timeout
+        self._filter_codes = filter_codes
+        self._on_error = on_error
+        self._reactivate_interval = reactivate_interval
+        self._code_set = frozenset(self._codes)
+        self._stopped = False
+        self._frames = 0
+        self._dispatched = 0
+
+    # ------------------------------------------------------------------ 属性
+
+    @property
+    def codes(self) -> tuple[str, ...]:
+        """订阅的代码列表（去重后）。"""
+
+        return self._codes
+
+    @property
+    def stopped(self) -> bool:
+        """是否已请求停止。"""
+
+        return self._stopped
+
+    @property
+    def frames(self) -> int:
+        """已轮询到的推送帧数（含空帧）。"""
+
+        return self._frames
+
+    @property
+    def dispatched(self) -> int:
+        """已派发给回调的记录数。"""
+
+        return self._dispatched
+
+    # ------------------------------------------------------------------ 动作
+
+    def activate(self):
+        """（重新）激活订阅，返回首帧快照页。
+
+        等价于 ``quotes.refresh(codes)``：向服务端声明对这批代码的推送兴趣，
+        同时拿回当前快照。推送兴趣可能随连接空闲过期，过期后重新调用即可。
+        """
+
+        return self._api.refresh(list(self._codes))
+
+    def stop(self) -> None:
+        """请求停止轮询（可从信号处理函数或其它线程调用）。"""
+
+        self._stopped = True
+
+    def run_once(self, *, timeout: float | None = None) -> int:
+        """轮询一帧推送并派发，返回本轮派发的记录数（无帧或轮询出错返回 0）。
+
+        ``poll_push`` 本身出错（超时、连接断开、服务端无响应等）时同样交给
+        ``on_error`` —— 文档承诺它兜底「轮询出错或回调抛错」，轮询异常此前直接
+        向上抛，会让 ``run()`` 整个退出订阅循环，与「暂时性错误应可恢复」的预期不符。
+        """
+
+        if self._stopped:
+            return 0
+        effective = self._timeout if timeout is None else timeout
+        if effective is not None and effective < 0:
+            raise ValueError("timeout 必须 >= 0")
+        try:
+            frame = self._api.poll_push(timeout=effective, parse=True)
+        except Exception as exc:  # noqa: BLE001 - 与 _dispatch 一致，统一走 on_error
+            if self._on_error is None:
+                raise  # 未设置兜底时保留向上抛错的行为
+            self._on_error(exc)
+            # 轮询错误按暂时性处理：本轮结束、不计帧，run() 继续下一轮。
+            return 0
+        self._frames += 1
+        if frame is None:
+            return 0
+        return self._dispatch(getattr(frame, "records", ()) or ())
+
+    def run(self, *, duration: float | None = None, reactivate_interval: float | None = None) -> None:
+        """阻塞轮询并派发，直到 ``stop()``、达到 ``duration`` 或 KeyboardInterrupt。
+
+        进入循环前会先 ``activate()``，激活返回的首帧快照也会派发一次，
+        保证回调第一时间拿到当前状态。
+        """
+
+        page = self.activate()
+        self._dispatch(getattr(page, "records", ()) or ())
+        interval = self._reactivate_interval if reactivate_interval is None else reactivate_interval
+        deadline = None if duration is None else time.monotonic() + duration
+        next_reactivate = None if interval is None else time.monotonic() + interval
+        try:
+            while not self._stopped:
+                now = time.monotonic()
+                if next_reactivate is not None and now >= next_reactivate:
+                    self.activate()
+                    next_reactivate = time.monotonic() + interval
+                self.run_once()
+                if deadline is not None and time.monotonic() >= deadline:
+                    break
+        except KeyboardInterrupt:
+            self.stop()
+            raise
+        finally:
+            self._stopped = True
+
+    # ------------------------------------------------------------------ 内部
+
+    def _dispatch(self, records: Sequence[Any]) -> int:
+        count = 0
+        for record in records:
+            if not isinstance(record, QuoteRefreshRecord):
+                continue
+            if self._filter_codes and record.full_code not in self._code_set:
+                continue
+            self._dispatched += 1
+            try:
+                self._callback(record)
+            except Exception as exc:  # noqa: BLE001 - 统一走 on_error 兜底
+                if self._on_error is None:
+                    raise
+                self._on_error(exc)
+            count += 1
+        return count
+
+    def __repr__(self) -> str:  # pragma: no cover - 诊断用
+        return (
+            f"<QuoteSubscription codes={len(self._codes)} "
+            f"frames={self._frames} dispatched={self._dispatched} stopped={self._stopped}>"
+        )

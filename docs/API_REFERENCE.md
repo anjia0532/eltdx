@@ -610,7 +610,7 @@ print(response.rows[:3])
 | `industry_analysis(code, section="peers", *, arg="")` | 10 | `CWServ.tdxf10_gg_hyfx`（`comparable` / `comparable_profile` 走 `CWServ.tdxf10_gg_kbgs`） |
 | `trading_report(code, section="margin", *, arg="", date=None, page=1, page_size=20)` | 11 | `CWServ.tdxf10_gg_jyds`（`margin_history` 走 `CWServ.tdxf10_gg_sj`） |
 | `fund_report(code, section="basic", *, arg="", date=None, page=1, page_size=20)` | 30 | `CWServ.skef10_jj_*` |
-| `market_report(code, section="board_info", *, arg="", date=None, page=1, page_size=20)` | 20 | `CWServ.skef10_bk_*` / `skef10_zs_*` / `skef10_dpzx_*` |
+| `market_report(code="", section="board_info", *, arg="", date=None, page=1, page_size=20)` | 26 | `CWServ.skef10_bk_*` / `skef10_zs_*` / `skef10_dpzx_*` |
 | `profit_forecast(code, section="ylyctj")` | 5 | `CWServ.tdxf10_gg_ybpj` |
 | `digest(code, section="tips", *, page=1, page_size=20)` | 8 | `CWServ.tdxf10_gg_zxts`（`interaction` 走 `CWServ.tdxf10_gg_zxtstzzhd`） |
 
@@ -628,6 +628,8 @@ client.f10.industry_analysis("688004", "comparable")
 ```
 
 ETF / 场外基金、板块 / 指数 / 大盘共用同一批方法，靠 `code` 与 `section` 分派；资金流向仍由 `client.money_flow.history()` 提供，`trading_report()` 不重复实现。
+
+> **3.4.2 起**：`market_report("", "market_new_shares" / "market_capital")` 可省略 `code`（其余分区仍必须给合法 `code`，传空串抛 `ProtocolError`）；`fund_report` 的 `industry_allocation` / `bond_allocation` / `futures_allocation` 不传 `date` 时自动取最新报告期；`scale` / `scale_history` 默认 `arg="0"`（报告期规模份额）。多结果集分区（`etf` / `margin`）的 `response.rows` 只是「是否 ETF」门控表，数据在 `response.tables[1]`。
 
 需要直接调用 Entry 时，可以使用通用 TQLEX 调用：
 

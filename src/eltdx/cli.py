@@ -196,13 +196,19 @@ _F10_SECTIONS: dict[str, dict[str, str]] = {
         "board_trend": "板块异动分析",
         "index_info": "指数信息",
         "index_profile": "指数概况",
+        "index_valuation": "指数估值快照（PE/PB/PS/PCF/股息率）",
         "index_tracking": "跟踪标的",
         "index_flow": "指数资金动向（--arg 003/004_1/004_2）",
         "index_flow_members": "成份股资金",
+        "index_members": "指数成份股清单（= index_flow_members）",
+        "index_etfs": "跟踪该指数的产品（= index_tracking）",
         "index_notices": "今日提示",
         "market_basic": "大盘指数基本信息",
-        "market_margin": "大盘两融",
+        "market_margin": "大盘两融活跃个股列表",
+        "market_margin_summary": "大盘两融日序列汇总",
+        "market_margin_investors": "两融投资者情况统计（--arg 1m/3m/6m/1y）",
         "market_new_shares": "新股分析",
+        "ipo_calendar": "近期新股（= market_new_shares）",
         "market_capital": "大盘市场概览（--arg 001/002/003/004）",
     },
     "forecast": {
@@ -257,6 +263,7 @@ _F10_SECTIONS: dict[str, dict[str, str]] = {
     },
     "northbound": {"bszj": "北向资金", "sdzj": "南向资金"},
     "ranking": {"scpmdela": "市场排名", "hypmdela": "行业排名"},
+    "board-members": {"auto": "板块分红成份（自动翻页，按记录身份去重，无需 --section）"},
 }
 
 #: ``eltdx f10`` 的 action 列表（选择顺序即帮助里的展示顺序）。
@@ -282,6 +289,7 @@ _F10_ACTIONS: tuple[str, ...] = (
     "northbound",
     "ranking",
     "valuation",
+    "board-members",
     "limit-board",
     "fund",
     "market",
@@ -734,6 +742,108 @@ def cmd_money_flow(args: argparse.Namespace) -> int:
         client.close()
 
 
+def _index_member_rows(table: Any) -> list[dict[str, Any]]:
+    return [
+        {
+            "code": row.code,
+            "full_code": row.full_code,
+            "name": row.name,
+            "market": row.market,
+            "join_date": row.join_date,
+        }
+        for row in table.rows
+    ]
+
+
+def _board_member_rows(table: Any) -> list[dict[str, Any]]:
+    """``f10 board-members`` 输出行：一行 = 一条分红记录。"""
+
+    return [
+        {
+            "code": row.code,
+            "full_code": row.full_code,
+            "name": row.name,
+            "dividend_plan": row.dividend_plan,
+            "progress": row.progress,
+            "announce_date": row.announce_date,
+            "record_date": row.record_date,
+            "ex_date": row.ex_date,
+            "report_period": row.report_period,
+        }
+        for row in table.rows
+    ]
+
+
+def _index_product_rows(table: Any) -> list[dict[str, Any]]:
+    return [
+        {
+            "code": row.code,
+            "full_code": row.full_code,
+            "name": row.name,
+            "market": row.market,
+            "nav": row.nav,
+            "change_pct": row.change_pct,
+            "scale_yi": None if row.scale_yuan is None else round(row.scale_yuan / 1e8, 4),
+            "amount_yuan": row.amount_yuan,
+            "inception_date": row.inception_date,
+            "manager": row.manager,
+            "company": row.company,
+            "fee_rate_pct": row.fee_rate_pct,
+        }
+        for row in table.rows
+    ]
+
+
+def _ipo_rows(calendar: Any) -> list[dict[str, Any]]:
+    return [
+        {
+            "apply_date": row.apply_date,
+            "code": row.code,
+            "full_code": row.full_code,
+            "name": row.name,
+            "market": row.market,
+            "issue_price": row.issue_price,
+            "raise_amount": row.raise_amount,
+            "raise_amount_yi": (
+                None if row.raise_amount_yi is None else round(row.raise_amount_yi, 4)
+            ),
+            "issue_pe": row.issue_pe,
+            "extra_pct": row.extra_pct,
+            "apply_limit": row.apply_limit,
+        }
+        for row in calendar.rows
+    ]
+
+
+def cmd_index(args: argparse.Namespace) -> int:
+    """指数成份股 / 跟踪产品（7615 F10，不需要 7709 连接）。
+
+    ``members`` 拉全部分页（服务端不返回权重）；``etfs`` 返回跟踪该指数的全部产品。
+    """
+
+    client = _f10_client(args)
+    code = _single_code(args.code)
+    if args.action == "members":
+        table = client.index_members(
+            code, all_pages=not args.first_page, page_size=args.page_size
+        )
+        return emit(args, _index_member_rows(table))
+    table = client.index_tracking_products(
+        code, all_pages=not args.first_page, page_size=args.page_size
+    )
+    rows = _index_product_rows(table)
+    if args.etf_only:
+        rows = [row for row in rows if str(row["code"]).startswith(("51", "56", "58", "15", "159", "16"))]
+    return emit(args, rows)
+
+
+def cmd_ipo(args: argparse.Namespace) -> int:
+    """近期新股列表（7615 F10，不需要 7709 连接）。"""
+
+    client = _f10_client(args)
+    return emit(args, _ipo_rows(client.ipo_calendar()))
+
+
 def _f10_client(args: argparse.Namespace) -> Any:
     """构造 7615 F10 HTTP 客户端（F10 不依赖 7709 连接）。"""
 
@@ -791,7 +901,12 @@ def cmd_f10(args: argparse.Namespace) -> int:
     if action == "limit-board":
         return emit(args, client.limit_up_down_list(args.date or None))
 
-    code = _f10_single_code(args)
+    if action == "market":
+        # ``market_new_shares`` / ``market_capital`` 不需要代码，允许省略。
+        market_codes = _codes(args.code)
+        code = market_codes[0] if market_codes else ""
+    else:
+        code = _f10_single_code(args)
     if action == "stock-info":
         return emit(args, client.stock_info(code))
     if action == "profile":
@@ -867,6 +982,9 @@ def cmd_f10(args: argparse.Namespace) -> int:
                 page_size=page_size,
             ),
         )
+    if action == "board-members":
+        table = client.board_members(code, all_pages=True, page_size=page_size)
+        return emit(args, _board_member_rows(table))
     if action == "market":
         return emit(
             args,
@@ -1352,6 +1470,30 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--page", type=int, default=1, help="页码（默认 1）")
     p.add_argument("--page-size", type=int, default=20, help="每页条数（默认 20）")
     p.set_defaults(func=cmd_f10)
+    # limits
+    # index
+    p = sub.add_parser("index", help="指数成份股 / 跟踪产品（7615 F10）")
+    _add_output_options(p)
+    _add_connection_options(p, host=False)
+    p.add_argument("--base-url", default=None, help="TQLEX 网关地址（默认 static.tdx.com.cn:7615）")
+    p.add_argument(
+        "action",
+        choices=("members", "etfs"),
+        help="members=成份股清单；etfs=跟踪该指数的产品",
+    )
+    _add_code_positional(p)
+    p.add_argument("--page-size", type=int, default=100, help="每页条数（默认 100，服务端上限）")
+    p.add_argument("--first-page", action="store_true", help="只取第一页，不自动翻页")
+    p.add_argument("--etf-only", action="store_true", help="etfs 时只保留场内 ETF 号段")
+    p.set_defaults(func=cmd_index)
+
+    # ipo
+    p = sub.add_parser("ipo", help="近期新股列表（7615 F10）")
+    _add_output_options(p)
+    _add_connection_options(p, host=False)
+    p.add_argument("--base-url", default=None, help="TQLEX 网关地址（默认 static.tdx.com.cn:7615）")
+    p.set_defaults(func=cmd_ipo)
+
     # limits
     p = sub.add_parser("limits", help="每日涨跌停价")
     _add_output_options(p)

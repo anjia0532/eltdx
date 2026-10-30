@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from eltdx.protocol.unit import ID_TO_MARKET
+from eltdx.protocol.unit import ID_TO_MARKET, normalize_code
 
 
 @dataclass(frozen=True, slots=True)
@@ -338,3 +338,284 @@ class LimitBoardLadder:
                 if counts.get(level - 1)
             }
         return result
+
+
+def _infer_market(code: Any) -> str | None:
+    """按代码号段推断市场，失败时返回 ``None``（不抛异常）。"""
+
+    text = str(code or "").strip()
+    if not text:
+        return None
+    try:
+        return normalize_code(text)[:2]
+    except Exception:
+        return None
+
+
+@dataclass(frozen=True, slots=True)
+class IndexMember:
+    """指数成份股一行（Entry ``CWServ.skef10_zs_cfgsj_cfgjcsj``）。
+
+    服务端只返回 ``N001`` 代码、``N002`` 名称、``N003`` 纳入日期、``N004`` 市场标记
+    （``"1"`` 沪市 / ``"0"`` 深市）。**服务端不返回成份权重**，需要权重必须走
+    通达信客户端（见 TQ ``get_index_weight``）。
+    """
+
+    code: str | None
+    name: str | None
+    market_id: int | None
+    join_date: Any | None
+    raw: dict[str, Any] = field(repr=False)
+    market: str | None = field(init=False)
+    full_code: str | None = field(init=False)
+
+    def __post_init__(self) -> None:
+        market = ID_TO_MARKET.get(self.market_id) if self.market_id is not None else None
+        if market is None:
+            market = _infer_market(self.code)
+        object.__setattr__(self, "market", market)
+        object.__setattr__(
+            self,
+            "full_code",
+            f"{market}{self.code}" if market and self.code else self.code,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class IndexMemberTable:
+    """某个指数的成份股清单。``total`` 是服务端报告的总数（分页前）。"""
+
+    index_code: str
+    total: int | None
+    rows: tuple[IndexMember, ...]
+
+    @property
+    def count(self) -> int:
+        return len(self.rows)
+
+    @property
+    def codes(self) -> tuple[str, ...]:
+        return tuple(row.code for row in self.rows if row.code)
+
+    @property
+    def full_codes(self) -> tuple[str, ...]:
+        return tuple(row.full_code for row in self.rows if row.full_code)
+
+
+@dataclass(frozen=True, slots=True)
+class IndexTrackingProduct:
+    """跟踪某个指数的产品一行（Entry ``CWServ.skef10_zs_jbxx_gzbd``）。
+
+    已确认字段：``N001`` 代码、``N002`` 名称、``N003`` 基金规模（元）、``N005``
+    涨跌幅（%）、``N006`` 成交额（元）、``N008`` 成立日期、``N009`` 基金经理、
+    ``N010`` 基金公司、``N011`` 单位净值、``N012`` 管理费率（%）。
+
+    ``N004`` 与 ``N007`` 服务端未标注含义，这里**不猜测**，只保留在 ``raw`` 里。
+    """
+
+    code: str | None
+    name: str | None
+    market_id: Any | None
+    scale_yuan: float | None
+    change_pct: float | None
+    amount_yuan: float | None
+    inception_date: Any | None
+    manager: str | None
+    company: str | None
+    nav: float | None
+    fee_rate_pct: float | None
+    raw: dict[str, Any] = field(repr=False)
+    market: str | None = field(init=False)
+    full_code: str | None = field(init=False)
+
+    def __post_init__(self) -> None:
+        market = None
+        if isinstance(self.market_id, int) and self.market_id in ID_TO_MARKET:
+            market = ID_TO_MARKET[self.market_id]
+        if market is None:
+            # 33 是扩展市场「开放式基金」ID，不在 A 股市场表里，按代码号段推断。
+            market = _infer_market(self.code)
+        object.__setattr__(self, "market", market)
+        object.__setattr__(
+            self,
+            "full_code",
+            f"{market}{self.code}" if market and self.code else self.code,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class IndexTrackingTable:
+    """跟踪某个指数的全部产品（ETF / LOF / 场外基金等）。"""
+
+    index_code: str
+    total: int | None
+    rows: tuple[IndexTrackingProduct, ...]
+
+    @property
+    def count(self) -> int:
+        return len(self.rows)
+
+    @property
+    def etfs(self) -> tuple[IndexTrackingProduct, ...]:
+        """按代码号段粗筛交易所内 ETF（51/56/58/15/16/159 开头）。"""
+
+        def is_etf(code: str | None) -> bool:
+            if not code:
+                return False
+            return code.startswith(("51", "56", "58", "15", "159", "16"))
+
+        return tuple(row for row in self.rows if is_etf(row.code))
+
+
+@dataclass(frozen=True, slots=True)
+class BoardMember:
+    """板块成份股的一行**分红记录**（Entry ``CWServ.skef10_bk_getinfo``，section ``board_members``）。
+
+    已确认字段：``N001`` 代码、``N002`` 名称、``sc`` 市场（``1`` 沪市 / ``0`` 深市）、
+    ``N003`` 分红方案、``N004`` 进度、``N008`` 报告期。
+
+    **一行 = 一条分红记录，不是一只股票**：同一证券的中报 / 年报分红各占一行
+    （实测 ``880472`` 证券板块共 67 行、44 只证券，其中 21 只有两行）。
+    行序按公告日期（``N005``）降序；**同日记录的服务端次序不稳定**，跨页拼接时
+    请用 :meth:`eltdx.f10.client.F10Client.board_members` 的按记录去重翻页，
+    或直接用 ``page_size=100`` 单页取全。
+
+    ``N005`` / ``N006`` / ``N007`` 服务端未标注含义，按 A 股分红实施流程命名为
+    ``announce_date`` / ``record_date`` / ``ex_date``，**均为推断**，生产使用前请用
+    行内 ``raw`` 复核。
+    """
+
+    code: str | None
+    name: str | None
+    market_id: int | None
+    dividend_plan: str | None
+    progress: str | None
+    announce_date: Any | None
+    record_date: Any | None
+    ex_date: Any | None
+    report_period: Any | None
+    raw: dict[str, Any] = field(repr=False)
+    market: str | None = field(init=False)
+    full_code: str | None = field(init=False)
+
+    def __post_init__(self) -> None:
+        market = ID_TO_MARKET.get(self.market_id) if self.market_id is not None else None
+        if market is None:
+            market = _infer_market(self.code)
+        object.__setattr__(self, "market", market)
+        object.__setattr__(
+            self,
+            "full_code",
+            f"{market}{self.code}" if market and self.code else self.code,
+        )
+
+    @property
+    def record_key(self) -> tuple:
+        """记录身份：同一证券的同一条分红记录在跨页抖动里会重复出现，按此去重。"""
+
+        return (
+            self.code,
+            self.dividend_plan,
+            self.announce_date,
+            self.record_date,
+            self.ex_date,
+            self.report_period,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class BoardMemberTable:
+    """某个板块的分红记录清单（按记录去重、保留首次出现顺序）。
+
+    ``total`` 是服务端报告的**记录总数**（第二个 ResultSet 的 ``zs`` 列，实测
+    ``880472`` 为 67），不是证券只数；``rows`` 一行一条分红记录，同一证券可有多行
+    （中报 / 年报）。``count`` 是去重后实际拿到的记录数——服务端同日次序不稳定时
+    可能略小于 ``total``（翻页在“整页无新记录”时提前停止）。只要证券清单用
+    :attr:`stocks` / :attr:`full_codes`。
+    """
+
+    board_code: str
+    total: int | None
+    rows: tuple[BoardMember, ...]
+
+    @property
+    def count(self) -> int:
+        return len(self.rows)
+
+    @property
+    def stocks(self) -> tuple[str, ...]:
+        """去重后的证券代码（首次出现顺序）。"""
+
+        seen: dict[str, None] = {}
+        for row in self.rows:
+            if row.code and row.code not in seen:
+                seen[row.code] = None
+        return tuple(seen)
+
+    @property
+    def full_codes(self) -> tuple[str, ...]:
+        """去重后的完整代码（首次出现顺序）。"""
+
+        seen: dict[str, None] = {}
+        for row in self.rows:
+            if row.full_code and row.full_code not in seen:
+                seen[row.full_code] = None
+        return tuple(seen)
+
+
+@dataclass(frozen=True, slots=True)
+class IpoEntry:
+    """新股一行（Entry ``CWServ.skef10_dpzx_xgfx``，参数 ``002``）。
+
+    已确认字段：``N001`` 日期、``N002`` 代码、``N003`` 名称、``N006`` 发行价（元）、
+    ``N008`` 实际募资总额（元）。
+
+    ``N004`` / ``N005`` / ``N007`` 服务端未标注含义。``N004`` 数值区间与新股发行
+    市盈率一致，``N007`` 与新股申购页同一数值（疑似网上申购上限，单位万股）——
+    两者均为**推断**，使用前请用 ``raw`` 复核。
+    """
+
+    apply_date: Any | None
+    code: str | None
+    name: str | None
+    market_id: int | None
+    issue_pe: float | None
+    extra_pct: float | None
+    issue_price: float | None
+    apply_limit: float | None
+    raise_amount: float | None
+    raw: dict[str, Any] = field(repr=False)
+    market: str | None = field(init=False)
+    full_code: str | None = field(init=False)
+
+    def __post_init__(self) -> None:
+        market = ID_TO_MARKET.get(self.market_id) if self.market_id is not None else None
+        if market is None:
+            market = _infer_market(self.code)
+        object.__setattr__(self, "market", market)
+        object.__setattr__(
+            self,
+            "full_code",
+            f"{market}{self.code}" if market and self.code else self.code,
+        )
+
+    @property
+    def raise_amount_yi(self) -> float | None:
+        """募资总额，单位亿元。"""
+
+        return None if self.raise_amount is None else self.raise_amount / 1e8
+
+
+@dataclass(frozen=True, slots=True)
+class IpoCalendar:
+    """近期新股列表。"""
+
+    rows: tuple[IpoEntry, ...]
+
+    @property
+    def count(self) -> int:
+        return len(self.rows)
+
+    @property
+    def full_codes(self) -> tuple[str, ...]:
+        return tuple(row.full_code for row in self.rows if row.full_code)

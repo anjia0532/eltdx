@@ -218,40 +218,216 @@
     "pool_size": 4,
     "max_clients": 16,
     "tools": {
-      "eltdx_quote": {"method": "quote", "signature": "(codes, timeout=8.0, host=None)", "output": "array"},
-      "eltdx_quote_depth": {"method": "quote_depth", "signature": "(codes, timeout=8.0, host=None)", "output": "object"},
-      "eltdx_kline": {"method": "kline", "signature": "(code, period='day', count=120, start=0, adjust=None, anchor_date=None, include_raw=False, batch_size=None, timeout=8.0, host=None)", "output": "object"},
-      "eltdx_capital_changes": {"method": "capital_changes", "signature": "(codes, include_raw=False, batch_size=75, timeout=8.0, host=None)", "output": "object"},
-      "eltdx_adjustment_factors": {"method": "adjustment_factors", "signature": "(codes, anchor_date=None, start_date=None, batch_size=75, timeout=8.0, host=None)", "output": "object"},
-      "eltdx_money_flow": {"method": "money_flow", "signature": "(codes, include_raw=False, batch_size=75, timeout=8.0, host=None)", "output": "object"},
-      "eltdx_daily_price_limits": {"method": "daily_price_limits", "signature": "(codes=None, *, trade_date, timeout=8.0, host=None)", "output": "object"},
-      "eltdx_minute": {"method": "minute", "signature": "(code, trading_date=None, include_raw=False, batch_size=None, timeout=8.0, host=None)", "output": "object"},
-      "eltdx_trades": {"method": "trades", "signature": "(code, trading_date=None, start=0, count=500, include_raw=False, batch_size=None, timeout=8.0, host=None)", "output": "object"},
-      "eltdx_call_auction": {"method": "call_auction", "signature": "(code, trading_date=None, include_raw=False, timeout=8.0, host=None)", "output": "object"},
-      "eltdx_opening_match_today": {"method": "opening_match_today", "signature": "(code, timeout=8.0, host=None)", "output": "object"},
-      "eltdx_opening_match_history": {"method": "opening_match_history", "signature": "(code, trading_date, timeout=8.0, host=None)", "output": "object"},
-      "eltdx_auction_data": {"method": "auction_data", "signature": "(code, trading_date=None, include_series=True, include_snapshot=True, include_quote=True, pre_close_price=None, timeout=8.0, host=None)", "output": "object"},
-      "eltdx_stock_profile": {"method": "stock_profile", "signature": "(codes, include_security=True, include_finance=True, timeout=8.0, host=None)", "output": "object"},
-      "eltdx_shortline_indicators": {"method": "shortline_indicators", "signature": "(codes, stats_path='zhb.zip', refresh_stats=False, timeout=8.0, host=None)", "output": "object"},
-      "eltdx_stock_topics": {"method": "stock_topics", "signature": "(code, timeout=8.0)", "output": "object"},
-      "eltdx_topic_stocks": {"method": "topic_stocks", "signature": "(seed_code, topic_id=None, topic_name=None, sort_by='zdf', section='gndbzfsj', timeout=8.0)", "output": "object"},
-      "eltdx_limit_up_down_list": {"method": "limit_up_down_list", "signature": "(start_date=None, end_date=None, include_summary=False, timeout=8.0)", "output": "object"},
-      "eltdx_limit_board_ladder": {"method": "limit_board_ladder", "signature": "(start_date=None, end_date=None, include_summary=False, timeout=8.0)", "output": "object"},
-      "eltdx_company_profile": {"method": "company_profile", "signature": "(code, section='8', timeout=8.0)", "output": "object"},
-      "eltdx_hot_topics": {"method": "hot_topics", "signature": "(code, section='zttzbkz', timeout=8.0)", "output": "object"},
-      "eltdx_finance_report": {"method": "finance_report", "signature": "(code, report_type='zcfzb', timeout=8.0)", "output": "object"},
-      "eltdx_company_news": {"method": "company_news", "signature": "(code, section='gsyj', keyword='', rating='0', page=1, page_size=20, timeout=8.0)", "output": "object"},
-      "eltdx_docs_index": {"method": "docs_index", "signature": "()", "output": "object"}
+      "eltdx_quote": {
+        "method": "quote",
+        "signature": "(codes, timeout=8.0, host=None)",
+        "output": "array"
+      },
+      "eltdx_quote_depth": {
+        "method": "quote_depth",
+        "signature": "(codes, timeout=8.0, host=None)",
+        "output": "object"
+      },
+      "eltdx_kline": {
+        "method": "kline",
+        "signature": "(code, period='day', count=120, start=0, adjust=None, anchor_date=None, include_raw=False, batch_size=None, timeout=8.0, host=None)",
+        "output": "object"
+      },
+      "eltdx_capital_changes": {
+        "method": "capital_changes",
+        "signature": "(codes, include_raw=False, batch_size=75, timeout=8.0, host=None)",
+        "output": "object"
+      },
+      "eltdx_adjustment_factors": {
+        "method": "adjustment_factors",
+        "signature": "(codes, anchor_date=None, start_date=None, batch_size=75, timeout=8.0, host=None)",
+        "output": "object"
+      },
+      "eltdx_money_flow": {
+        "method": "money_flow",
+        "signature": "(codes, include_raw=False, batch_size=75, timeout=8.0, host=None)",
+        "output": "object"
+      },
+      "eltdx_daily_price_limits": {
+        "method": "daily_price_limits",
+        "signature": "(codes=None, *, trade_date, timeout=8.0, host=None)",
+        "output": "object"
+      },
+      "eltdx_minute": {
+        "method": "minute",
+        "signature": "(code, trading_date=None, include_raw=False, batch_size=None, timeout=8.0, host=None)",
+        "output": "object"
+      },
+      "eltdx_trades": {
+        "method": "trades",
+        "signature": "(code, trading_date=None, start=0, count=500, include_raw=False, batch_size=None, timeout=8.0, host=None)",
+        "output": "object"
+      },
+      "eltdx_call_auction": {
+        "method": "call_auction",
+        "signature": "(code, trading_date=None, include_raw=False, timeout=8.0, host=None)",
+        "output": "object"
+      },
+      "eltdx_opening_match_today": {
+        "method": "opening_match_today",
+        "signature": "(code, timeout=8.0, host=None)",
+        "output": "object"
+      },
+      "eltdx_opening_match_history": {
+        "method": "opening_match_history",
+        "signature": "(code, trading_date, timeout=8.0, host=None)",
+        "output": "object"
+      },
+      "eltdx_auction_data": {
+        "method": "auction_data",
+        "signature": "(code, trading_date=None, include_series=True, include_snapshot=True, include_quote=True, pre_close_price=None, timeout=8.0, host=None)",
+        "output": "object"
+      },
+      "eltdx_stock_profile": {
+        "method": "stock_profile",
+        "signature": "(codes, include_security=True, include_finance=True, timeout=8.0, host=None)",
+        "output": "object"
+      },
+      "eltdx_shortline_indicators": {
+        "method": "shortline_indicators",
+        "signature": "(codes, stats_path='zhb.zip', refresh_stats=False, timeout=8.0, host=None)",
+        "output": "object"
+      },
+      "eltdx_stock_topics": {
+        "method": "stock_topics",
+        "signature": "(code, timeout=8.0)",
+        "output": "object"
+      },
+      "eltdx_topic_stocks": {
+        "method": "topic_stocks",
+        "signature": "(seed_code, topic_id=None, topic_name=None, sort_by='zdf', section='gndbzfsj', timeout=8.0)",
+        "output": "object"
+      },
+      "eltdx_limit_up_down_list": {
+        "method": "limit_up_down_list",
+        "signature": "(start_date=None, end_date=None, include_summary=False, timeout=8.0)",
+        "output": "object"
+      },
+      "eltdx_limit_board_ladder": {
+        "method": "limit_board_ladder",
+        "signature": "(start_date=None, end_date=None, include_summary=False, timeout=8.0)",
+        "output": "object"
+      },
+      "eltdx_company_profile": {
+        "method": "company_profile",
+        "signature": "(code, section='8', timeout=8.0)",
+        "output": "object"
+      },
+      "eltdx_hot_topics": {
+        "method": "hot_topics",
+        "signature": "(code, section='zttzbkz', timeout=8.0)",
+        "output": "object"
+      },
+      "eltdx_finance_report": {
+        "method": "finance_report",
+        "signature": "(code, report_type='zcfzb', timeout=8.0)",
+        "output": "object"
+      },
+      "eltdx_company_news": {
+        "method": "company_news",
+        "signature": "(code, section='gsyj', keyword='', rating='0', page=1, page_size=20, timeout=8.0)",
+        "output": "object"
+      },
+      "eltdx_docs_index": {
+        "method": "docs_index",
+        "signature": "()",
+        "output": "object"
+      },
+      "eltdx_f10_digest": {
+        "method": "f10_digest",
+        "signature": "(code, section='tips', page=1, page_size=20, timeout=8.0)",
+        "output": "object"
+      },
+      "eltdx_us_stock_f10": {
+        "method": "us_stock_f10",
+        "signature": "(code, section='profile', timeout=8.0)",
+        "output": "object"
+      },
+      "eltdx_hk_stock_f10": {
+        "method": "hk_stock_f10",
+        "signature": "(code, section='profile', timeout=8.0)",
+        "output": "object"
+      },
+      "eltdx_bond_f10": {
+        "method": "bond_f10",
+        "signature": "(code, kind='convertible', section='profile', timeout=8.0)",
+        "output": "object"
+      },
+      "eltdx_industry_f10": {
+        "method": "industry_f10",
+        "signature": "(industry_code, section='summary', timeout=8.0)",
+        "output": "object"
+      },
+      "eltdx_stock_analysis": {
+        "method": "stock_analysis",
+        "signature": "(code, section='industry_rank', timeout=8.0)",
+        "output": "object"
+      },
+      "eltdx_macro_indicators": {
+        "method": "macro_indicators",
+        "signature": "(timeout=10.0)",
+        "output": "object"
+      },
+      "eltdx_macro_data": {
+        "method": "macro_data",
+        "signature": "(codes, period='monthly', history=False, timeout=10.0)",
+        "output": "object"
+      }
     },
     "resources": {
-      "eltdx://docs/overview": {"name": "eltdx_docs_overview", "title": "eltdx overview documentation", "mime_type": "text/markdown", "path": "index.md"},
-      "eltdx://docs/api": {"name": "eltdx_docs_api", "title": "eltdx api documentation", "mime_type": "text/markdown", "path": "API_REFERENCE.md"},
-      "eltdx://docs/methods": {"name": "eltdx_docs_methods", "title": "eltdx methods documentation", "mime_type": "text/markdown", "path": "METHOD_REFERENCE.md"},
-      "eltdx://docs/fields": {"name": "eltdx_docs_fields", "title": "eltdx fields documentation", "mime_type": "text/markdown", "path": "FIELD_REFERENCE.md"},
-      "eltdx://docs/commands": {"name": "eltdx_docs_commands", "title": "eltdx commands documentation", "mime_type": "text/markdown", "path": "COMMANDS_7709.md"},
-      "eltdx://docs/f10": {"name": "eltdx_docs_f10", "title": "eltdx f10 documentation", "mime_type": "text/markdown", "path": "F10_7615.md"},
-      "eltdx://docs/helpers": {"name": "eltdx_docs_helpers", "title": "eltdx helpers documentation", "mime_type": "text/markdown", "path": "helpers/README.md"},
-      "eltdx://docs/mcp": {"name": "eltdx_docs_mcp", "title": "eltdx mcp documentation", "mime_type": "text/markdown", "path": "MCP.md"}
+      "eltdx://docs/overview": {
+        "name": "eltdx_docs_overview",
+        "title": "eltdx overview documentation",
+        "mime_type": "text/markdown",
+        "path": "index.md"
+      },
+      "eltdx://docs/api": {
+        "name": "eltdx_docs_api",
+        "title": "eltdx api documentation",
+        "mime_type": "text/markdown",
+        "path": "API_REFERENCE.md"
+      },
+      "eltdx://docs/methods": {
+        "name": "eltdx_docs_methods",
+        "title": "eltdx methods documentation",
+        "mime_type": "text/markdown",
+        "path": "METHOD_REFERENCE.md"
+      },
+      "eltdx://docs/fields": {
+        "name": "eltdx_docs_fields",
+        "title": "eltdx fields documentation",
+        "mime_type": "text/markdown",
+        "path": "FIELD_REFERENCE.md"
+      },
+      "eltdx://docs/commands": {
+        "name": "eltdx_docs_commands",
+        "title": "eltdx commands documentation",
+        "mime_type": "text/markdown",
+        "path": "COMMANDS_7709.md"
+      },
+      "eltdx://docs/f10": {
+        "name": "eltdx_docs_f10",
+        "title": "eltdx f10 documentation",
+        "mime_type": "text/markdown",
+        "path": "F10_7615.md"
+      },
+      "eltdx://docs/helpers": {
+        "name": "eltdx_docs_helpers",
+        "title": "eltdx helpers documentation",
+        "mime_type": "text/markdown",
+        "path": "helpers/README.md"
+      },
+      "eltdx://docs/mcp": {
+        "name": "eltdx_docs_mcp",
+        "title": "eltdx mcp documentation",
+        "mime_type": "text/markdown",
+        "path": "MCP.md"
+      }
     }
   },
   "cli": {
@@ -263,39 +439,131 @@
     "eltdx-smoke": {
       "main": "eltdx.smoke:main",
       "options": {
-        "--host": {"default": null, "action": "store"},
-        "--code": {"default": "sz000001", "action": "store"},
-        "--history-date": {"default": null, "action": "store"},
-        "--timeout": {"default": 8.0, "action": "store", "type": "float"},
-        "--pool-size": {"default": null, "action": "store", "type": "int"},
-        "--server-count": {"default": 1, "action": "store", "type": "int"},
-        "--connections-per-server": {"default": null, "action": "store", "type": "int"},
-        "--runtime-workers": {"default": null, "action": "store", "type": "int"},
-        "--max-connections-per-host": {"default": null, "action": "store", "type": "int"},
-        "--connect-concurrency": {"default": null, "action": "store", "type": "int"},
-        "--connect-concurrency-per-host": {"default": null, "action": "store", "type": "int"},
-        "--probe-hosts": {"default": true, "action": "boolean_optional"},
-        "--heartbeat-interval": {"default": 30.0, "action": "store", "type": "float"},
-        "--no-heartbeat": {"default": false, "action": "store_true"},
-        "--quote-count": {"default": 120, "action": "store", "type": "int"},
-        "--trade-count": {"default": 20, "action": "store", "type": "int"},
-        "--kline-count": {"default": 5, "action": "store", "type": "int"},
-        "--deep": {"default": false, "action": "store_true"}
+        "--host": {
+          "default": null,
+          "action": "store"
+        },
+        "--code": {
+          "default": "sz000001",
+          "action": "store"
+        },
+        "--history-date": {
+          "default": null,
+          "action": "store"
+        },
+        "--timeout": {
+          "default": 8.0,
+          "action": "store",
+          "type": "float"
+        },
+        "--pool-size": {
+          "default": null,
+          "action": "store",
+          "type": "int"
+        },
+        "--server-count": {
+          "default": 1,
+          "action": "store",
+          "type": "int"
+        },
+        "--connections-per-server": {
+          "default": null,
+          "action": "store",
+          "type": "int"
+        },
+        "--runtime-workers": {
+          "default": null,
+          "action": "store",
+          "type": "int"
+        },
+        "--max-connections-per-host": {
+          "default": null,
+          "action": "store",
+          "type": "int"
+        },
+        "--connect-concurrency": {
+          "default": null,
+          "action": "store",
+          "type": "int"
+        },
+        "--connect-concurrency-per-host": {
+          "default": null,
+          "action": "store",
+          "type": "int"
+        },
+        "--probe-hosts": {
+          "default": true,
+          "action": "boolean_optional"
+        },
+        "--heartbeat-interval": {
+          "default": 30.0,
+          "action": "store",
+          "type": "float"
+        },
+        "--no-heartbeat": {
+          "default": false,
+          "action": "store_true"
+        },
+        "--quote-count": {
+          "default": 120,
+          "action": "store",
+          "type": "int"
+        },
+        "--trade-count": {
+          "default": 20,
+          "action": "store",
+          "type": "int"
+        },
+        "--kline-count": {
+          "default": 5,
+          "action": "store",
+          "type": "int"
+        },
+        "--deep": {
+          "default": false,
+          "action": "store_true"
+        }
       },
-      "exit_codes": {"success": 0, "help": 0, "parse_error": 2, "invalid_counts": 1}
+      "exit_codes": {
+        "success": 0,
+        "help": 0,
+        "parse_error": 2,
+        "invalid_counts": 1
+      }
     },
     "eltdx-f10-smoke": {
       "main": "eltdx.f10_smoke:main",
       "options": {
-        "--code": {"default": "000034", "action": "store"},
-        "--timeout": {"default": 8.0, "action": "store", "type": "float"}
+        "--code": {
+          "default": "000034",
+          "action": "store"
+        },
+        "--timeout": {
+          "default": 8.0,
+          "action": "store",
+          "type": "float"
+        },
+        "--extended": {
+          "default": false,
+          "action": "store_true"
+        },
+        "--macro": {
+          "default": false,
+          "action": "store_true"
+        }
       },
-      "exit_codes": {"success": 0, "help": 0, "parse_error": 2}
+      "exit_codes": {
+        "success": 0,
+        "help": 0,
+        "parse_error": 2
+      }
     },
     "eltdx-mcp": {
       "main": "eltdx.mcp:main",
       "transport": "stdio",
-      "exit_codes": {"success": 0}
+      "exit_codes": {
+        "success": 0
+      }
     }
   },
   "removed_client_attributes": [

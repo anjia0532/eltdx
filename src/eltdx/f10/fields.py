@@ -9,6 +9,9 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from .fields_mg_hk import is_mg_hk_entry as _is_mg_hk_entry
+from .fields_mg_hk import labels_for as _mg_hk_labels_for
+
 
 _COMPANY_PROFILE_LISTING = {
     "T035": "股票类别",
@@ -781,6 +784,8 @@ def field_labels_for(
     this exact scope. Callers must preserve the raw field names in that case.
     """
 
+    if _is_mg_hk_entry(entry):
+        return _mg_hk_labels_for(entry, request_body)
     scope = _field_scope(entry, request_body, metadata=metadata)
     if scope is None:
         return {}

@@ -2180,7 +2180,11 @@ def test_codes_all_pages_until_short_page() -> None:
 
 
 def test_bars_all_pages_until_short_page() -> None:
+    from datetime import datetime
+
     from eltdx.models import KlineSeries
+
+    total = 5
 
     class FakeTransport:
         def connect(self) -> None:
@@ -2196,7 +2200,9 @@ def test_bars_all_pages_until_short_page() -> None:
             assert command == 0x052D
             start = payload["start"]
             count = payload["count"]
-            bars = tuple(range(count)) if start == 0 else (0,) if start == 2 else ()
+            # 模拟 7709 真实语义：start=0 是最新的 count 根，页内时间升序。
+            slice_ = slice(max(total - start - count, 0), total - start)
+            bars = tuple(Bar(i) for i in range(*slice_.indices(total)))
             return KlineSeries(
                 exchange="sz",
                 market_id=0,
@@ -2213,13 +2219,17 @@ def test_bars_all_pages_until_short_page() -> None:
                 bars=bars,
             )
 
+    class Bar:
+        def __init__(self, index: int) -> None:
+            self.time = datetime(2020, 1, 1 + index)
+
     page = TdxClient(transport=FakeTransport()).bars.get(
         "sz000001", all_pages=True, page_size=2
     )
 
     assert page.start == 0
-    assert page.request_count == 3
-    assert page.bars == (0, 0, 1)
+    assert page.request_count == total
+    assert [bar.time.day for bar in page.bars] == [1, 2, 3, 4, 5]
 
 
 def test_server_page_limits_are_validated_before_request() -> None:
