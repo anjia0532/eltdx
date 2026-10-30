@@ -1104,6 +1104,9 @@ response = client.f10.params("CWServ.tdxf10_gg_gsgk", "8", "000034", "")
 | `roadshows(code)`                                      | `CWSearch.tzx_rcache`                                    | 路演列表                                      |
 | `theme_market(code, req_id="200743")`                  | `HQServ.hq_nlp_tcihq`                                    | 题材概念行情、相关板块、成分股等                          |
 | `valuation(code, req_id="200191")`                     | `HQServ.hq_nlp_gpsj`                                     | PE、PB、市销率、市现率、估值百分位、市值等                   |
+| `market_news(tab=3, *, page=1, page_size=50)` | `CWServ.tdxi_zxxwsy` | 首页要闻流；`tab` 见 `NewsHomeTab`（1 滚动 / 2 今日焦点 / 3 要闻速递 / 4 正面 / 5 负面 / 6 精华 / 7 最新提示 / 9 机构调研） |
+| `channel_news(channel, *, page=1, page_size=50, query1="1", keyword="")` | `CWServ.tdxi_zxxwnews` | 按频道号取栏目资讯（84 个频道，见 `news_channels()`） |
+| `news_channels()` | —（静态） | 返回 `[(频道号, 栏目名), ...]`，配合 `channel_news` 使用 |
 
 F10 的字段名来自服务端返回的 `ColName` / `ColDes`，不同 Entry 的列名可能是 `T001` 这类原生列名，也可能是中文或拼音字段。`response.rows` 会把每行转成字典；如果同一张表出现重复列名，重复列会保存成 `字段名__2`、`字段名__3`。
 

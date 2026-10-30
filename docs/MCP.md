@@ -82,6 +82,9 @@ Windows 上找不到脚本时，可以直接指定安装 `eltdx` 的 Python：
 | `eltdx_hot_topics` | 查询 F10 热点题材明细 |
 | `eltdx_finance_report` | 查询 F10 财务报表 |
 | `eltdx_company_news` | 查询 F10 公司资讯或研报 |
+| `eltdx_market_news` | 查询资讯首页要闻流（滚动 / 今日焦点 / 要闻速递 / 正面 / 负面 / 精华 / 最新提示 / 机构调研） |
+| `eltdx_channel_news` | 按频道号查询栏目资讯（84 个频道） |
+| `eltdx_news_channels` | 列出全部资讯频道号与中文名 |
 
 F10 工具保留服务端返回的原始字段名，同时在每个 `result_sets` 项中增加：
 

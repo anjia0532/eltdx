@@ -116,6 +116,9 @@ F10 走 `7615/TQLEX` HTTP 网关，**不需要 7709 连接**；个股、ETF / �
 | `limit-board` | 涨跌停列表（`--date`） |
 | `fund` | ETF / 场外基金 30 个分区（`industry_allocation` / `bond_allocation` / `futures_allocation` 不传 `--date` 自动取最新报告期） |
 | `market` | 板块 / 指数 / 大盘 26 个分区（`market_new_shares` / `market_capital` / `ipo_calendar` 可省略 CODE；指数两融用 `market_margin_summary` / `market_margin_investors`；指数估值用 `index_valuation`） |
+| `news-channels` | 资讯频道清单（84 个，含分组中文名），不请求网关 |
+| `market-news` | 首页要闻流（`--tab`：1 滚动 / 2 今日焦点 / 3 要闻速递 / 4 正面 / 5 负面 / 6 精华 / 7 最新提示 / 9 机构调研） |
+| `channel-news` | 按频道号取栏目资讯（`--channel`，取值见 `eltdx f10 news-channels`） |
 
 | 选项 | 说明 |
 | --- | --- |

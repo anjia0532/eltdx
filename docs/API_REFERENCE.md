@@ -637,6 +637,24 @@ ETF / 场外基金、板块 / 指数 / 大盘共用同一批方法，靠 `code` 
 client.f10.call("CWServ.tdxf10_gg_gsgk", params=["8", "000034", ""])
 ```
 
+### 市场资讯
+
+资讯流不按 `code` + `section` 分派，单独三个方法（均返回 `F10Response`）：
+
+| 调用方法 | 返回内容 | 底层 Entry |
+| --- | --- | --- |
+| `market_news(tab=3, *, page=1, page_size=50)` | 首页要闻流；`tab` 取 1 滚动 / 2 今日焦点 / 3 要闻速递 / 4 正面 / 5 负面 / 6 精华 / 7 最新提示 / 9 机构调研 | `CWServ.tdxi_zxxwsy` |
+| `channel_news(channel, *, page=1, page_size=50, query1="1", keyword="")` | 按频道号取栏目资讯（共 84 个频道） | `CWServ.tdxi_zxxwnews` |
+| `news_channels()` | 全部频道 `[(频道号, 栏目名), ...]`；静态枚举，不发请求 | — |
+
+```python
+client.f10.market_news(tab=3, page_size=50)
+client.f10.news_channels()             # [(200, "最新"), ...]
+client.f10.channel_news(201, page=2)   # 财经要闻第 2 页
+```
+
+详见 [methods/F10-市场资讯.md](methods/F10-市场资讯.md)。
+
 完整 F10 方法表见 [F10_7615.md](F10_7615.md)。
 
 ## `client.helpers`

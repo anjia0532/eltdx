@@ -52,6 +52,7 @@
       "tests/test_market_helpers.py",
       "tests/test_mcp.py",
       "tests/test_money_flow_failover.py",
+      "tests/test_news.py",
       "tests/test_offline.py",
       "tests/test_pages.py",
       "tests/test_price_rules.py",
