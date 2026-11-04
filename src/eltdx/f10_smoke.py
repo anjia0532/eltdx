@@ -11,7 +11,6 @@ import argparse
 import threading
 
 from eltdx.f10 import F10Client
-from eltdx.f10.client import DEFAULT_MG_HK_BASE_URL
 
 A_SHARE_CODE = "600519"
 HK_CODE = "00700"

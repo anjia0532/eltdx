@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use std::collections::HashMap;
 
 use crate::error::ProtocolError;
 use crate::frame::RequestFrame;
@@ -312,6 +313,15 @@ pub fn parse_finance_batch_payload(
         ));
     }
     let record_count = usize::from(little_u16(&payload[..2])?);
+    if record_count > request.codes().len() {
+        return Err(ProtocolError::invalid_data(
+            "finance batch",
+            format!(
+                "finance batch response count exceeds request: {record_count} > {}",
+                request.codes().len()
+            ),
+        ));
+    }
     let records_length = record_count
         .checked_mul(FINANCE_RECORD_SIZE)
         .ok_or_else(|| {
@@ -329,14 +339,40 @@ pub fn parse_finance_batch_payload(
             ),
         ));
     }
+    let mut remaining = HashMap::new();
+    for code in request.codes() {
+        *remaining
+            .entry((code.market().id(), code.number().to_owned()))
+            .or_insert(0_usize) += 1;
+    }
     let mut records = Vec::with_capacity(record_count);
     let mut offset = 2_usize;
-    for _ in 0..record_count {
+    for index in 0..record_count {
         let end = offset.saturating_add(FINANCE_RECORD_SIZE);
         let record = payload.get(offset..end).ok_or_else(|| {
             ProtocolError::invalid_data("finance batch", "truncated finance record")
         })?;
-        records.push(parse_finance_record(record)?);
+        if record.iter().all(|byte| *byte == 0) {
+            return Err(ProtocolError::invalid_data(
+                "finance batch",
+                format!("finance batch missing record: index={index}, count={record_count}, payload_len={}", payload.len()),
+            ));
+        }
+        let parsed = parse_finance_record(record).map_err(|error| {
+            ProtocolError::invalid_data("finance batch", format!(
+                "finance batch invalid record: index={index}, count={record_count}, payload_len={}, head_hex={}, reason={error}",
+                payload.len(), encode_hex(&record[..32]),
+            ))
+        })?;
+        let key = (parsed.market_id, parsed.code.clone());
+        match remaining.get_mut(&key) {
+            Some(left) if *left > 0 => *left -= 1,
+            _ => return Err(ProtocolError::invalid_data("finance batch", format!(
+                "finance batch unexpected or duplicate record: index={index}, market={}, code={}, count={record_count}, payload_len={}",
+                parsed.market_id, parsed.code, payload.len(),
+            ))),
+        }
+        records.push(parsed);
         offset = end;
     }
     Ok(FinanceBatch {
@@ -418,6 +454,14 @@ fn parse_finance_record(record: &[u8]) -> Result<FinanceRecord, ProtocolError> {
         ));
     }
     let market_id = record[0];
+    if Market::from_id(i64::from(market_id)).is_err()
+        || !record[1..7].iter().all(u8::is_ascii_digit)
+    {
+        return Err(ProtocolError::invalid_data(
+            "finance batch",
+            "invalid finance market or six-digit response code",
+        ));
+    }
     let code = ascii_code(&record[1..7], "finance batch")?;
     let info = &record[7..143];
     if info.len() != FINANCE_INFO_SIZE {

@@ -177,6 +177,79 @@ def test_on_error_receives_callback_exception() -> None:
     assert sub.dispatched == 2
 
 
+class ExplodingPollTransport:
+    """``poll_push`` 持续抛错的 transport，用于验证轮询异常的兜底路径。"""
+
+    def __init__(self, error: BaseException | None = None) -> None:
+        self._error = error if error is not None else TimeoutError("poll timed out")
+        self.poll_calls = 0
+
+    def connect(self) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+    def request(self, command: str) -> str:
+        return "pong"
+
+    def execute(self, command: int, payload=None):
+        assert command == TYPE_REFRESH_STREAM
+        codes = list((payload or {}).get("codes") or [])
+        return QuoteRefreshPage(tuple(codes), (), decoded_payload=b"")
+
+    def poll_push(self, timeout: float | None = 0.0, *, parse: bool = False):
+        assert parse is True
+        self.poll_calls += 1
+        raise self._error
+
+
+def test_on_error_receives_poll_exception_instead_of_raising() -> None:
+    """回归：`poll_push` 出错此前直接向上抛，`on_error` 一次都收不到。"""
+
+    transport = ExplodingPollTransport(TimeoutError("poll timed out"))
+    client = _client(transport)
+    errors: list[BaseException] = []
+    sub = client.quotes.subscribe("sz000001", lambda record: None, on_error=errors.append)
+
+    assert sub.run_once() == 0  # 不再抛错，本轮按空帧处理
+    assert len(errors) == 1  # on_error 收到一次
+    assert isinstance(errors[0], TimeoutError)
+    assert sub.frames == 0  # 出错不计帧
+
+
+def test_poll_exception_does_not_break_the_run_loop() -> None:
+    """轮询异常按暂时性处理：交给 `on_error` 后继续下一轮，`run()` 不退出。
+
+    若异常直接弹出循环，`on_error` 只会收到 1 次；收到 2 次说明循环继续了。
+    """
+
+    transport = ExplodingPollTransport()
+    client = _client(transport)
+    errors: list[BaseException] = []
+
+    def handler(exc: BaseException) -> None:
+        errors.append(exc)
+        if len(errors) >= 2:
+            sub.stop()
+
+    sub = client.quotes.subscribe("sz000001", lambda record: None, on_error=handler)
+    sub.run()
+
+    assert len(errors) == 2
+    assert transport.poll_calls == 2
+
+
+def test_poll_exception_still_propagates_without_on_error() -> None:
+    """未设置 `on_error` 时保留向上抛错的行为，不静默吞掉。"""
+
+    transport = ExplodingPollTransport(TimeoutError("poll timed out"))
+    client = _client(transport)
+    sub = client.quotes.subscribe("sz000001", lambda record: None)
+    with pytest.raises(TimeoutError):
+        sub.run_once()
+
+
 def test_subscribe_hq_is_alias() -> None:
     client = _client(ScriptedPushTransport([]))
     sub = client.quotes.subscribe_hq("sz000001", lambda record: None)

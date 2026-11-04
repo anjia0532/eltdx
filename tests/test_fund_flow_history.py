@@ -15,14 +15,17 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from eltdx._native_models import response_from_dto
 from eltdx.api.bars import BarApi
+from eltdx.protocol.unit import NON_OHLC_PERIOD_ALIASES
 from eltdx.api.money_flow import F10_HISTORY_ENTRY, MoneyFlowApi
 from eltdx.exceptions import TransportError
 from eltdx.models import FundFlowHistoryRecord, FundFlowHistorySeries
@@ -339,3 +342,68 @@ def test_bar_api_rejects_the_flow_period_and_points_at_the_money_flow_api() -> N
     api = BarApi(_NullTransport())
     with pytest.raises(ValueError, match="money_flow.history"):
         api.get("sz000001", period="flow")
+
+
+class _NoIoTransport:
+    """任何 I/O 都判失败：用于证明拒绝发生在请求之前。"""
+
+    def execute(self, command: int, payload: dict):  # pragma: no cover - 不该被调用
+        raise AssertionError("bar API reached the transport before validating the period")
+
+
+@pytest.mark.parametrize(
+    "period",
+    [
+        "flow",
+        "fund_flow",
+        "zjlx",
+        # 协议层 `Period::normalize` 先做 to_lowercase()，这些写法同样落到 category 22
+        "FLOW",
+        "Fund_Flow",
+        "ZJLX",
+        "  flow  ",
+    ],
+)
+def test_bar_api_rejects_every_non_ohlc_period_alias(period: str) -> None:
+    """回归：`BarApi.get()` 只拦 `"flow"`，另两个别名会遗漏检查并继续走 7709。
+
+    协议层把 `category 22` 映射成历史资金流并接受 `flow` / `fund_flow` / `zjlx`
+    三个别名，Python 侧若只按字符串精确匹配一个，换个写法就会得到空 payload
+    并被误判为「该股没有 K 线数据」。
+    """
+
+    api = BarApi(_NoIoTransport())
+    with pytest.raises(ValueError, match="money_flow.history"):
+        api.get("sz000001", period=period)
+
+
+@pytest.mark.parametrize("period", ["day", "1d", "5m", "1m", "week", "month", "60m"])
+def test_bar_api_still_accepts_ohlc_periods(period: str) -> None:
+    """修复不能把正常周期一起拦掉：这些应通过校验并走到 transport。"""
+
+    api = BarApi(_NoIoTransport())
+    with pytest.raises(AssertionError, match="before validating the period"):
+        api.get("sz000001", period=period)
+
+
+def test_non_ohlc_alias_set_matches_the_protocol_table() -> None:
+    """契约：Python 的别名集合必须与 Rust `Period::normalize` 的 `(22, _)` 行一致。
+
+    本轮评审的遗漏根因就是两边各自维护、没有同步。Rust 侧新增或删除别名时这条
+    测试会失败，逼着 Python 同步更新。
+    """
+
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "crates"
+        / "eltdx-protocol"
+        / "src"
+        / "unit.rs"
+    ).read_text(encoding="utf-8")
+    lines = [line for line in source.splitlines() if "new(22" in line]
+    assert len(lines) == 1, f"unit.rs 中 (22, _) 的映射行应恰好一条，实际 {len(lines)} 条"
+    aliases = set(re.findall(r'"([^"]+)"', lines[0].split("=>")[0]))
+    assert aliases == set(NON_OHLC_PERIOD_ALIASES), (
+        "Python 的 NON_OHLC_PERIOD_ALIASES 与 Rust 协议表不一致："
+        f"Rust={sorted(aliases)} Python={sorted(NON_OHLC_PERIOD_ALIASES)}"
+    )

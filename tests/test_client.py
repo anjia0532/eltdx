@@ -1,6 +1,7 @@
 from dataclasses import replace
 from datetime import date, datetime
 from threading import Barrier, Lock
+from pathlib import Path
 
 import pytest
 
@@ -39,7 +40,7 @@ def local_probe_results(tmp_path, monkeypatch):
 
 
 def test_version_is_defined() -> None:
-    assert __version__ == "3.4.8"
+    assert __version__ == "3.3.2"
 
 
 def test_packaged_server_hosts_load_from_json() -> None:
@@ -2314,6 +2315,205 @@ def test_finance_batch_field_filter_is_local() -> None:
     ]
 
 
+class _MissingBatchTransport:
+    """Feed deterministic server payloads through the real native parser."""
+
+    def __init__(self, missing=(), *, error=None, corrupt_single=False, foreign_single=False):
+        self.missing = set(missing)
+        self.error = error
+        self.corrupt_single = corrupt_single
+        self.foreign_single = foreign_single
+        self.requests = []
+
+    def execute(self, command, payload):
+        import struct
+        from eltdx.protocol import ResponseFrame, decode_response, parse_command_response
+        from eltdx.protocol.unit import split_code
+
+        codes = payload["codes"]
+        self.requests.append(list(codes))
+        if self.error is not None:
+            raise self.error
+        records = []
+        for code in codes:
+            market_id, market, number = split_code(code)
+            if command == 0x0010:
+                record = bytes([market_id]) + number.encode() + bytes(136)
+                if code in self.missing:
+                    record = (b'\x01tyle["' + bytes(136)) if len(codes) > 1 or self.corrupt_single else bytes(143)
+            else:
+                fixture = Path(__file__).parent / "fixtures/7709/snapshots/normal/response.bin"
+                record = decode_response(fixture.read_bytes()).data[4:]
+                record = bytes([market_id]) + number.encode() + record[7:]
+                if code in self.missing:
+                    if self.foreign_single and len(codes) == 1:
+                        record = decode_response(fixture.read_bytes()).data[4:]
+                    else:
+                        continue
+            records.append(record)
+        data = struct.pack("<H", len(records)) + b"".join(records)
+        if command == 0x054C:
+            data = b"\0\0" + data
+        frame = ResponseFrame(1, 1, command, len(data), len(data), data, b"")
+        return parse_command_response(command, frame, payload)
+
+
+def _batch_api(transport, kind):
+    from eltdx.api.corporate import CorporateApi
+    from eltdx.api.quotes import QuoteApi
+
+    return CorporateApi(transport).finance_batch if kind == "finance" else QuoteApi(transport).get_snapshots
+
+
+@pytest.mark.parametrize("kind", ["finance", "snapshot"])
+@pytest.mark.parametrize("position", [0, 4, 9])
+def test_batch_skip_isolates_missing_code_preserving_good_records(kind, position):
+    from eltdx.exceptions import MissingCodesWarning
+
+    codes = [f"sh{600000 + i:06d}" for i in range(10)]
+    missing = codes[position]
+    transport = _MissingBatchTransport([missing])
+    with pytest.warns(MissingCodesWarning, match=missing):
+        result = _batch_api(transport, kind)(codes, on_missing="skip")
+    rows = result.records if kind == "finance" else result
+    assert [r.full_code for r in rows] == [c for c in codes if c != missing]
+    if kind == "finance":
+        assert result.raw_payload == b""
+
+
+@pytest.mark.parametrize("kind", ["finance", "snapshot"])
+def test_batch_default_raises_with_all_confirmed_missing_codes(kind):
+    from eltdx.exceptions import MissingCodesError
+
+    codes = ["sh600000", "sh600001", "sh600002", "sh600003"]
+    with pytest.raises(MissingCodesError) as caught:
+        _batch_api(_MissingBatchTransport([codes[0], codes[-1]]), kind)(codes)
+    assert caught.value.missing_codes == (codes[0], codes[-1])
+
+
+@pytest.mark.parametrize("kind", ["finance", "snapshot"])
+def test_batch_skip_single_missing_returns_empty_with_warning(kind):
+    from eltdx.exceptions import MissingCodesWarning
+
+    with pytest.warns(MissingCodesWarning):
+        result = _batch_api(_MissingBatchTransport(["sh600000"]), kind)(["sh600000"], on_missing="skip")
+    assert (result.count if kind == "finance" else len(result)) == 0
+
+
+@pytest.mark.parametrize("kind", ["finance", "snapshot"])
+def test_batch_transport_error_is_never_split_or_suppressed(kind):
+    from eltdx.exceptions import ResponseTimeoutError
+
+    transport = _MissingBatchTransport(error=ResponseTimeoutError("timed out"))
+    with pytest.raises(ResponseTimeoutError, match="timed out"):
+        _batch_api(transport, kind)(["sh600000", "sh600001"], on_missing="skip")
+    assert len(transport.requests) == 1
+
+
+def test_finance_corrupt_single_record_is_not_treated_as_missing():
+    from eltdx.exceptions import ProtocolError
+
+    transport = _MissingBatchTransport(["sh600000"], corrupt_single=True)
+    with pytest.raises(ProtocolError, match="finance"):
+        _batch_api(transport, "finance")(["sh600000"], on_missing="skip")
+
+
+def test_snapshot_corrupt_single_marker_is_not_treated_as_missing():
+    from eltdx.exceptions import ProtocolError
+
+    transport = _MissingBatchTransport(error=ProtocolError("snapshot record marker not found: sh600000"))
+    with pytest.raises(ProtocolError, match="marker"):
+        _batch_api(transport, "snapshot")(["sh600000"], on_missing="skip")
+    assert len(transport.requests) == 1
+
+
+def test_snapshot_skip_does_not_swallow_garbage_after_zero_count():
+    from eltdx.exceptions import ProtocolError
+    from eltdx.protocol import ResponseFrame, parse_command_response
+
+    class CorruptEmptyTransport:
+        def execute(self, command, payload):
+            data = b"\0\0\0\0garbage-record-body"
+            frame = ResponseFrame(1, 1, command, len(data), len(data), data, b"")
+            return parse_command_response(command, frame, payload)
+
+    with pytest.raises(ProtocolError, match="trailing"):
+        _batch_api(CorruptEmptyTransport(), "snapshot")(["sh600001"], on_missing="skip")
+
+
+@pytest.mark.parametrize("kind", ["finance", "snapshot"])
+def test_healthy_batch_requires_only_one_request(kind):
+    transport = _MissingBatchTransport()
+    result = _batch_api(transport, kind)(["sh600001", "sh600002"])
+    rows = result.records if kind == "finance" else result
+    assert [row.full_code for row in rows] == ["sh600001", "sh600002"]
+    assert len(transport.requests) == 1
+
+
+@pytest.mark.parametrize("kind", ["finance", "snapshot"])
+def test_batch_recovery_preserves_duplicate_input_codes(kind):
+    from eltdx.exceptions import MissingCodesWarning
+
+    transport = _MissingBatchTransport(["sh600002"])
+    with pytest.warns(MissingCodesWarning, match="sh600002"):
+        result = _batch_api(transport, kind)(["sh600001", "sh600002", "sh600001"], on_missing="skip")
+    rows = result.records if kind == "finance" else result
+    assert [row.full_code for row in rows] == ["sh600001", "sh600001"]
+
+
+def test_finance_missing_policy_preserves_local_field_filter():
+    from eltdx.exceptions import MissingCodesWarning
+
+    with pytest.warns(MissingCodesWarning, match="sh600002"):
+        result = _batch_api(_MissingBatchTransport(["sh600002"]), "finance")(
+            ["sh600001", "sh600002"], fields=["流通股本"], on_missing="skip"
+        )
+    assert result == [{"full_code": "sh600001", "流通股本": 0.0}]
+
+
+def test_snapshot_foreign_single_reply_does_not_leak_into_partial_results():
+    from eltdx.exceptions import MissingCodesWarning
+
+    transport = _MissingBatchTransport(["sh600002"], foreign_single=True)
+    with pytest.warns(MissingCodesWarning, match="sh600002"):
+        result = _batch_api(transport, "snapshot")(["sh600001", "sh600002"], on_missing="skip")
+    assert [r.full_code for r in result] == ["sh600001"]
+
+
+def test_healthy_finance_include_raw_keeps_original_payload():
+    result = _batch_api(_MissingBatchTransport(), "finance")(["sh600001"], include_raw=True)
+    assert result.raw_payload == b"\x01\x00\x01600001" + bytes(136)
+
+
+@pytest.mark.parametrize("kind", ["finance", "snapshot"])
+def test_batch_recovery_has_a_hard_request_budget(kind):
+    from eltdx.exceptions import ProtocolError
+
+    codes = [f"sh{600000 + i:06d}" for i in range(80)]
+    transport = _MissingBatchTransport(codes)
+    with pytest.raises(ProtocolError, match="budget"):
+        _batch_api(transport, kind)(codes, on_missing="skip")
+    assert len(transport.requests) == 33  # initial request + at most 32 recovery requests
+
+
+@pytest.mark.parametrize("kind", ["finance", "snapshot"])
+def test_batch_recovery_ignores_unrelated_protocol_errors(kind):
+    from eltdx.exceptions import ProtocolError
+
+    transport = _MissingBatchTransport(error=ProtocolError("unrelated decoder error"))
+    with pytest.raises(ProtocolError, match="unrelated"):
+        _batch_api(transport, kind)(["sh600000", "sh600001"], on_missing="skip")
+    assert len(transport.requests) == 1
+
+
+@pytest.mark.parametrize("kind", ["finance", "snapshot"])
+def test_batch_invalid_missing_policy_fails_before_network(kind):
+    transport = _MissingBatchTransport()
+    with pytest.raises(ValueError, match="on_missing"):
+        _batch_api(transport, kind)(["sh600000"], on_missing="ignore")
+    assert transport.requests == []
+
+
 def test_socket_transport_has_no_legacy_reader_or_socket_owner_paths() -> None:
     transport = SocketTransport(hosts=["127.0.0.1:1"], timeout=0.01)
 
@@ -2331,3 +2531,38 @@ def test_socket_transport_has_no_legacy_reader_or_socket_owner_paths() -> None:
             "_heartbeat_loop",
         )
     )
+
+
+def test_convertible_bond_kline_full_pagination_is_chronological_and_has_no_fake_raw():
+    from eltdx.models import KlineBar, KlineSeries
+    from eltdx.api.bars import BarApi
+    def bar(day):
+        return KlineBar(datetime(2026, 10, day, 15), 100, 100, 100, 100,
+                        100000, 100000, 100000, 100000, None,
+                        0, 0, 1, .01, 1000, 0, 0, 0, 0)
+    class Transport:
+        calls = []
+        def execute(self, command, payload):
+            self.calls.append(payload['start'])
+            rows = {0: (bar(26), bar(27)), 2: (bar(23),), 3: ()}[payload['start']]
+            return KlineSeries(exchange='sh', market_id=1, code='113692', period_raw=4,
+                               period_param_raw=1, period_name='day', start=payload['start'],
+                               request_count=payload['count'], adjust_mode_raw=0, adjust_mode='none',
+                               anchor_date_raw=0, anchor_date=None, bars=rows, raw_payload=b'one-page-only')
+    transport = Transport()
+    page = BarApi(transport).get('sh113692', all_pages=True, page_size=2)
+    assert [b.time.day for b in page.bars] == [23, 26, 27]
+    assert page.count == 3 and transport.calls == [0, 2, 3]
+    assert page.raw_payload == b''
+
+
+@pytest.mark.parametrize('code', ['110076', '113692', '118075'])
+def test_convertible_bare_code_loads_shanghai_precision_metadata(monkeypatch, code):
+    client = TdxClient.in_memory()
+    markets = []
+    monkeypatch.setattr(client.codes, 'all', lambda market: markets.append(market) or [])
+    try:
+        client._ensure_decimals([code])
+        assert markets == ['sh']
+    finally:
+        client.close()

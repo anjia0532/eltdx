@@ -116,6 +116,9 @@ F10 走 `7615/TQLEX` HTTP 网关，**不需要 7709 连接**；个股、ETF / �
 | `limit-board` | 涨跌停列表（`--date`） |
 | `fund` | ETF / 场外基金 30 个分区（`industry_allocation` / `bond_allocation` / `futures_allocation` 不传 `--date` 自动取最新报告期） |
 | `market` | 板块 / 指数 / 大盘 26 个分区（`market_new_shares` / `market_capital` / `ipo_calendar` 可省略 CODE；指数两融用 `market_margin_summary` / `market_margin_investors`；指数估值用 `index_valuation`） |
+| `news-channels` | 资讯频道清单（84 个，含分组中文名），不请求网关 |
+| `market-news` | 首页要闻流（`--tab`：1 滚动 / 2 今日焦点 / 3 要闻速递 / 4 正面 / 5 负面 / 6 精华 / 7 最新提示 / 9 机构调研） |
+| `channel-news` | 按频道号取栏目资讯（`--channel`，取值见 `eltdx f10 news-channels`） |
 
 | 选项 | 说明 |
 | --- | --- |
@@ -175,7 +178,7 @@ eltdx ipo -o table
 
 | 命令 | 说明 |
 | --- | --- |
-| `ex markets` | 市场表（服务端普遍不支持，自动回退本地 `ExMarket` 枚举） |
+| `ex markets [--probe-server]` | 默认显示本地 `ExMarket` 市场表；添加 `--probe-server` 才查询服务器，不支持时回退本地枚举 |
 | `ex count [--market N]` | 全市场标的数 / 某市场标的数 |
 | `ex info [--start] [--count]` | 按全局偏移分页取标的 |
 | `ex quote --market N CODE` | 单合约行情 |

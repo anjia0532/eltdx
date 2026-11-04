@@ -217,6 +217,7 @@ pub fn parse_today_ticks_payload(
         request.start,
         None,
         TickTailKind::Unknown,
+        &request.code,
     )?;
     ensure_consumed(payload, offset, "today ticks")?;
     Ok(TradePage {
@@ -253,6 +254,7 @@ pub fn parse_historical_ticks_payload(
         request.start,
         Some(trading_date),
         TickTailKind::Reserved,
+        &request.code,
     )?;
     ensure_consumed(payload, offset, "historical ticks")?;
     Ok(TradePage {
@@ -277,7 +279,13 @@ fn parse_tick_records(
     start: u16,
     trading_date: Option<DateParts>,
     tail_kind: TickTailKind,
+    code: &NormalizedCode,
 ) -> Result<(Vec<TradeTick>, usize), ProtocolError> {
+    // Tick and quote precision are different wire contracts: convertible-bond
+    // ticks carry milli-yuan even when the quote table advertises decimal=4.
+    // Keep other instruments on their existing contract in this focused fix.
+    let convertible = code.is_convertible_bond();
+    let price_scale = if convertible { 1000.0 } else { 100.0 };
     let mut price_acc_raw = 0_i64;
     let mut ticks = Vec::with_capacity(record_count);
     let mut last_time_label: Option<(u16, Arc<str>)> = None;
@@ -303,8 +311,12 @@ fn parse_tick_records(
         price_acc_raw = price_acc_raw
             .checked_add(price_delta_raw)
             .ok_or_else(|| ProtocolError::invalid_data("ticks", "tick price overflow"))?;
-        let price = price_acc_raw as f64 / 100.0;
-        let price_milli = python_round_to_i64(price * 1_000.0)?;
+        let price = price_acc_raw as f64 / price_scale;
+        let price_milli = if convertible {
+            price_acc_raw
+        } else {
+            python_round_to_i64(price * 1_000.0)?
+        };
         let point_index = u16::try_from(index)
             .map_err(|_| ProtocolError::invalid_data("ticks", "tick index overflow"))?;
         let absolute_index = u32::from(start)
@@ -577,6 +589,40 @@ mod tests {
             history.ticks[0].trade_datetime,
             Some(value) if value.utc_offset_seconds.is_none()
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn convertible_tick_prices_are_milli_yuan_in_both_commands() -> Result<(), ProtocolError> {
+        for code in [
+            "sh110076", "sh113692", "sh118075", "sz123288", "sz127089", "sz128136",
+        ] {
+            crate::unit::register_security_decimal(code, 4);
+            let payload = [1, 0, 0x50, 0x03, 0x0a, 0x14, 0x03, 0x00, 0x00];
+            let today = parse_today_ticks_payload(
+                &payload,
+                TodayTicksRequest::new(NormalizedCode::parse(code)?, 7, 1)?,
+            )?;
+            assert_eq!(today.ticks[0].price, 0.01);
+            assert_eq!(today.ticks[0].price_milli, 10);
+            assert_eq!(today.ticks[0].price_acc_raw, 10);
+            assert_eq!(today.ticks[0].absolute_index, 7);
+            assert_eq!(today.ticks[0].volume, 20);
+            let mut history_payload = vec![1, 0];
+            history_payload.extend_from_slice(&35.5_f32.to_le_bytes());
+            history_payload.extend_from_slice(&payload[2..]);
+            let history = parse_historical_ticks_payload(
+                &history_payload,
+                HistoricalTicksRequest::new(
+                    NormalizedCode::parse(code)?,
+                    DateParts::new(2026, 10, 27)?,
+                    7,
+                    1,
+                )?,
+            )?;
+            assert_eq!(history.ticks[0].price, today.ticks[0].price);
+            assert_eq!(history.ticks[0].price_milli, today.ticks[0].price_milli);
+        }
         Ok(())
     }
 

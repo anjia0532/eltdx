@@ -4,7 +4,7 @@ site_description: Rust 驱动 7709 行情与 7615 F10 的 Python 客户端
 repo_url: https://github.com/electkismet/eltdx
 repo_name: electkismet/eltdx
 edit_uri: edit/main/docs/
-copyright: 仅用于个人学习、协议兼容性与数据解析研究
+copyright: 仅供个人学习、数据接口与格式研究及非商业用途使用；完整条款见 LICENSE
 exclude_docs: /README.md
 
 theme:
@@ -61,15 +61,7 @@ nav:
   - 接口目录: index.md
   - 使用指南:
       - 产品与能力: PRODUCT.md
-      - 通达信 TQ 能力对照: TDX_TQ_CAPABILITY_MAP.md
-      - v3.4.8 发布说明: releases/v3.4.8.md
-      - v3.4.7 发布说明: releases/v3.4.7.md
-      - v3.4.6 发布说明: releases/v3.4.6.md
-      - v3.4.5 发布说明: releases/v3.4.5.md
-      - v3.4.3 发布说明: releases/v3.4.3.md
-      - v3.4.2 发布说明: releases/v3.4.2.md
-      - v3.4.1 发布说明: releases/v3.4.1.md
-      - v3.4.0 发布说明: releases/v3.4.0.md
+      - v3.3.2 发布说明: releases/v3.3.2.md
       - v3.3.1 发布说明: releases/v3.3.1.md
       - v3.3.0 发布说明: releases/v3.3.0.md
       - v3.2.3 发布说明: releases/v3.2.3.md
@@ -88,6 +80,7 @@ nav:
       - v3.0.2 发布说明: releases/v3.0.2.md
       - v3.0.1 发布说明: releases/v3.0.1.md
       - v3.0.0 发布说明: releases/v3.0.0.md
+      - 批量缺失处理: BATCH_MISSING.md
       - 调用方法: METHOD_REFERENCE.md
       - API 参考: API_REFERENCE.md
       - 调用示例: EXAMPLES.md
@@ -99,6 +92,9 @@ nav:
   - 7615 F10: F10_7615.md
   - 扩展能力:
       - 扩展行情与 MAC: EXTENDED_MARKET.md
+      - EX、MAC、MAC-EX 接口单页: extended/README.md
+      - 扩展枚举与字段位图: extended/枚举与字段位图.md
+      - 扩展返回模型: extended/返回模型.md
       - 本地行情文件: OFFLINE.md
       - 专业财报: FINANCIAL.md
   - Helpers: helpers/README.md
@@ -112,12 +108,10 @@ nav:
       - 实时榜单: helpers/实时榜单.md
       - 板块行情: helpers/板块行情.md
       - 板块成分股行情: helpers/板块成分股行情.md
-      - 板块分红成份: helpers/板块分红成份.md
       - 买卖力道: helpers/买卖力道.md
       - 成交对比: helpers/成交对比.md
       - 连板天梯: helpers/连板天梯.md
       - 题材强度排行: helpers/题材强度排行.md
-      - 指数与新股: helpers/指数与新股.md
       - 全市场统计: helpers/全市场统计.md
       - 当日资金流: helpers/当日资金流.md
   - MCP: MCP.md
@@ -136,6 +130,7 @@ nav:
       - GitHub Pages: GITHUB_PAGES.md
 
 not_in_nav: |
+  extended/*.md
   methods/*.md
   helpers/*.md
   releases/*.md

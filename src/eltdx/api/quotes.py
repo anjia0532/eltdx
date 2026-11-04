@@ -6,13 +6,18 @@ from collections.abc import Iterable, Sequence
 from typing import Any
 
 from .base import ApiBase
+from ._batch import recover_batch
 from .subscription import ErrorCallback, QuoteCallback, QuoteSubscription
 
 
 class QuoteApi(ApiBase):
-    def get_snapshots(self, codes: str | Sequence[str]):
+    def get_snapshots(self, codes: str | Sequence[str], *, on_missing: str = "raise"):
         code_list = [codes] if isinstance(codes, str) else list(codes)
-        return self._execute_priced("snapshots", codes=code_list, price_codes=code_list)
+        return recover_batch(
+            code_list,
+            lambda part: self._execute_priced("snapshots", codes=part, price_codes=part),
+            kind="snapshot", on_missing=on_missing,
+        )
 
     def legacy(self, codes: str | Sequence[str]):
         """Query the old-style batch quote interface (0x053E)."""

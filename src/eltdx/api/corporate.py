@@ -15,6 +15,7 @@ from eltdx.protocol.constants import (
 from eltdx.protocol.unit import normalize_code
 
 from .base import ApiBase
+from ._batch import recover_batch
 
 
 FINANCE_FIELD_ALIASES = {
@@ -148,9 +149,14 @@ class CorporateApi(ApiBase):
         fields: Sequence[str] | None = None,
         *,
         include_raw: bool = False,
+        on_missing: str = "raise",
     ):
         code_list = [codes] if isinstance(codes, str) else list(codes)
-        batch = self._execute("finance_batch", codes=code_list, include_raw=include_raw)
+        batch = recover_batch(
+            code_list,
+            lambda part: self._execute("finance_batch", codes=part, include_raw=include_raw),
+            kind="finance", on_missing=on_missing,
+        )
         if fields is None:
             return batch
         if not hasattr(batch, "records"):

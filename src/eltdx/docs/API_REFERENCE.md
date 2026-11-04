@@ -275,7 +275,10 @@ client.codes.all_a_shares()
 
 ## `client.quotes`
 
-### `client.quotes.get_snapshots(codes)`
+### `client.quotes.get_snapshots(codes, *, on_missing="raise")`
+
+v3.3.2 新增 `on_missing`：默认 `"raise"`，确认缺失时抛 `MissingCodesError`；`"skip"` 返回有效记录并发出 `MissingCodesWarning`。最多追加 32 次二分恢复请求，损坏单只 / 超时仍报错；财务重组结果的 `raw_payload` 为空。自 v3.3.2 起可用，详见 [批量缺失处理](BATCH_MISSING.md)。
+
 
 按指定代码列表查询当前行情，包含买一 / 卖一盘口。需要完整行情和五档盘口时，使用 `client.helpers.full_quotes()`；单独查询五档数据时，使用 `client.quotes.get_depth()`。
 
@@ -552,7 +555,10 @@ client.corporate.adjustment_factors(
 
 应用到本地不复权 K 线时，必须以第一根 K 线日期设置 `start_date`；前复权选择第一条满足 `bar_date < factor.date` 的系数，后复权选择最后一条满足 `factor.date <= bar_date` 的系数，再计算 `round(raw * scale + offset, 2)`。本地计算与服务端复权价格可能存在差异，已知样本中约为 `0.01～0.02` 元。直接获取服务端复权 K 线时，使用 `client.bars.get(..., adjust="none" / "qfq" / "hfq")`。
 
-### `finance_batch(codes, fields=None, include_raw=False)`
+### `finance_batch(codes, fields=None, *, include_raw=False, on_missing="raise")`
+
+v3.3.2 新增 `on_missing`：默认 `"raise"`，确认缺失时抛 `MissingCodesError`；`"skip"` 返回有效记录并发出 `MissingCodesWarning`。最多追加 32 次二分恢复请求，损坏单只 / 超时仍报错；财务重组结果的 `raw_payload` 为空。自 v3.3.2 起可用，详见 [批量缺失处理](BATCH_MISSING.md)。
+
 
 批量查询财务字段，对应 `0x0010`。`fields` 只过滤本地返回字段，底层仍请求完整记录。
 
@@ -636,6 +642,24 @@ ETF / 场外基金、板块 / 指数 / 大盘共用同一批方法，靠 `code` 
 ```python
 client.f10.call("CWServ.tdxf10_gg_gsgk", params=["8", "000034", ""])
 ```
+
+### 市场资讯
+
+资讯流不按 `code` + `section` 分派，单独三个方法（均返回 `F10Response`）：
+
+| 调用方法 | 返回内容 | 底层 Entry |
+| --- | --- | --- |
+| `market_news(tab=3, *, page=1, page_size=50)` | 首页要闻流；`tab` 取 1 滚动 / 2 今日焦点 / 3 要闻速递 / 4 正面 / 5 负面 / 6 精华 / 7 最新提示 / 9 机构调研 | `CWServ.tdxi_zxxwsy` |
+| `channel_news(channel, *, page=1, page_size=50, query1="1", keyword="")` | 按频道号取栏目资讯（共 84 个频道） | `CWServ.tdxi_zxxwnews` |
+| `news_channels()` | 全部频道 `[(频道号, 栏目名), ...]`；静态枚举，不发请求 | — |
+
+```python
+client.f10.market_news(tab=3, page_size=50)
+client.f10.news_channels()             # [(200, "最新"), ...]
+client.f10.channel_news(201, page=2)   # 财经要闻第 2 页
+```
+
+详见 [methods/F10-市场资讯.md](methods/F10-市场资讯.md)。
 
 完整 F10 方法表见 [F10_7615.md](F10_7615.md)。
 
@@ -721,14 +745,16 @@ with ExTdxClient.from_best_host() as client:
 > 早期文档曾把它写成 `get_instrument_bars(market, code)`，那是**错的**——会把 market 当成
 > category，请以 `EXTENDED_MARKET.md` 的签名为准。
 
-> **不要用 `get_markets()` 做首条调用。** 实测所有内置主站都不回应 `0x23f4`，
+> **不要用 `get_markets()` 做首条调用。** 2026-10 采样的内置主站未回应 `0x23f4`，
 > 该调用只会阻塞到超时；这与 eltdx 无关——easy_tdx 1.20.7 在同一主机上同样超时，
 > 且两者请求帧逐字节相同。需要市场清单请直接用 `ExMarket` 枚举。
 > 证据链见 [EXTENDED_MARKET.md](EXTENDED_MARKET.md)。
 
-`ExTdxClient` 提供 `get_markets` / `get_instrument_count` / `get_instrument_info` / `get_instrument_quote` / `get_instrument_quote_list` / `get_instrument_bars` / `history_instrument_bars_range` / `minute_time` / `history_minute_time` / `transaction` / `history_transaction`；港股逐笔自动翻页。`ExMarket` 枚举描述支持的扩展市场。详见 [EXTENDED_MARKET.md](EXTENDED_MARKET.md)。
+`ExTdxClient` 提供 `get_markets` / `get_instrument_count` / `get_instrument_info` / `get_instrument_quote` / `get_instrument_quote_list` / `get_instrument_bars` / `get_history_instrument_bars_range` / `get_minute_time_data` / `get_history_minute_time_data` / `get_transaction_data` / `get_history_transaction_data`；均为单次请求，不自动翻页。港股分页封装在 `MacExClient.goods_transaction` / `goods_transaction_all`。`ExMarket` 枚举描述支持的扩展市场。完整参数、返回字段及分页规则见 [EX / MAC / MAC-EX 单页索引](extended/README.md)，通道概览见 [EXTENDED_MARKET.md](EXTENDED_MARKET.md)。
 
 ## MAC 协议 `eltdx.mac` 与 MAC-EX `eltdx.ex.MacExClient`
+
+`MacClient.get_transactions`（`0x122F`）已有真实秒字段，支持当日和历史日期，但可聚合多笔；标准 `0x0FC5 / 0x0FC6` 的分钟字段不代表整个库只有分钟。详见 [MAC 成交明细](extended/mac-get_transactions.md)。
 
 MAC 协议（0x1c 帧）覆盖批量报价、分类排行、复权 K 线、多日分时、逐笔、板块、集合竞价、异动等。
 
@@ -745,7 +771,7 @@ with MacClient() as client:
 > `get_stock_kline` 的前两个位置参数是 `market, code`，且周期枚举叫 `Period.DAILY`
 > （没有 `Period.DAY`）。
 
-MAC-EX（`from eltdx.ex import MacExClient`）在扩展行情连接上使用 MAC 风格命令（登录 `0x2454` + goods 系列）。详见 [EXTENDED_MARKET.md](EXTENDED_MARKET.md)。
+MAC-EX（`from eltdx.ex import MacExClient`）在扩展行情连接上使用 MAC 风格命令（登录 `0x2454` + goods 系列）。完整参数、返回字段及分页规则见 [EX / MAC / MAC-EX 单页索引](extended/README.md)，通道概览见 [EXTENDED_MARKET.md](EXTENDED_MARKET.md)。
 
 ## 本地行情文件 `eltdx.offline`
 

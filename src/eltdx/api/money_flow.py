@@ -1,4 +1,4 @@
-"""Money-flow API: 7709 daily snapshots plus the 7615 TQLEX history channel."""
+"""7709 daily money-flow API."""
 
 from __future__ import annotations
 
@@ -15,6 +15,13 @@ from eltdx.protocol.unit import normalize_code, split_code
 
 from .base import ApiBase, _weak_callback
 
+
+#: 单只标的一次故障转移最多试用的备用主机数（避免新股在几十台主机上全试一遍）。
+_MAX_PROBES_PER_CODE = 3
+#: 整批预算按前 N 只标的计算：更靠后的票即使全空也不再重试，天然给连接数封顶。
+_BUDGET_CODE_CAP = 8
+
+
 #: 7615 TQLEX 历史资金流向 Entry（``zjlx`` 给 20 日，``zjlx_sj`` 给 3/5/10/20/60 日）。
 F10_HISTORY_ENTRY = "CWServ.tdxf10_gg_sj"
 #: 服务端接受的历史窗口步长。
@@ -23,12 +30,6 @@ HISTORY_DAY_STEPS = (3, 5, 10, 20, 60)
 F10_REQUIRED_MESSAGE = (
     "money_flow.history 需要 7615 F10 通道：请通过 TdxClient 使用，或传入 f10_factory"
 )
-
-
-#: 单只标的一次故障转移最多试用的备用主机数（避免新股在几十台主机上全试一遍）。
-_MAX_PROBES_PER_CODE = 3
-#: 整批预算按前 N 只标的计算：更靠后的票即使全空也不再重试，天然给连接数封顶。
-_BUDGET_CODE_CAP = 8
 
 
 class _EmptyFailover:
@@ -80,9 +81,6 @@ class MoneyFlowApi(ApiBase):
         transport_factory: 可选，无参调用时返回资金流直连池；带 ``host`` 调用时返回
             只连该主机的临时池（用于空数据故障转移）。以弱引用保存，避免子服务与
             ``TdxClient`` 互持形成引用环。
-        f10_factory: 可选，无参调用时返回 7615 F10 客户端（``client.f10``），供
-            :meth:`history` 使用。同样以弱引用保存；未接线（或回调已失效）时
-            :meth:`history` 抛 ``RuntimeError``。
         candidate_hosts: 空数据时按顺序尝试的主机（已按延迟排好序）。
     """
 
@@ -182,6 +180,22 @@ class MoneyFlowApi(ApiBase):
                         return response
         return MoneyFlowBatch(tuple(blocks))
 
+    def _single(self, code: str, *, include_raw: bool, failover: _EmptyFailover | None = None):
+        response = self._active_transport().execute(
+            TYPE_MONEY_FLOW, {"code": code, "include_raw": include_raw}
+        )
+        blocks = getattr(response, "blocks", None)
+        if blocks is None:
+            # 形状不是我们认识的批量响应 —— 这**不是**「空数据」，原样返回、不触发故障转移。
+            return response
+        if len(blocks) == 1:
+            return blocks[0]
+        if blocks:
+            return response
+        # 真正的空数据：可能是这台服务器没有该数据（easy_tdx 同款韧性行为）。
+        recovered = self._recover_empty(code, include_raw=include_raw, failover=failover)
+        return response if recovered is None else recovered
+
     def history(
         self,
         code: str | Sequence[str],
@@ -261,24 +275,6 @@ class MoneyFlowApi(ApiBase):
                     series[item] = response
         return series
 
-    def _single(self, code: str, *, include_raw: bool, failover: _EmptyFailover | None = None):
-        response = self._active_transport().execute(
-            TYPE_MONEY_FLOW, {"code": code, "include_raw": include_raw}
-        )
-        blocks = getattr(response, "blocks", None)
-        if blocks is None:
-            # 形状不是我们认识的批量响应 —— 这**不是**「空数据」，原样返回、不触发故障转移。
-            return response
-        if len(blocks) == 1:
-            return blocks[0]
-        if blocks:
-            return response
-        # 真正的空数据：可能是这台服务器没有该数据（easy_tdx 同款韧性行为）。
-        recovered = self._recover_empty(
-            lambda transport: self._query(transport, code, include_raw), failover
-        )
-        return response if recovered is None else recovered
-
     def _single_history(
         self,
         code: str,
@@ -317,8 +313,10 @@ class MoneyFlowApi(ApiBase):
             raw_payload=payload,
         )
 
-    def _recover_empty(self, query, failover: _EmptyFailover | None) -> object | None:
-        """空数据时逐台主机重试，返回 ``query`` 首个非空结果；全都为空则返回 ``None``。
+    def _recover_empty(
+        self, code: str, *, include_raw: bool, failover: _EmptyFailover | None
+    ) -> object | None:
+        """空数据时逐台主机重试，返回首个有数据的结果；全都为空则返回 ``None``。
 
         **关键语义（与 easy_tdx 一致）**：新股 / 真无数据的标的在所有主机上都是空的，
         此时必须**返回空而不是抛错**，否则会把「本来就没数据」误报成故障。所以本方法
@@ -327,8 +325,6 @@ class MoneyFlowApi(ApiBase):
         封顶由 :class:`_EmptyFailover` 的**次数预算**保证（不是「整批只探一轮」的结论），
         因此首只标的全空不会连带让后面的标的跳过备用主机。候选主机按 ``cursor`` 轮转
         起点，避免整批票都去死磕 ``candidate_hosts[0]``。
-
-        ``query`` 接收一个 transport 并返回「非空结果」或 ``None``（空数据）。
         """
 
         # 「回调本身为 None」与「弱引用已解析不出来（client 已回收）」都走同一降级：
@@ -343,7 +339,7 @@ class MoneyFlowApi(ApiBase):
         total = len(candidates)
         with failover.lock:
             if failover.transport is not None:
-                result = query(failover.transport)
+                result = self._query(failover.transport, code, include_raw)
                 if result is not None:
                     # 本批已经找到过「真有数据」的主机，直接复用，不再开新连接。
                     return result
@@ -364,7 +360,7 @@ class MoneyFlowApi(ApiBase):
                 if transport is None:
                     continue
                 try:
-                    result = query(transport)
+                    result = self._query(transport, code, include_raw)
                 except TransportError:
                     # 单台主机连不上/超时不该拖垮整个查询，换下一台。
                     _close_quietly(transport)
@@ -442,7 +438,6 @@ def _batch_workers(transport, code_count: int, batch_size: int) -> int:
     if isinstance(capacity, bool) or not isinstance(capacity, int) or capacity <= 0:
         capacity = 1
     return min(code_count, batch_size, capacity)
-
 
 def _validate_history_count(value: int) -> None:
     if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= MAX_KLINE_PAGE_SIZE:

@@ -14,6 +14,18 @@ ID_TO_MARKET = {value: key for key, value in MARKET_TO_ID.items()}
 PRICING_ETF_PREFIXES = ("15", "16", "50", "51", "52", "53", "56", "58")
 SHANGHAI_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
+#: 非 OHLC 的 K 线周期别名。
+#:
+#: 协议层把 ``0x052d`` 的 ``category 22`` 映射为**历史资金流序列**而不是 OHLC，
+#: ``Period::normalize``（``crates/eltdx-protocol/src/unit.rs``）接受
+#: ``flow`` / ``fund_flow`` / ``zjlx`` 三个别名，并在比较前统一 ``to_lowercase()``。
+#:
+#: ``BarApi.get()`` 必须以**同一套别名**拒绝，否则 ``period="fund_flow"`` 会遗漏检查并
+#: 继续走 7709 K 线请求，拿回空 payload 并表现为「没有数据」。
+#: ``tests/test_fund_flow_history.py`` 有一条契约测试直接解析 ``unit.rs`` 校验本集合，
+#: 两边新增别名时必须同步。
+NON_OHLC_PERIOD_ALIASES = frozenset({"flow", "fund_flow", "zjlx"})
+
 
 def little_u16(data: bytes) -> int:
     return int.from_bytes(data, "little", signed=False)
@@ -74,6 +86,7 @@ def normalize_code(code: str) -> str:
 
     * ``5`` → 沪市基金：``51x`` ETF、``50x``/``502`` LOF、``55x``/``511`` 货币基金、
       ``56x`` 跨境 ETF、``58x`` 科创 ETF、``580``/``581``/``582`` 权证；
+    * ``110``/``113``/``118`` → 沪市可转债；
     * ``6``/``9`` → 沪市 A 股 / B 股；
     * 沪市债券段（见 :data:`_SH_BOND_PREFIXES`，如 ``019xxx`` 国债、
       ``110``/``113xxx`` 可转债）→ 沪市；
@@ -93,7 +106,7 @@ def normalize_code(code: str) -> str:
     if text.startswith("92"):
         return "bj" + text
     # 5 开头是沪市基金/ETF/权证号段（缺失时 ETF/LOF/货基会被误判为无法识别）。
-    if text.startswith(("5", "6", "9")):
+    if text.startswith(("5", "6", "9", "110", "113", "118")):
         return "sh" + text
     # 沪市债券段优先于深市判断（019 国债 / 110、113 可转债 / 120、122、124 企业债等）。
     if text[:3] in _SH_BOND_PREFIXES:

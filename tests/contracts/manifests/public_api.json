@@ -184,7 +184,7 @@
         "subscribe_hq"
       ],
       "signatures": {
-        "get_snapshots": "(self, codes)",
+        "get_snapshots": "(self, codes, *, on_missing='raise')",
         "legacy": "(self, codes)",
         "get_depth": "(self, codes)",
         "list_by_category": "(self, category, *, sort_by=None, start=0, count=80, ascending=False)",
@@ -288,7 +288,7 @@
       "signatures": {
         "adjustment_factors": "(self, code, anchor_date=None, *, start_date=None, batch_size=75)",
         "capital_changes": "(self, code, *, include_raw=False, batch_size=75)",
-        "finance_batch": "(self, codes, fields=None, *, include_raw=False)"
+        "finance_batch": "(self, codes, fields=None, *, include_raw=False, on_missing='raise')"
       }
     },
     "eltdx.api.limits:LimitApi": {

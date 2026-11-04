@@ -15,11 +15,11 @@
   <a href="https://pypi.org/project/eltdx/"><img alt="PyPI eltdx" src="https://img.shields.io/pypi/v/eltdx?label=PyPI&amp;color=0969da"></a>
   <a href="https://electkismet.github.io/eltdx/"><img alt="文档站" src="https://img.shields.io/github/actions/workflow/status/electkismet/eltdx/pages.yml?branch=main&amp;label=%E6%96%87%E6%A1%A3"></a>
   <img alt="Python 3.10+" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&amp;logoColor=white">
-  <a href="./LICENSE"><img alt="Non-Commercial Research License" src="https://img.shields.io/badge/许可-非商业研究-6f42c1"></a>
+  <a href="./LICENSE"><img alt="Non-Commercial Learning and Data Research License" src="https://img.shields.io/badge/许可-非商业学习与数据研究-6f42c1"></a>
 </p>
 
 <a href="https://electkismet.github.io/eltdx/">
-  <img alt="eltdx 接口目录预览" src=".github/assets/eltdx-readme-banner-v3.0.5.png">
+  <img alt="eltdx 接口目录预览" src=".github/assets/eltdx-readme-banner-v3.3.2.png">
 </a>
 
 <p align="center">
@@ -30,16 +30,13 @@
 
 > 如果需要多数据源可以关注新项目 [AxData](https://github.com/electkismet/AxData)：AxData 基于 eltdx 迭代开发，除通达信体系外，AxData 还通过插件机制整理接入交易所、巨潮、腾讯财经、新浪财经、东方财富、财联社、开盘红等公开源接口，并扩展了自由流通市值、开盘换手、开盘量比、开盘抢筹、竞价昨比、连板天梯、题材强度等更适合本地量化研究和短线数据分析的指标能力，但如果是用单一源的话，仍推荐eltdx，受制于架构axdata性能不如裸协议路径的eltdx。
 
-通达信在线行情协议 Python 库。可以拿 A 股的行情、分时、成交明细、K 线、竞价、公司信息、题材信息等信息，支持 MCP 工具。`3.0` 保留现有 Python API 和返回模型，将 25 个 7709 命令的构包、解析、连接池、pin、push、心跳和关闭核心统一迁入 Rust。
+通达信行情与数据 Python 库。支持 A 股行情、分时、成交明细、K 线、竞价、公司信息和题材信息；提供扩展行情（EX）、MAC / MAC-EX、基金与外盘相关接口，以及本地行情文件和专业财务数据读取能力。7709 协议核心由 Rust 实现，支持 MCP 工具和 HTTP 网关。各行情接口的数据覆盖以服务器实际支持为准。
 
-> `v2.0.0` 移除 `TdxClient` 的旧版扁平旧版入口，统一使用模块化 API 和 Helpers。升级前请阅读 [v2.0.0 迁移说明](docs/releases/v2.0.0.md)。
-
-> `v3.4.0` 把新发现的**免登录 7615 接口**合并封装：个股 F10 的股东研究、股本结构、经营分析、行业分析、交易数据、最新提示，以及 ETF / 基金、板块、指数、大盘指数 F10，全部收成 8 个按 `section` 分派的方法（旧方法只补 `section`，不新增同义方法）；`client.money_flow.history()` 改走 7615 并支持 3 / 5 / 10 / 20 / 60 日。详见 [v3.4.0 发布说明](docs/releases/v3.4.0.md)。
-
-1. 本项目仅以个人学习、协议兼容性与数据解析研究为目的进行开发。
-2. 项目本身、衍生产品及通过本项目获取的数据禁止用于任何商业行为、付费服务、生产服务、转售或其他营利用途，产生的任何数据、损失或法律责任由使用者自负。
+1. 本项目仅供个人学习、数据接口与格式研究及非商业用途使用。
+2. 禁止将本项目、衍生作品或通过本项目获取的数据用于商业活动、付费服务、生产服务、转售、营利性数据服务、自动化交易服务，或违反适用法律法规、交易所规则、第三方服务协议及他人权益的用途。
 3. 对第三方服务器或服务的访问，用户需自行遵守相关法律法规及服务协议。
-4. 请勿将本项目用于侵犯他人权益、违反监管规定或滥用第三方服务的行为。
+4. 使用者对第三方服务、通过本项目获取的数据及由此产生的法律、监管、财务和运营后果自行负责。
+5. 请勿将本项目用于侵犯他人权益、违反监管规定或滥用第三方服务的行为。
 
 感谢 [injoyai/tdx](https://github.com/injoyai/tdx) 及 [rainx/pytdx](https://github.com/rainx/pytdx) 的启发。
 
@@ -65,7 +62,6 @@ eltdx 默认按“想拿什么数据”组织入口。普通调用优先使用�
 | 板块行情与成分股 | 所有板块行情、指定板块有效成分股行情 | [`client.helpers.board_quotes()`](docs/helpers/板块行情.md) / [`client.helpers.board_member_quotes()`](docs/helpers/板块行情.md) | `0x06b9` + `0x044d` + `0x054c` |
 | 五档实时刷新 | 为代码列表建立或刷新实时五档 | [`client.quotes.get_depth()`](docs/methods/7709-增量刷新推送队列.md) | `7709 原生协议` |
 | push 队列 | 读取未匹配的实时更新帧 | [`client.quotes.poll_push()`](docs/methods/7709-增量刷新推送队列.md) | `7709 原生协议` |
-| 订阅式行情推送 | 订阅代码列表，行情每变动回调一次 | [`client.quotes.subscribe()`](docs/methods/7709-增量刷新推送队列.md) | `7709 原生协议` |
 | K 线与复权 | 分钟/日/周/月/季/年 K 线、自动分页、前/后/定点复权 | [`client.bars.get()`](docs/methods/7709-K线周期线.md) | `7709 原生协议` |
 | 退市 K 线 | 退市股票日线、不复权、批量查询、自动分页 | [`client.delisted_bars.get()`](docs/methods/7709-退市K线日线接口.md) | `0x052B 原生协议` |
 | 当日分时 | 当日每分钟价格、成交量和均价 | [`client.minutes.today()`](docs/methods/7709-当日分时.md) | `7709 原生协议` |
@@ -75,38 +71,15 @@ eltdx 默认按“想拿什么数据”组织入口。普通调用优先使用�
 | 财务基础 | 流通/总股本、EPS、资产、负债、收入和利润 | [`client.corporate.finance_batch()`](docs/methods/7709-财务基础信息.md) | `7709 原生协议` |
 | 本地复权系数 | 基于权息记录为已有不复权 K 线提供本地计算和审计系数 | [`client.corporate.adjustment_factors()`](docs/methods/7709-本地复权系数.md) | `0x000f 本地计算` |
 | 特殊品种限制 | 特殊品种涨跌停限制表 | [`client.limits.special()`](docs/methods/7709-特殊品种涨跌停限制.md) | `7709 原生协议` |
+| 市场资讯 | 首页要闻、滚动资讯、84 个资讯频道及分页 | [`client.f10.market_news()`](docs/methods/F10-首页要闻.md) / [`client.f10.channel_news()`](docs/methods/F10-频道资讯.md) / [`client.f10.news_channels()`](docs/methods/F10-资讯频道列表.md) | `7615 Entry` + 静态枚举 |
 | F10 公司概况 | 发行上市信息、上市日期、发行价、募资额和承销商 | [`client.f10.company_profile()`](docs/methods/F10-公司概况.md) | `7615 原生 Entry` |
-| 股东研究 | 股东人数与股价比较、十大股东 / 十大流通股东、控股股东、机构持股和股东增减持 | [`client.f10.shareholders()`](docs/methods/F10-股东研究.md) | `7615 原生 Entry` |
-| 股本结构 | 股本结构、股本变动、股票回购和限售解禁明细 | [`client.f10.capital_structure()`](docs/methods/F10-股本结构.md) | `7615 原生 Entry` |
-| 行业分析 | 同业对比、分红排名、规模、估值、市场份额和可比公司 | [`client.f10.industry_analysis()`](docs/methods/F10-行业分析.md) | `7615 原生 Entry` |
-| 交易数据 | 融资融券、大宗交易、龙虎榜、沪深股通、涨跌停分析和主力盘口 | [`client.f10.trading_report()`](docs/methods/F10-交易数据.md) | `7615 原生 Entry` |
-| 基金 / ETF F10 | 基金经理、规模份额、净值回报、投资组合、持股、财务和销售信息 | [`client.f10.fund_report()`](docs/methods/F10-基金与ETF.md) | `7615 原生 Entry` |
-| 板块 / 指数 / 大盘 F10 | 板块资料与前十大资金、指数概况与跟踪标的、大盘两融和新股 | [`client.f10.market_report()`](docs/methods/F10-板块与指数.md) | `7615 原生 Entry` |
-| 指数与新股 | 指数成份股清单、跟踪某个指数的全部产品、近期新股 | [`client.helpers.index_members()`](docs/helpers/指数与新股.md) | `7615` + `Helpers 封装` |
-| 板块分红成份 | 板块成份股的分红记录（方案、进度、公告 / 登记 / 除权日、报告期），按记录去重翻页 | [`client.helpers.board_members()`](docs/helpers/板块分红成份.md) | `7615` + `Helpers 封装` |
-| 最新提示 | F10 首屏提示、公司概要、大事、新闻、公告、研报、路演和投资者互动 | [`client.f10.digest()`](docs/methods/F10-公司资讯研报.md) | `7615 原生 Entry` |
-| 个股总评与深度分析 | 阶段涨幅、主力资金流、所属行业与排名、行业内排名、估值历史分位、PE/PB 估值带、年度走势、关联板块成分 | [`client.f10.stock_stage_gain()`](docs/F10_7615.md) / [`client.f10.stock_industry_rank()`](docs/F10_7615.md) / [`client.f10.stock_pepb_percentile()`](docs/F10_7615.md) | `7615 原生 Entry` |
-| 美股 / 港股 F10 | 概况、财务（按 GAAP 模板）、经营、股东、高管、行情、公告（SEC 原文地址）、评级、深度分析 | [`client.f10.mg_profile()`](docs/F10_7615.md) / [`client.f10.hk_finance()`](docs/F10_7615.md) | `7615 原生 Entry`（page2） |
-| 新三板 F10 | 概况、股本、股东、财务、行业比较、大事、资讯、合规、分红 | [`client.f10.sb_profile()`](docs/F10_7615.md) | `7615 原生 Entry`（page2） |
-| 债券 F10 | 可转债 / 国债 / 企业债 / 公司债 / 可交换债 / ABS / 国债回购共 9 类：概况、财务、评级、担保、利率、条款、转股、公告 | [`client.f10.bond_profile()`](docs/F10_7615.md) / [`client.f10.gz_interest()`](docs/F10_7615.md) | `7615 原生 Entry`（page2） |
-| 行业 F10 | 行业总览、介绍、评论、成份股五类排名、板块资金、资金流向、基金持仓、分析师指数、评级汇总 | [`client.f10.hy_summary()`](docs/F10_7615.md) / [`client.f10.hy_members_rank()`](docs/F10_7615.md) | `7615 原生 Entry`（page2） |
-| 期货 F10 | 持仓报告（仓差/结构/席位/均价/盈亏）、基差价差、仓单日报、品种资料、指数估值、成份权重 | [`client.f10.qh_position_report()`](docs/F10_7615.md) | `7615 原生 Entry`（page2） |
-| 宏观指标 | GDP / CPI / PPI / PMI / M2 / 利率等 217 个指标的最新值与历史序列（市场 38） | [`MacExClient.macro_indicators()`](docs/EXTENDED_MARKET.md) / [`MacExClient.macro_quotes()`](docs/EXTENDED_MARKET.md) | `7727 MAC_EX` |
-| 历史资金流向 | 近 3 / 5 / 10 / 20 / 60 日主力、超大单和大单净额序列 | [`client.money_flow.history()`](docs/methods/0x0ffc-资金流向日数据接口.md) | `7615 原生 Entry` |
 | 个股概念 | 某只股票所属的热点题材和入选原因 | [`client.helpers.stock_topics()`](docs/helpers/个股概念板块.md) | `7615` + `Helpers 封装` |
 | 股票信息汇总 | 行情、证券名称、股本、市值和换手率合并表 | [`client.helpers.stock_profile_table()`](docs/helpers/股票信息汇总.md) | `7709` + `Helpers 组合` |
 | 短线指标 | 竞价、开盘量比、流通股本、封单和几天几板等指标 | [`client.helpers.shortline_indicators()`](docs/helpers/短线指标.md) | `7709` + `Helpers 组合` |
 | A 股常用榜单 | 每日股本、涨跌停价、实时榜单、连板天梯和题材强度 | [`client.helpers.realtime_rank()`](docs/helpers/A股常用封装.md) | `7709` + `Helpers 组合` |
 | 服务器文件 | 按分块自动下载并合并完整文件 | [`client.resources.download_file()`](docs/methods/7709-服务器文件下载.md) | `7709 原生协议` |
-| 扩展行情 | 期货 / 期权 / 港股等非 7709 标的的市场表、标的枚举、行情、K 线、分时和逐笔 | [`eltdx.ExTdxClient`](docs/EXTENDED_MARKET.md) | `7727 扩展行情` |
-| 场外基金净值 | 开放式 / 货币 / 香港基金的单位净值快照和净值日线 | [`eltdx.MacExClient`](docs/EXTENDED_MARKET.md) | `7727 MAC_EX` |
-| MAC 协议 | MAC 主站的报价、K 线、榜单、板块、龙虎榜和资金流向 | [`eltdx.MacClient`](docs/EXTENDED_MARKET.md) | `7709 MAC` |
-| 本地行情文件 | 通达信 `vipdoc` 的日线、分钟线、权息、历史财务和板块配置 | [`eltdx.offline`](docs/OFFLINE.md) | `本地文件` |
-| 公司信息文本 F10 | F10 文本的段落目录与正文 | [`client.company_info.content()`](docs/methods/0x02d0-公司信息内容接口.md) | `0x02cf` + `0x02d0` |
-| 交易日与日历 | 判断是否交易日、取上一个 / 下一个交易日、生成日期区间 | [`client.workdays.today()`](docs/METHOD_REFERENCE.md#clientworkdays) | `7709` + 本地日历 |
-| 当日资金流向 | 每只股票当日 16 档买入 / 卖出分档金额、主力净额与占比 | [`client.money_flow.daily()`](docs/methods/0x0ffc-资金流向日数据接口.md) | `0x0ffc` |
 | 连接与并发 | 主站测速、Rust 连接池、心跳、pin、push、缓存和 diagnostics | [`TdxClient()`](docs/METHOD_REFERENCE.md#tdxclient) | `Rust Engine` |
-| MCP 工具服务 | 把常用行情、F10、竞价和文档能力暴露给 MCP 客户端；F10 结果附带按 Entry / 请求分区解析的中文字段标签 | [`eltdx-mcp`](docs/MCP.md#安装和启动) | `MCP` |
+| MCP 工具服务 | 将常用行情、F10、竞价和文档能力提供给 MCP 客户端 | [`eltdx-mcp`](docs/MCP.md#安装和启动) | `MCP` |
 | 跨语言网关 | 通过 HTTP JSON、WebSocket RPC 和实时订阅供其他语言调用 | [`eltdx-http`](docs/HTTP_GATEWAY.md) | `FastAPI` |
 
 完整接口目录见 [GitHub Pages](https://electkismet.github.io/eltdx/)。调用方法和返回字段看 [METHOD_REFERENCE.md](docs/METHOD_REFERENCE.md)，常用问题入口看 [docs/helpers/README.md](docs/helpers/README.md)，完整 API 看 [API_REFERENCE.md](docs/API_REFERENCE.md)，字段总表看 [FIELD_REFERENCE.md](docs/FIELD_REFERENCE.md)，F10 资料看 [F10_7615.md](docs/F10_7615.md)，MCP 工具看 [MCP.md](docs/MCP.md)。
@@ -117,7 +90,7 @@ eltdx 默认按“想拿什么数据”组织入口。普通调用优先使用�
 pip install eltdx
 ```
 
-`3.0` 为 CPython 3.10-3.14 提供 Windows x64、manylinux x64/ARM64、macOS x64/ARM64 五个 `cp310-abi3` wheel。匹配 wheel 时不需要安装 Rust。没有匹配 wheel 的平台会尝试从 sdist 编译，需要 Rust 1.89 工具链；3.0 不提供纯 Python 7709 fallback。PyPy、free-threaded CPython、musllinux 和其他未列出的组合不在首发支持范围。
+为 CPython 3.10-3.14 提供 Windows x64、manylinux x64/ARM64、macOS x64/ARM64 五个 `cp310-abi3` wheel。匹配 wheel 时不需要安装 Rust。没有匹配 wheel 的平台会尝试从 sdist 编译，需要 Rust 1.89 工具链；不提供纯 Python 7709 fallback。PyPy、free-threaded CPython、musllinux 和其他未列出的组合不在当前支持范围。
 
 如果需要启动 MCP stdio 工具服务，安装可选依赖：
 
@@ -153,25 +126,6 @@ pip install -e ".[dev,mcp]"
 eltdx-smoke --help
 eltdx-f10-smoke --help
 ```
-
-常用命令行入口（完整清单见 [CLI 文档](docs/CLI.md)）：
-
-```bash
-eltdx quote sz000001                                   # 实时快照
-eltdx kline sz000001 --period day --count 5 -o table    # K 线
-eltdx money-flow 000001 --days 60 -o table              # 近 60 日资金流向（7615 通道）
-eltdx f10 sections                                      # 列出 7615 F10 全部合法 --section
-eltdx f10 shareholders 688004 --section count           # 股东人数与股价比较
-eltdx f10 fund 510300 --section dividends               # ETF 基金分红
-eltdx f10 market 880472 --section board_flow            # 板块资金
-eltdx f10 call --entry CWServ.tdxf10_gg_gdyj --params '["688004","gdrs","","","1","1","20"]'
-eltdx ex count --market 33                              # 扩展行情 7727
-eltdx fund nav 016947                                   # 场外基金单位净值
-eltdx mac server-info                                   # MAC 协议
-eltdx offline day --file path/to/sz000001.day --count 5 # 本地行情文件
-```
-
-`eltdx f10` 的个股、ETF / 基金、板块、指数、大盘 action 共用同一套方法和 `--section`；`-o table / csv / jsonl` 会把 TQLEX 回包展开成数据行。扩展行情 / 场外基金 / MAC / 本地行情文件是**独立通路**，见下文。
 
 MCP 工具服务启动后会占用当前终端作为 stdio 服务：
 
@@ -259,9 +213,6 @@ print(f10.company_profile("000034").rows[0])
 | 本地复权系数 | `client.corporate.adjustment_factors()` | [`0x000f`](docs/COMMANDS_7709.md#cmd-0x000f) | 为已有本地不复权 K 线计算事件级前/后复权仿射系数 | [文档](docs/methods/7709-本地复权系数.md) |
 | 财务基础信息       | `client.corporate.finance_batch(codes)` | [`0x0010`](docs/COMMANDS_7709.md#cmd-0x0010)                                                | 批量返回流通股本、总股本、EPS、资产、负债、收入、利润等基础财务字段                            | [文档](docs/methods/7709-财务基础信息.md)     |
 | 特殊品种涨跌停限制    | `client.limits.special()`                                  | [`0x0452`](docs/COMMANDS_7709.md#cmd-0x0452)                                                | 返回特殊品种涨跌停限制表；需要按表扫描后本地索引到具体代码                                  | [文档](docs/methods/7709-特殊品种涨跌停限制.md)  |
-| 公司信息目录（F10 文本） | `client.company_info.category(code, market)` | [`0x02cf`](docs/COMMANDS_7709.md#cmd-0x02cf) | 列出该证券 F10 文本的段落目录：名称、文件名、偏移和长度 | [文档](docs/methods/0x02cf-公司信息目录接口.md) |
-| 公司信息正文（F10 文本） | `client.company_info.content(code, market, filename, offset, length)` | [`0x02d0`](docs/COMMANDS_7709.md#cmd-0x02d0) | 读取指定段落的 GBK 正文；与 7615 Entry 是两套独立数据源 | [文档](docs/methods/0x02d0-公司信息内容接口.md) |
-| 板块文件元数据 | `client.resources.block_meta(filename)` | [`0x02c5`](docs/COMMANDS_7709.md#cmd-0x02c5) | 返回板块文件的 size、md5 等元数据 | [文档](docs/methods/0x02c5-板块文件元数据接口.md) |
 | 服务器文件分块读取      | `client.resources.read()` | [`0x06b9`](docs/COMMANDS_7709.md#cmd-0x06b9) | 读取一个服务器文件块，返回原始 bytes 和长度头 | [文档](docs/methods/7709-服务器文件读取.md)    |
 | 服务器文件下载      | `client.resources.download_file()` | [`0x06b9`](docs/COMMANDS_7709.md#cmd-0x06b9) | 循环读取并合并完整服务器文件 | [文档](docs/methods/7709-服务器文件下载.md)    |
 | 服务器统计文件解析      | `client.resources.read_stats()` | [`0x06b9`](docs/COMMANDS_7709.md#cmd-0x06b9) | 下载并解析 `zhb.zip` 中的统计文件 | [文档](docs/methods/7709-服务器统计文件解析.md)    |
@@ -294,13 +245,6 @@ client.bars.get("sz000001", period="day", all_pages=True, page_size=800)
 | `adjust`      | `hfq` / `back`                            | 后复权                               |
 | `adjust`      | `fixed_qfq` / `fixed_hfq`                 | 定点前复权 / 定点后复权，需要配合 `anchor_date`  |
 | `anchor_date` | `YYYY-MM-DD`、`YYYYMMDD`、`date`            | 定点复权基准日期，仅定点复权时需要                 |
-| `bar_time`    | `start` / `end`                           | 分钟 K 线时间戳语义，默认 `start`（通达信原始口径）   |
-
-`bar_time` 决定**分钟级** K 线的时间戳语义（日线及以上不受影响）：默认 `"start"` 用 bar 开始时间，即通达信原始口径，上午最后一根 5 分钟线标 `11:25`；`"end"` 用 bar 右端点（= 开始 + 周期时长），与 Tushare / 同花顺对齐，上午最后一根标 `11:30`。
-
-```python
-client.bars.get("sz000001", period="5m", count=48, bar_time="end")
-```
 
 直接查询前复权和后复权 K 线，使用 `client.bars.get(..., adjust="qfq" / "hfq")`。已有不复权 K 线、需要本地计算或审计时，使用 `client.corporate.adjustment_factors()`；本地计算与服务端复权价格可能存在差异。
 
@@ -308,16 +252,14 @@ client.bars.get("sz000001", period="5m", count=48, bar_time="end")
 
 ## F10 资料接口
 
-7615 F10 走纯 HTTP POST 网关，**不需要登录、也不需要 7709 握手**。个股、ETF / 场外基金、板块、指数和大盘指数**共用同一套方法**，由 `section` 参数分派（合法取值见 `eltdx f10 sections` 或各方法文档），因此不存在「每种标的类型一套 API」的碎片化。
-
 | 功能           | 调用方法                                                    | 底层 Entry                                                                              | 返回内容 / 用途                                    | 文档                                  |
 | ------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------- | ----------------------------------- |
 | 高级调用（需手动指定 Entry 和参数） | `client.f10.call(entry, body/params)`                   | [`7615/TQLEX`](docs/F10_7615.md#tqlex-gateway)                                        | 用户主动指定 Entry 和参数；用于调试或调用 SDK 尚未封装的 Entry，不会自动执行 | [文档](docs/methods/F10-通用Entry调用.md) |
 | 股票基础信息       | `client.f10.stock_info()`                               | [`CWServ.tdxf10_gg_comreq`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-comreq)           | 返回股票名称、代码、市场；也用于主营构成报告期、题材 ID 等辅助查询          | [文档](docs/methods/F10-股票基础信息.md)    |
 | 涨跌停列表         | `client.f10.limit_up_down_list()`                       | [`CWServ.cfg_fx_lbtt`](docs/F10_7615.md#entry-cwserv-cfg-fx-lbtt)                     | 返回指定日期 / 日期范围的逐股涨停、连板、涨停原因和封单明细；可选市场概况   | [文档](docs/methods/F10-涨跌停列表.md)       |
 | 公司概况         | `client.f10.company_profile()`                          | [`CWServ.tdxf10_gg_gsgk`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-gsgk)               | 返回发行上市信息，如上市日期、发行方式、发行价、募资额、承销商等             | [文档](docs/methods/F10-公司概况.md)      |
-| 主营构成         | `client.f10.business_report()` / `business_composition()` | [`CWServ.tdxf10_gg_jyfx`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-jyfx)               | 返回主营收入、成本、毛利、收入占比、毛利率；`business_report` 还能取主营业务、前五名客户 / 供应商等分区 | [文档](docs/methods/F10-主营构成.md)      |
-| 股东增减持        | `client.f10.shareholders()` / `shareholder_change_plans()` | [`CWServ.tdxf10_gg_gdyj`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-gdyj)               | 返回公告日、股东名称、变动方向、拟变动数量 / 比例、计划起止日期等（`section="plan"`） | [文档](docs/methods/F10-股东增减持.md)     |
+| 主营构成         | `client.f10.business_composition()`                     | [`CWServ.tdxf10_gg_jyfx`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-jyfx)               | 返回主营收入、成本、毛利、收入占比、毛利率；不传报告期时自动取最新期           | [文档](docs/methods/F10-主营构成.md)      |
+| 股东增减持        | `client.f10.shareholder_change_plans()`                 | [`CWServ.tdxf10_gg_gdyj`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-gdyj)               | 返回公告日、股东名称、变动方向、拟变动数量 / 比例、计划起止日期等           | [文档](docs/methods/F10-股东增减持.md)     |
 | 分红融资         | `client.f10.dividend_financing()`                       | [`CWServ.tdxf10_gg_fhrz`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-fhrz)               | 返回分红方案、股权登记日、除权派息日、股息率、股利支付率、融资相关数据          | [文档](docs/methods/F10-分红融资.md)      |
 | 增发获配         | `client.f10.allotment_dates()` / `allotment_details()`  | [`CWServ.tdxf10_gg_fhrz_zfhpmx`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-fhrz-zfhpmx) | 先取增发日期，再按日期取获配机构、获配数量、获配金额、锁定期等明细            | [文档](docs/methods/F10-增发获配.md)      |
 | 财务报表         | `client.f10.finance_report()`                           | [`CWServ.tdxf10_gg_cwfx`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-cwfx)               | 返回多期财务报表；默认资产负债表，含货币资金、资产总计、负债合计、股东权益等       | [文档](docs/methods/F10-财务报表.md)      |
@@ -336,105 +278,8 @@ client.bars.get("sz000001", period="5m", count=48, bar_time="end")
 | 新闻 / 公告 / 路演 | `client.f10.news()` / `announcements()` / `roadshows()` | [`CWSearch.tzx_rcache`](docs/F10_7615.md#entry-cwsearch-tzx-rcache)                   | 返回新闻、公告、路演列表；含标题、日期、来源、公告类型、PDF 地址等          | [文档](docs/methods/F10-新闻公告路演.md)    |
 | 市场资讯（要闻速递 / 各频道） | `client.f10.market_news()` / `channel_news()` | `CWServ.tdxi_zxxwsy` / `tdxi_zxxwnews` | 全市场资讯流：`market_news` 取首页要闻（滚动 / 今日焦点 / 要闻速递 / 正面 / 负面 / 精华 / 最新提示 / 机构调研）；`channel_news` 按频道号取各栏目（财经 / 股票 / 新股 / 港股 / 美股 / 基金 / 期货 / 理财 / 外汇 / 债券 / 期权，共 84 个） | [文档](docs/methods/F10-市场资讯.md) |
 | 资讯频道枚举 | `client.f10.news_channels()` | —（静态） | 返回全部资讯频道号 + 中文名，配合 `channel_news` 使用 | [文档](docs/methods/F10-市场资讯.md) |
-| 股东研究          | `client.f10.shareholders()`                             | [`CWServ.tdxf10_gg_gdyj`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-gdyj)               | 11 个 section：股东人数与股价比较、十大股东 / 十大流通股东、控股股东、机构持股、机构持仓明细和股东增减持计划 | [文档](docs/methods/F10-股东研究.md)      |
-| 股本结构          | `client.f10.capital_structure()`                        | [`CWServ.tdxf10_gg_gbjg`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-gbjg)               | 股本结构、股本变动、股票回购、限售流通与解禁明细（`restricted_detail` 需 `date`） | [文档](docs/methods/F10-股本结构.md)      |
-| 经营分析          | `client.f10.business_report()`                          | [`CWServ.tdxf10_gg_jyfx`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-jyfx)               | 主营业务、主营构成、前五名客户 / 供应商、产品价格、财务指标大幅变动说明          | [文档](docs/methods/F10-主营构成.md)      |
-| 行业分析          | `client.f10.industry_analysis()`                        | [`CWServ.tdxf10_gg_hyfx`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-hyfx)               | 同业对比、分红排名、规模、估值、行业新闻 / 研报、市场份额、行业汇总和可比公司       | [文档](docs/methods/F10-行业分析.md)      |
-| 交易数据          | `client.f10.trading_report()`                           | [`CWServ.tdxf10_gg_jyds`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-jyds)               | 融资融券（近期 / 近 6 个月）、大宗交易、龙虎榜、沪深股通、涨跌停分析和主力盘口      | [文档](docs/methods/F10-交易数据.md)      |
-| 最新提示          | `client.f10.digest()`                                   | [`CWServ.tdxf10_gg_zxts`](docs/F10_7615.md#entry-cwserv-tdxf10-gg-zxts)               | F10 首屏提示、公司概要、公司大事、新闻、公告、研报、路演和投资者互动           | [文档](docs/methods/F10-公司资讯研报.md)   |
-| 基金 / ETF F10    | `client.f10.fund_report()`                              | [`CWServ.skef10_jj_jjzl`](docs/F10_7615.md#entry-cwserv-skef10-jj-jjzl)               | 30 个 section：基金经理、规模份额、净值回报、投资组合、持股情况、财务和销售信息     | [文档](docs/methods/F10-基金与ETF.md)     |
-| 板块 / 指数 / 大盘 F10 | `client.f10.market_report()`                        | [`CWServ.skef10_bk_getinfo`](docs/F10_7615.md#entry-cwserv-skef10-bk-getinfo)         | 20 个 section：板块资料 / 资金 / 成份股、指数概况 / 跟踪标的 / 资金、大盘两融和新股 | [文档](docs/methods/F10-板块与指数.md)     |
 
 常规 F10 返回 `F10Response`；`client.f10.limit_board_ladder()` 返回 `LimitBoardLadder`。常用结果分别在 `response.rows` 或模型的 `rows`，完整说明见 [F10_7615.md](docs/F10_7615.md)。
-
-## 扩展行情、场外基金、MAC 与本地行情文件
-
-`7709` 行情主站之外还有几条数据通路，`TdxClient` 并不覆盖它们：
-
-| 通路 | 入口 | 能拿什么 |
-| --- | --- | --- |
-| 扩展行情 `7727` | `eltdx.ExTdxClient` / `eltdx ex` / `eltdx macex` | 期货、期权、港股、基金等非 7709 标的：市场表、标的枚举、行情、K 线、分时、逐笔 |
-| 场外基金 | `eltdx.MacExClient` / `eltdx fund` | 开放式 / 货币 / 香港基金的代码名称、单位净值快照和净值日线 |
-| MAC 协议（7709 MAC 服务器） | `eltdx.MacClient` / `eltdx mac` | 报价、K 线、分时、逐笔、榜单、板块、龙虎榜、资金流向、服务器信息和文件下载 |
-| 本地行情文件 | `eltdx.offline` / `eltdx offline` | 通达信 `vipdoc` 落盘的日线、分钟线、权息、历史财务和板块配置，不需要网络 |
-| 公司信息文本 F10 | `client.company_info` | `0x02cf` 目录 + `0x02d0` 正文的 GBK 文本型 F10，数据源与 7615 Entry 不同 |
-
-### 扩展行情 7727
-
-```python
-from eltdx import ExTdxClient
-
-with ExTdxClient(timeout=8) as ex:
-    markets = ex.get_markets()                          # 服务端普遍不支持时自动回退本地枚举
-    quotes = ex.get_instrument_quote(33, "016947")                 # market 33 = 开放式基金
-    bars = ex.get_instrument_bars(category=8, market=33, code="016947", count=20)
-
-print(quotes)
-print(bars[-1])
-```
-
-- 主机表**不发版也能覆盖**：环境变量 `ELTDX_EX_HOSTS`（逗号分隔）> 用户配置 `<data_dir>/ex_servers.json` > 包内默认；`eltdx.ex.load_ex_hosts()` 返回最终生效值。
-- `connect()` 用**真实业务命令**并发探活，只把真正应答的主机排到前面；失败判定是**命令级**（拿到应答才算成功），失败主机被排除后请求自动落到其余健康主机，成功一次即恢复健康标记。实测内置 16 台主机中只有 **1 台**能应答枚举命令 `0x23f5`，它被 `DEFAULT_EX_HOSTS` 排到首位。
-- 需要显式管理选主结果时用 `ping_all()` / `from_best_host()` / `healthy_hosts` / `unhealthy_hosts` / `refresh_hosts()`。
-- 各主站的实际能力差异见 [EXTENDED_MARKET.md](docs/EXTENDED_MARKET.md)。
-
-### 场外基金（`eltdx fund`）
-
-**场外基金不在 7709 行情里**，只能走扩展行情，这也是 `fund` 子命令存在的原因。基金没有成交量，`vol` / `amount` 恒为 0，价格字段即**单位净值**。
-
-```bash
-eltdx fund list --market 33 --count 10 --output table
-eltdx fund nav 016947
-```
-
-### MAC 协议（`eltdx mac`）
-
-```python
-from eltdx import MacClient
-
-with MacClient(timeout=8) as mac:
-    quotes = mac.get_stock_quotes([(0, "000001")])
-    boards = mac.get_board_list(count=5)
-    ranking = mac.get_board_change_ranking(top_n=5)
-```
-
-`MacClient.from_best_host()` 会把探测到最快的主机放到候选首位；`ensure_connected()` 用一条极廉价的 `KlineOffsetCmd(0, 1)` **真实探测**连接——只看标志位发现不了「TCP 还在但服务端已经不理人」的半开连接。
-
-!!! warning "`mac kline` / `get_stock_kline()` 可能被服务端拒绝"
-    部分 MAC 服务器对 `symbol_bar` 只回 1 字节，会抛
-    `ProtocolError: symbol_bar header: 数据不足`。这是服务端行为，不是客户端缺陷。
-
-### 本地行情文件（vipdoc）
-
-`eltdx.offline` 直接读通达信落盘文件，**不需要网络**：`.day` 日线、`.lc1` / `.lc5` 分钟线、扩展市场日线、权息（`gbbq`）、历史财务和板块 / 行业配置。文件末尾不足一条记录的残尾会被忽略，通达信写盘中断留下的截断文件仍可读。
-
-```bash
-eltdx offline day --file path/to/sz000001.day --count 5 --output table
-eltdx offline day --vipdoc D:/new_tdx/vipdoc --market 0 --code 000001 --last
-eltdx offline gbbq --file path/to/gbbq
-```
-
-细节见 [OFFLINE.md](docs/OFFLINE.md)。
-
-### 公司信息文本 F10（`0x02cf` + `0x02d0`）
-
-`7709` 另有一条**文本型** F10 通路：`client.company_info.category(code, market)` 列目录，`client.company_info.content(...)` 读正文，拿到的是客户端 F10 里那段 GBK 文本。它与 7615 Entry 是**两套独立数据源**，不是同一份数据的两种封装。
-
-```python
-from eltdx import TdxClient
-
-with TdxClient(timeout=3) as client:
-    sections = client.company_info.category("600000", "sh")
-    first = sections[0]
-    text = client.company_info.content("600000", "sh", first.filename, first.start, first.length)
-```
-
-另外 `client.resources.block_meta(filename)`（`0x02c5`）返回板块文件元数据，`eltdx.Market` 枚举（`SZ=0` / `SH=1` / `BJ=2`）可与小写字符串 `"sz"` / `"sh"` / `"bj"` 互换传给任何 `market` 参数。
-
-!!! note "需要较新的 native 扩展"
-    `0x02c5` / `0x02cf` / `0x02d0` 三个命令要求 `_native` 是较新版本；
-    随旧版发布的 `_native` 会抛 `UnsupportedCommandError`，此时可先用 7615 的
-    `client.f10.*` 替代。用本仓库 Rust 源码编译的 `_native` 已包含这三个命令。
 
 ## 连接、并发和缓存
 
@@ -582,11 +427,9 @@ python scripts/smoke/export_auction_925_daily.py --code sz000001 --start 2026-04
 | 常用场景和可复制示例 | [Helpers](docs/helpers/README.md) · [示例](docs/EXAMPLES.md) |
 | 方法参数、返回字段和完整 API | [方法手册](docs/METHOD_REFERENCE.md) · [字段手册](docs/FIELD_REFERENCE.md) · [API 参考](docs/API_REFERENCE.md) |
 | 底层协议和 F10 Entry | [7709 命令](docs/COMMANDS_7709.md) · [7615 F10](docs/F10_7615.md) |
-| 扩展行情 7727、场外基金、MAC 协议 | [扩展行情](docs/EXTENDED_MARKET.md) · [命令行](docs/CLI.md) |
-| 本地行情文件（vipdoc） | [本地文件](docs/OFFLINE.md) |
 | 连接、测速、并发和故障排查 | [调试指南](docs/DEBUG_GUIDE.md) · [架构](docs/ARCHITECTURE.md) |
 | MCP 安装、工具和资源 | [MCP 文档](docs/MCP.md) |
-| 当前版本、变更和旧 API 迁移 | [v3.4.8](docs/releases/v3.4.8.md) · [变更记录](docs/CHANGELOG.md) · [旧版迁移](docs/MIGRATION_FROM_OLD.md) · [从 easy_tdx 迁移](docs/MIGRATION_FROM_EASY_TDX.md) |
+| 当前版本、变更和旧 API 迁移 | [v3.3.2](docs/releases/v3.3.2.md) · [变更记录](docs/CHANGELOG.md) · [迁移说明](docs/MIGRATION_FROM_OLD.md) |
 
 ## 常用问题
 
@@ -624,4 +467,4 @@ print(auction.open_price, auction.open_change_pct, auction.open_amount)
 
 ## 许可证
 
-本项目仅允许个人学习、协议兼容性与数据解析研究使用，禁止商业使用和滥用。详细条款见 [LICENSE](LICENSE)。
+本项目仅供个人学习、数据接口与格式研究及非商业用途使用。禁止将本项目、衍生作品或通过本项目获取的数据用于商业活动、付费服务、生产服务、转售、营利性数据服务、自动化交易服务，或违反适用法律法规、交易所规则、第三方服务协议及他人权益的用途。完整条款以 [LICENSE](LICENSE) 为准。

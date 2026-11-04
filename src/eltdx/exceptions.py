@@ -9,6 +9,18 @@ class ProtocolError(EltdxError):
     """Raised when protocol encoding or decoding fails."""
 
 
+class MissingCodesError(ProtocolError):
+    """A batch contains confirmed missing codes; no partial result is returned."""
+
+    def __init__(self, missing_codes):
+        self.missing_codes = tuple(missing_codes)
+        super().__init__("batch data missing for codes: " + ", ".join(self.missing_codes))
+
+
+class MissingCodesWarning(RuntimeWarning):
+    """Explicit skip mode omitted confirmed missing codes from a batch."""
+
+
 class ResourceFormatError(EltdxError):
     """Raised when a downloaded TDX resource has an invalid format."""
 

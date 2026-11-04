@@ -355,6 +355,12 @@ pub fn parse_snapshots_payload(
         ));
     }
     let count = usize::from(little_u16(&payload[2..4])?);
+    if count == 0 && payload.len() != 4 {
+        return Err(ProtocolError::invalid_data(
+            "snapshots",
+            "unexpected trailing empty snapshot bytes",
+        ));
+    }
     if count > 0 && requested_codes.len() < count {
         return Err(ProtocolError::invalid_data(
             "snapshots",
@@ -364,6 +370,35 @@ pub fn parse_snapshots_payload(
                 "snapshot response count exceeds request code count"
             },
         ));
+    }
+    if count > 0 && count != requested_codes.len() {
+        return Err(ProtocolError::invalid_data(
+            "snapshots",
+            format!(
+                "snapshot response count mismatch: expected {}, got {count}",
+                requested_codes.len()
+            ),
+        ));
+    }
+    // Some servers answer an unavailable single with a different security's
+    // syntactically valid quote. Validate the whole foreign record before
+    // classifying the requested security as absent; damaged bytes stay errors.
+    if count == 1 && payload.len() >= 11 {
+        let record = &payload[4..];
+        let market = Market::from_id(i64::from(record[0]))
+            .map_err(|_| ProtocolError::invalid_data("snapshot", "invalid snapshot market id"))?;
+        let number = parse_ascii_digits(&record[1..7], "snapshot")?;
+        let returned = NormalizedCode { market, number };
+        if returned != requested_codes[0] {
+            parse_snapshot_record(record, &returned)?;
+            return Err(ProtocolError::invalid_data(
+                "snapshot",
+                format!(
+                    "snapshot missing requested record: requested={}, returned={returned}",
+                    requested_codes[0]
+                ),
+            ));
+        }
     }
     let records = split_snapshot_records(&payload[4..], &requested_codes[..count])?;
     records

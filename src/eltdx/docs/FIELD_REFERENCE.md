@@ -1,5 +1,7 @@
 # 字段手册
 
+EX / MAC / MAC-EX 的完整返回字段另见 [扩展返回模型](extended/返回模型.md) 和 [字段位图与枚举](extended/枚举与字段位图.md)。这里的标准 7709 单位约定不直接套用到扩展市场。
+
 这份文档解释常用返回模型的字段含义。按调用方法查参数和返回字段时看 [METHOD_REFERENCE.md](METHOD_REFERENCE.md)。底层协议字段和命令号见 [COMMANDS_7709.md](COMMANDS_7709.md)，历史字段对照见 [FIELD_MIGRATION.md](FIELD_MIGRATION.md)。
 
 ## 通用约定
@@ -117,6 +119,10 @@ K 线响应和单根 K 线。
 | `up_count` / `down_count`         | 上涨/下跌家数，指数类样本可能有          |
 | `raw_payload`                     | 响应 payload                |
 | `record_hex`                      | 单条 K 线记录原文                |
+
+普通股票 K 线的 `volume_wire_value` 为股，`volume_lots = volume_wire_value / 100`；已验证的沪市 `110/113/118`、深市 `123/127/128` 可转债原生数量为手，`volume_lots = volume_wire_value`，一手对应 10 张。`volume_raw` 仍是原始压缩字段，不是可直接使用的数量。其他债券品种的单位不能由这些前缀推断。
+
+自动分页聚合的 `KlineSeries.raw_payload` 为空；一页响应不能代表多页合并结果。需要逐页原文时使用手动分页和 `include_raw=True`；逐条 `record_hex` 不变。
 
 ## FileContentChunk
 
@@ -477,3 +483,9 @@ JSON 导出与转换后的 `TradePage` 结构一致。详见[历史成交批量�
 `client.codes.count()`、`client.codes.all()`、`client.corporate.capital_changes()`、`client.corporate.finance_batch()`、实时快照、分时、成交明细和 K 线均不缓存。
 
 短线统计资源可用 `refresh_stats=True` 强制刷新；清空 Helper 缓存使用 `client.clear_cache()`。
+
+## 可转债分笔数量与价格
+
+沪市 `110/113/118`、深市 `123/127/128` 的 `TradeTick.price_acc_raw` 以千分之一元编码，`price=price_acc_raw/1000`，`price_milli=price_acc_raw`。报价/分时精度元数据与成交协议不同，不能用报价的 `decimal=4` 再除一次分笔价。普通成交的 `volume` 保留原生手数，一手为 10 张；`status_raw=8` 的竞价快照数量不解释成成交量。
+
+`all_today/all_history` 及对应批量接口返回按时间顺序合并的记录，保留页内顺序和 `absolute_index`，`raw_payload` 为空；`today/history` 单页仍可通过 `include_raw=True` 获取原文。完整分页只表示已读到服务端空页，不保证交易所逐笔完整性。

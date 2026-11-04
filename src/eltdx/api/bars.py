@@ -12,7 +12,7 @@ from eltdx._bar_time import (
     kline_period_minutes,
 )
 from eltdx.protocol.constants import MAX_KLINE_PAGE_SIZE
-from eltdx.protocol.unit import normalize_code
+from eltdx.protocol.unit import NON_OHLC_PERIOD_ALIASES, normalize_code
 
 from .base import ApiBase
 
@@ -38,17 +38,19 @@ class BarApi(ApiBase):
         """获取 K 线。
 
         Args:
-            all_pages 分页语义：7709 的 ``start`` 是「距最新的偏移」（start=0 最新）。
-                ``all_pages=True`` 自动翻页到空页，并按页反转合并为**时间升序**序列
-                （最旧在前、最新在后，与 ``delisted_bars.get`` 一致）；页内顺序保留服务端原样。
             bar_time: 时间戳语义。``"start"``（默认）= bar 开始时间（通达信原始，
                 上午最后一根 5min 标 ``11:25``、下午第一根标 ``13:00``）；``"end"`` =
                 bar 右端点（= 开始 + 周期时长，与 Tushare/同花顺对齐，上午最后一根标
                 ``11:30``）。仅对分钟级周期生效；日线及以上不受影响。
         """
-        if period == "flow":
+        if not isinstance(period, str):
+            raise TypeError(f"period must be a string, got {type(period).__name__}")
+        # 协议层（unit.rs 的 Period::normalize）把 category 22 映射成历史资金流，
+        # 接受 flow / fund_flow / zjlx 三个别名且做 to_lowercase()。这里必须用同一套
+        # 别名 + 同样的规范化，否则换个写法就会遗漏检查、继续走 7709 K 线请求。
+        if period.strip().lower() in NON_OHLC_PERIOD_ALIASES:
             raise ValueError(
-                "period='flow' is not OHLC data; "
+                f"period={period!r} is not OHLC data; "
                 "use client.money_flow.history(code, days=...) instead"
             )
 
@@ -102,7 +104,7 @@ class BarApi(ApiBase):
         next_start = start
         pages = 0
         first_page = None
-        collected = []
+        pages_bars = []
         while True:
             page = self._get_page(
                 code,
@@ -119,21 +121,15 @@ class BarApi(ApiBase):
                 return page
             if first_page is None:
                 first_page = page
-            collected.append(page.bars)
+            pages_bars.append(tuple(page.bars))
             pages += 1
             if page.count == 0:
-                # 7709 的 start 是「距最新的偏移」：先请求的页更新、后请求的页更旧。
-                # 按页反转拼接，得到时间升序的整体序列（页内服务端已是升序）。
-                bars = [
-                    bar
-                    for page_bars in reversed(collected)
-                    for bar in page_bars
-                ]
-                return replace(first_page, request_count=len(bars), bars=tuple(bars))
+                # Offsets select newest pages first; each page is oldest-first.
+                # Reverse pages only, preserving native order within each page.
+                bars = tuple(bar for part in reversed(pages_bars) for bar in part)
+                return replace(first_page, request_count=len(bars), bars=bars, raw_payload=b"")
             if max_pages is not None and pages >= max_pages:
-                raise RuntimeError(
-                    "bars.get reached max_pages before the server returned an empty page"
-                )
+                raise RuntimeError("bars.get reached max_pages before the server returned an empty page")
             next_start += page.count
 
     def _get_page(

@@ -1,6 +1,6 @@
 # 扩展行情：EX（7727）、MAC 与 MAC-EX
 
-eltdx 除 A 股 7709 主站外，还提供三个**独立协议栈**，用于期货、期权、港股、外盘、外汇等非 A 股市场，以及新版通达信的 MAC 通道。它们分别是独立子包，各自管理连接与帧编解码，不经过 7709 引擎。
+eltdx 除 A 股 7709 主站外，还提供三个**独立协议栈**，用于期货、期权、港股、外盘、外汇等非 A 股市场，以及新版通达信的 MAC 通道。它们分别是独立子包，各自管理连接与帧编解码，不经过标准 7709 TdxClient 引擎。MacClient 自身默认仍连接 7709 端口。
 
 | 能力 | 子包 | 端口 / 帧 | 说明 |
 | --- | --- | --- | --- |
@@ -10,24 +10,28 @@ eltdx 除 A 股 7709 主站外，还提供三个**独立协议栈**，用于期�
 
 命令行入口见 [CLI.md](CLI.md)（`eltdx ex` / `eltdx mac` / `eltdx macex` / `eltdx fund`）。
 
+完整的逐方法说明见 [EX / MAC / MAC-EX 单页索引](extended/README.md)：47 个业务入口、3 个连接管理页，附完整参数、分页规则、返回字段、枚举与位图。
+
+**MAC `0x122F` 已有秒字段**：[MacClient.get_transactions](extended/mac-get_transactions.md) 支持当日/历史日查询；秒数来自服务器，但记录可聚合多笔成交。标准 `0x0FC5 / 0x0FC6` 的分钟字段属于另一套接口。
+
 ## 服务端能力（实测，2026-10）
 
 免费主站的能力**并不对称**，先看清这张表能省很多时间：
 
 | 命令 | `MAC_EX_HOSTS`（2 台，7727） | `KNOWN_EX_HOSTS`（16 台，7727） |
 | --- | --- | --- |
-| `get_instrument_count` | ✅ | ✅ |
-| `get_instrument_info` | ✅ | ⚠️ 部分可用 |
-| `get_markets` | ❌ 超时 | ❌ 超时 |
-| `get_instrument_quote` / `bars` / `minute` / `txn` | ❌ 超时 | ❌ 超时或被 RST |
+| [`get_instrument_count`](extended/ex-get_instrument_count.md) | ✅ | ✅ |
+| [`get_instrument_info`](extended/ex-get_instrument_info.md) | ✅ | ⚠️ 部分可用 |
+| [`get_markets`](extended/ex-get_markets.md) | ❌ 超时 | ❌ 超时 |
+| [`get_instrument_quote`](extended/ex-get_instrument_quote.md) / `bars` / `minute` / `txn` | ❌ 超时 | ❌ 超时或被 RST |
 | `MacExClient.*`（MAC 命令） | ✅ | ❌ |
 | `MacClient.*`（7709 MAC） | 不适用 | 不适用（走 `MAC_HOSTS`） |
 
-推论：
+以下结论仅对应 2026-10 的采样主机和时间，不代表协议永久不可用：
 
 - **只要 EX 协议主机都不给行情**，`get_instrument_quote` 这类命令在免费主站上取不到数据。
-- **场外基金等品种只有走 MAC-EX 才有行情**（见下一节）。
-- `get_markets()` 在所有内置主站上都超时；`ExMarket` 枚举本身就是完整市场表，
+- **本次场外基金等品种的有效行情路径为 MAC-EX**（见下一节）。
+- `get_markets()` 在所有内置主站上都超时；`ExMarket` 枚举提供本库已知的市场编号表，
   需要市场清单时直接用枚举（`eltdx ex markets` 会自动回退到枚举）。
 
   > **这是服务端行为，不是 eltdx 的缺陷**（本轮已用差分实测确认）：
@@ -42,6 +46,8 @@ eltdx 除 A 股 7709 主站外，还提供三个**独立协议栈**，用于期�
 
 ## 扩展行情 `eltdx.ex.ExTdxClient`
 
+[全部方法单页与参数](extended/README.md#ex7727) · [连接与主机](extended/ex-连接与主机.md)。全部 EX 业务方法是单次调用；港股自动分页属于 MAC-EX 的成交封装。
+
 ```python
 from eltdx.ex import ExTdxClient
 
@@ -49,7 +55,7 @@ with ExTdxClient.from_best_host() as client:
     total = client.get_instrument_count()              # 全市场标的总数（无参数）
     page = client.get_instrument_info(0, 100)          # 按全局偏移分页
     quote = client.get_instrument_quote(47, "IFL0")
-    quotes = client.get_instrument_quote_list(47, 4)   # 需要 category
+    quotes = client.get_instrument_quote_list(47, 3)   # 需要 category
     bars = client.get_instrument_bars(4, 47, "IFL0", count=100)   # category, market, code
     minutes = client.get_minute_time_data(47, "IFL0")
     ticks = client.get_transaction_data(47, "IFL0")
@@ -58,17 +64,17 @@ with ExTdxClient.from_best_host() as client:
 
 | 方法 | 签名要点 |
 | --- | --- |
-| `get_markets()` | 无参数（服务端普遍不支持，建议改用 `ExMarket` 枚举） |
-| `get_instrument_count()` | **无参数**，返回全市场标的数 |
-| `get_instrument_info(start, count=100)` | **按全局偏移分页**，不是 `(market, code)` |
-| `get_instrument_quote(market, code)` | 单合约五档行情（含持仓量） |
-| `get_instrument_quote_list(market, category, start=0, count=80)` | **必须给 category** |
-| `get_instrument_bars(category, market, code, start=0, count=700, *, bar_time="start")` | **第一个参数是 category**；`bar_time="end"` 把分钟级 bar 对齐到右端点 |
-| `get_history_instrument_bars_range(market, code, start_date, end_date, *, bar_time="start")` | 区间历史 K 线；**不支持 `bar_time="end"`**（缺周期信息，会抛 `ValueError`） |
-| `get_minute_time_data(market, code)` | 当日分时 |
-| `get_history_minute_time_data(market, code, date)` | 指定日期历史分时 |
-| `get_transaction_data(market, code, start=0, count=1800)` | 当日逐笔 |
-| `get_history_transaction_data(market, code, date, start=0, count=1800)` | 历史逐笔（港股自动翻页取全量） |
+| [`get_markets()`](extended/ex-get_markets.md) | 无参数（服务端普遍不支持，建议改用 `ExMarket` 枚举） |
+| [`get_instrument_count()`](extended/ex-get_instrument_count.md) | **无参数**，返回全市场标的数 |
+| [`get_instrument_info(start, count=100)`](extended/ex-get_instrument_info.md) | **按全局偏移分页**，不是 `(market, code)` |
+| [`get_instrument_quote(market, code)`](extended/ex-get_instrument_quote.md) | 单合约五档行情（含持仓量） |
+| [`get_instrument_quote_list(market, category, start=0, count=80)`](extended/ex-get_instrument_quote_list.md) | **必须给 category** |
+| [`get_instrument_bars(category, market, code, start=0, count=700, *, bar_time="start")`](extended/ex-get_instrument_bars.md) | **第一个参数是 category**；`bar_time="end"` 把分钟级 bar 对齐到右端点 |
+| [`get_history_instrument_bars_range(market, code, start_date, end_date, *, bar_time="start")`](extended/ex-get_history_instrument_bars_range.md) | 区间历史 K 线；**不支持 `bar_time="end"`**（缺周期信息，会抛 `ValueError`） |
+| [`get_minute_time_data(market, code)`](extended/ex-get_minute_time_data.md) | 当日分时 |
+| [`get_history_minute_time_data(market, code, date)`](extended/ex-get_history_minute_time_data.md) | 指定日期历史分时 |
+| [`get_transaction_data(market, code, start=0, count=1800)`](extended/ex-get_transaction_data.md) | 当日成交明细（单页，不自动翻页） |
+| [`get_history_transaction_data(market, code, date, start=0, count=1800)`](extended/ex-get_history_transaction_data.md) | 历史成交明细（单页，调用方分页） |
 
 `ExMarket` 枚举描述支持的市场编号（期权、外汇、外盘、港基金、基金、德股、美股等，共 53 项）。
 `KNOWN_EX_MARKETS` 只是其中一部分的**中文别名表**（11 项，不含 33/34/93 等基金市场），
@@ -199,9 +205,9 @@ save_ex_hosts(["203.0.113.10"])     # 原子写入用户配置（权限 0600）
 | `MONEY_MARKET` | 91 | 货币市场 | 15 |
 | `FUND_VALUATION` | 93 | 基金估值 | — |
 
-!!! warning "取行情必须用 MAC-EX，不能用 `ExTdxClient`"
+!!! warning "采样主机上的基金行情使用 MAC-EX"
     扩展行情主机上的 `get_instrument_quote` / `get_instrument_bars` 对 `market=33`
-    会超时；只有 **MAC 命令**（`MacExClient`）有数据。
+    在本次采样中超时；**MAC 命令**（`MacExClient`）有数据。
 
 ```python
 from eltdx.ex import MacExClient
@@ -212,7 +218,7 @@ with MacExClient.from_best_host() as c:          # 走 MAC_EX_HOSTS，端口 772
     # [MacQuoteField(market=33, code='016947', name='国泰利安中短债A',
     #                fields={'pre_close': 1.0924, 'close': 1.0924, 'vol': 0, ...})]
 
-    # 日线净值（实测返回 700 条）
+    # 日线净值（此处请求 5 条，实际数量以响应为准）
     c.goods_kline(33, "016947", count=5)
 
     # 枚举基金：代码 + 名称
@@ -223,12 +229,12 @@ with MacExClient.from_best_host() as c:          # 走 MAC_EX_HOSTS，端口 772
     c.goods_count(33)                             # 27556
 ```
 
-基金没有成交量，`vol` / `amount` 恒为 0，价格字段即**单位净值**。
+本次开放式基金样本的 `vol` / `amount` 为 0，价格字段为净值口径；不将该样本结论推广为所有基金、所有主机的固定协议规则。
 
 !!! note "MAC 商品列表命令 0x2562 多数主站不响应"
     `goods_list()` 优先用 0x2562；实测内置主站对**任何** market 都只回 2 字节
     `0000`（`total=0`）。eltdx 会自动退回 EX 元数据（`GetExInstrumentInfoCmd`）
-    实现，因此不会拿到空列表；`goods_count(market)` 同样会自动退回二分计数。
+    实现，元数据也不可用时仍可能返回空或抛出异常；`goods_count(market)` 同样会自动退回二分计数。
     需要「代码 + 名称」成对数据时请直接用 `instruments()`——`GoodsItem` 的
     `name` 字段存的是**代码**（与 0x2562 协议语义一致），不含中文名。
 
@@ -264,7 +270,7 @@ with MacExClient.from_best_host() as c:
   （`goods_quotes` 默认字段），与 A 股五档不同，外盘无买卖盘口。
 - **日 K 正常**：`goods_kline(74, "AAPL", count=5)` 返回 2026-10-08 ~ 10-14 五根日线，
   含 `vol` / `amount` / `float_shares`。
-- **分时与逐笔可用**：`goods_tick_chart` 分时点从 **21:30** 起（服务端时间，即美股
+- **分时与成交明细可用**：`goods_tick_chart` 分时点从 **21:30** 起（服务端时间，即美股
   时段）；`goods_transaction` 返回 `time` / `price` / `vol` / `bs_flag`。
 - 标的范围不限于股票：`AAA`（先行CLO债券ETF）、`AAAU`（伦敦金定盘价格）等
   ETF / 权证（`AAC+`）同在 `market=74`，靠 `instruments()` 的名称区分。
@@ -275,17 +281,20 @@ with MacExClient.from_best_host() as c:
   `code` / `name` / `category` 即可。
 - **国际指数**（`market=12`，`INTL_INDEX`）的 `DJI` / `IXIC` / `SPX` 代码直查返回空，
   正确代码格式未验证；要美股大盘指数时先 `instruments(12)` 看实际代码。
-- 与场外基金一样，**取行情必须用 `MacExClient`**（`MAC_EX_HOSTS`，端口 7727），
+- 与场外基金一样，**本次采样中取行情使用 `MacExClient`**（`MAC_EX_HOSTS`，端口 7727），
   不要用 `ExTdxClient` 的 quote / bars 命令。
+
 
 ## MAC 协议 `eltdx.mac.MacClient`
 
+[全部 23 个业务方法与别名](extended/README.md#mac7709) · [连接与主机](extended/mac-连接与主机.md)。
+
 ```python
-from eltdx.mac import MacClient, Period, Adjust
+from eltdx.mac import MacClient, Period, Adjust, Category, SortType
 
 with MacClient() as client:
-    quotes = client.get_stock_quotes([(0, "000001"), (1, "600000")])   # 市场编号 0=深 1=沪 2=北
-    ranking = client.get_stock_quotes_list(category=..., sort_by=...)
+    quotes = client.get_stock_quotes([(0, "000001"), (1, "600000")])   # 此例市场编号 0=深、1=沪
+    ranking = client.get_stock_quotes_list(Category.A, count=80, sort_type=SortType.CHANGE_PCT)
     bars = client.get_stock_kline(0, "000001", period=Period.DAILY, adjust=Adjust.QFQ)
     minutes = client.get_stock_minute_time(0, "000001")
     ticks = client.get_stock_transaction(0, "000001")
@@ -294,26 +303,28 @@ with MacClient() as client:
 
 | 方法 | 说明 |
 | --- | --- |
-| `get_stock_quotes(stocks)` | 批量报价（字段位图，含涨停/跌停/委比/主力净流入等） |
-| `get_stock_quotes_list(...)` | 分类排行报价 |
-| `get_stock_kline(market, code, period, adjust, *, bar_time="start")` | K 线（全周期 + 复权）；`bar_time="end"` 把分钟级 bar 对齐到右端点 |
-| `get_stock_minute_time` / `get_stock_minute_time_hist` | 单日 / 多日分时 |
-| `get_tick_chart` / `get_tick_charts` / `get_chart_sampling` | 分时缩略采样 |
-| `get_stock_transaction` / `get_transactions` | 逐笔 |
-| `get_symbol_info` | 个股快照 |
-| `get_board_list` / `get_belong_board` / `get_board_summary` / `get_board_ranking` / `get_board_change_ranking` / `get_board_members` | 板块列表、所属板块、板块汇总与排行、成分股 |
-| `get_capital_flow` | 资金流 |
-| `get_auction` | 集合竞价 |
-| `get_unusual` | 盘口异动 |
-| `get_server_info` / `get_kline_offset` / `get_file_meta` / `download_file` / `download_file_chunk` | 服务器信息、K 线偏移、文件查询与下载 |
-| `get_goods_list(market, start, count)` | 商品列表（0x2562，多数主站返回空） |
+| [`get_stock_quotes(stocks)`](extended/mac-get_stock_quotes.md) | 批量报价（字段位图，含涨停/跌停/委比/主力净流入等） |
+| [`get_stock_quotes_list(...)`](extended/mac-get_stock_quotes_list.md) | 分类排行报价 |
+| [`get_stock_kline(market, code, period=DAILY, start=0, count=800, times=1, adjust=NONE, *, bar_time="start")`](extended/mac-get_stock_kline.md) | K 线（全周期 + 复权）；`bar_time="end"` 把分钟级 bar 对齐到右端点 |
+| [`get_stock_minute_time`](extended/mac-get_tick_chart.md) / [`get_stock_minute_time_hist`](extended/mac-get_tick_charts.md) | 单日 / 多日分时 |
+| [`get_tick_chart`](extended/mac-get_tick_chart.md) / [`get_tick_charts`](extended/mac-get_tick_charts.md) / [`get_chart_sampling`](extended/mac-get_chart_sampling.md) | 单日分时 / 多日分时 / 分时缩略采样 |
+| [`get_stock_transaction`](extended/mac-get_transactions.md) / [`get_transactions`](extended/mac-get_transactions.md) | 秒级聚合成交明细，0x122F，支持历史日期及自动分页 |
+| [`get_symbol_info`](extended/mac-get_symbol_info.md) | 个股快照 |
+| [`get_board_list`](extended/mac-get_board_list.md) / [`get_belong_board`](extended/mac-get_belong_board.md) / [`get_board_summary`](extended/mac-get_board_summary.md) / [`get_board_ranking`](extended/mac-get_board_ranking.md) / [`get_board_change_ranking`](extended/mac-get_board_change_ranking.md) / [`get_board_members`](extended/mac-get_board_members.md) | 板块列表、所属板块、板块汇总与排行、成分股 |
+| [`get_capital_flow`](extended/mac-get_capital_flow.md) | 资金流 |
+| [`get_auction`](extended/mac-get_auction.md) | 集合竞价 |
+| [`get_unusual`](extended/mac-get_unusual.md) | 盘口异动 |
+| [`get_server_info`](extended/mac-get_server_info.md) / [`get_kline_offset`](extended/mac-get_kline_offset.md) / [`get_file_meta`](extended/mac-get_file_meta.md) / [`download_file`](extended/mac-download_file.md) / [`download_file_chunk`](extended/mac-download_file_chunk.md) | 服务器信息、K 线偏移、文件查询与下载 |
+| [`get_goods_list(market, start, count)`](extended/mac-get_goods_list.md) | 商品列表（0x2562，多数主站返回空） |
 
-`mac/adjust.py` 提供本地前复权兜底：当服务端返回负价时，用「不复权 K 线 + XDXR」重算前复权（`apply_forward_adjust` / `compute_forward_factor` / `has_bad_prices`）。
+`mac/adjust.py` 提供本地前复权兜底：当服务端复权价格非正或非有限，且配置 xdxr_provider、重算结果有效时，用「不复权 K 线 + XDXR」重算前复权；未配置或重算无效时保留原结果（`apply_forward_adjust` / `compute_forward_factor` / `has_bad_prices`）。
 
 默认服务器见 `eltdx.mac.MAC_HOSTS`（端口 7709）。市场价格/涨跌停等规则由
 `eltdx.mac.price_rules` 提供（市场编号同样为 0=深 1=沪）。
 
 ## MAC-EX `eltdx.ex.MacExClient`
+
+[全部 13 个业务方法](extended/README.md#mac-ex7727) · [连接与主机](extended/macex-连接与主机.md)。
 
 ```python
 from eltdx.ex import MacExClient
@@ -338,16 +349,19 @@ with MacExClient.from_best_host() as c:            # 走 MAC_EX_HOSTS，端口 7
 
 | 方法 | 说明 |
 | --- | --- |
-| `instruments(market, start=0, count=600)` | 列出标的（`code` + `name`），走 EX 元数据，**最可靠** |
-| `goods_quotes(stocks, fields=None)` | 批量报价/净值，`stocks` 为 `[(market, code)]` |
-| `goods_quotes_list(market, start=0, count=100, *, sort_type=0, sort_order=0)` | 排行报价（先取标的再批量报价；排序参数保留接口） |
-| `goods_kline(market, code, period=DAILY, start=0, count=800, adjust=NONE)` | K 线（支持复权） |
-| `goods_count(market=None)` | 数量；`market=None` 为全市场总数 |
-| `goods_list(market, start=0, count=600)` | 商品列表（0x2562，失败时自动退回元数据） |
-| `goods_tick_chart(market, code, query_date=None)` | 分时 |
-| `goods_transaction(market, code, query_date=None, start=0, count=2000)` | 逐笔（港股自动走 EX 协议） |
-| `goods_transaction_all(market, code, query_date=None)` | 港股某日全部逐笔（自动翻页） |
-| `goods_chart_sampling(market, code)` | 分时缩略采样 |
+| [`instruments(market, start=0, count=600)`](extended/macex-instruments.md) | 列出标的（`code` + `name`），走 EX 元数据，**最可靠** |
+| [`goods_quotes(stocks, fields=None)`](extended/macex-goods_quotes.md) | 批量报价/净值，`stocks` 为 `[(market, code)]` |
+| [`goods_quotes_list(market, start=0, count=100, sort_type=SortType.CODE, sort_order=SortOrder.NONE)`](extended/macex-goods_quotes_list.md) | 列表报价（最多 80 项；sort_type / sort_order 当前不生效） |
+| [`goods_kline(market, code, period=DAILY, start=0, count=800, adjust=NONE)`](extended/macex-goods_kline.md) | K 线（支持复权） |
+| [`goods_count(market=None)`](extended/macex-goods_count.md) | 数量；`market=None` 为全市场总数 |
+| [`goods_list(market, start=0, count=600)`](extended/macex-goods_list.md) | 商品列表（0x2562，返回空时自动退回元数据） |
+| [`goods_tick_chart(market, code, query_date=None)`](extended/macex-goods_tick_chart.md) | 分时 |
+| [`goods_transaction(market, code, query_date=None, start=0, count=2000)`](extended/macex-goods_transaction.md) | 逐笔（港股自动走 EX 协议） |
+| [`goods_transaction_all(market, code, query_date=None)`](extended/macex-goods_transaction_all.md) | 港股某日成交明细（自动翻页，最多 50 页 / 90000 条） |
+| [`goods_chart_sampling(market, code)`](extended/macex-goods_chart_sampling.md) | 分时缩略采样 |
+| [`macro_indicators()`](extended/macex-macro_indicators.md) | 宏观指标列表，市场 38，实例缓存 |
+| [`macro_quotes(codes, fields=None)`](extended/macex-macro_quotes.md) | 宏观指标最新值；完整代码或唯一裸代码 |
+| [`macro_kline(code, period=MONTHLY, start=0, count=800, adjust=NONE)`](extended/macex-macro_kline.md) | 宏观报告期序列；close 为指标值 |
 
 在扩展行情（7727）连接上先登录（`0x2454`），再使用 goods 系列命令；断线后 `_execute` 会自动重连并重新登录。
 
@@ -408,8 +422,6 @@ with MacExClient("116.205.135.205", 7727, 10.0) as c:
 ## 说明
 
 - 三个子包均为**纯 Python 同步实现**，只依赖标准库；不提供 asyncio 版本。
-- 返回值为 `list[dataclass]`，不是 DataFrame（与 easy_tdx 的差异之一）。
+- 业务结果包括 dataclass、列表、字典、整数、bytes / bytearray 等，不是 DataFrame；具体类型以单页签名为准。
 - 连接可用 `with` 管理；`MacExClient` 的默认服务器见 `eltdx.ex.MAC_EX_HOSTS`。
-- `MacClient` 与 easy_tdx 的差异：缺少 `from_best_host` / `ping_all` / `ensure_connected` /
-  `get_stock_kline_with_indicators`，多出 `get_stock_minute_time` /
-  `get_stock_minute_time_hist` / `get_stock_transaction`。
+- `MacClient` 已提供 `from_best_host` / `ping_all` / `ensure_connected`；没有 `get_stock_kline_with_indicators`。分时和成交别名见各自单页。

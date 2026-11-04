@@ -230,7 +230,7 @@
     scopes.all = {
       id: "all",
       label: "接口文档",
-      description: "共 " + items.length + " 项公开能力，按 7709 原生协议接口、7615 原生 Entry 接口和 Helpers 封装组织。",
+      description: "共 " + items.length + " 项公开能力，按 7709、7615 F10、Helpers、扩展行情（7727）、MAC 和 MAC-EX 组织。",
       count: items.length
     };
     layers.forEach(function (layer) {
