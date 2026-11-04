@@ -16,8 +16,12 @@ if str(ROOT) not in sys.path:
 from scripts.verification.verify_release_artifacts import verify_artifacts
 
 
+# Cargo / wheel 包版本：Cargo semver 只接受三段，fork 的四段发布标识不写进这里。
 TARGET_CARGO_VERSION = "3.3.2"
 TARGET_PYTHON_VERSION = "3.3.2"
+# fork 发布标识（Git tag / GitHub Release / 文档记录）：上游版本 + .x。
+# 它与包版本解耦：artifact inventory 仍校验 3.3.2，release ref 校验 3.3.2.1。
+RELEASE_TAG_VERSION = "3.3.2.1"
 BANNER_KEYWORD = b"eltdx_release\x00" + TARGET_PYTHON_VERSION.encode("ascii")
 
 
@@ -105,6 +109,16 @@ def check(
     for relative, needle in required.items():
         if needle not in (ROOT / relative).read_text(encoding="utf-8"):
             errors.append(f"{relative} does not contain {needle!r}")
+    fork_required = {
+        "README.md": f"v{RELEASE_TAG_VERSION}",
+        "docs/CHANGELOG.md": f"v{RELEASE_TAG_VERSION}",
+        f"docs/releases/v{RELEASE_TAG_VERSION}.md": f"# v{RELEASE_TAG_VERSION}",
+        "mkdocs.yml": f"releases/v{RELEASE_TAG_VERSION}.md",
+    }
+    for relative, needle in fork_required.items():
+        path = ROOT / relative
+        if not path.is_file() or needle not in path.read_text(encoding="utf-8"):
+            errors.append(f"{relative} does not contain fork release marker {needle!r}")
     banner = ROOT / ".github" / "assets" / "eltdx-readme-banner-v3.3.2.png"
     if BANNER_KEYWORD not in _png_text_chunks(banner):
         errors.append(
@@ -116,7 +130,7 @@ def check(
         if artifact_dir is None or ref is None or sha is None:
             errors.append("artifact-dir, ref, and sha must be supplied together")
         else:
-            expected_ref = f"refs/tags/v{TARGET_PYTHON_VERSION}"
+            expected_ref = f"refs/tags/v{RELEASE_TAG_VERSION}"
             if ref != expected_ref and not allow_dry_run_ref:
                 errors.append(
                     f"release ref differs: expected {expected_ref!r}, got {ref!r}"
@@ -126,6 +140,7 @@ def check(
             except (FileNotFoundError, RuntimeError, ValueError) as error:
                 errors.append(f"release artifact verification failed: {error}")
             else:
+                # 产物版本仍是三段包版本；四位数字只是发布标识。
                 if inventory["version"] != TARGET_PYTHON_VERSION:
                     errors.append(
                         f"release artifact version differs: {inventory['version']!r}"

@@ -9,7 +9,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-TAG_PATTERN = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+(?:(?:a|b|rc)[0-9]+)?")
+# 上游使用 vX.Y.Z；fork 发布标识为「上游版本 + .x」（如 v3.3.2.1），允许第 4 段。
+TAG_PATTERN = re.compile(r"v[0-9]+(?:\.[0-9]+){2,3}(?:(?:a|b|rc)[0-9]+)?")
 FORBIDDEN_MARKERS = ("TODO", "FIXME", "TBD", "PLACEHOLDER")
 
 
