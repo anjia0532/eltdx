@@ -1,5 +1,11 @@
 # 变更记录
 
+## v3.3.2.2 - 2026-11-06
+
+- 修复 CI：`crates/eltdx-runtime/src/pin.rs` 满足 rustfmt 1.89.0（`cargo fmt --check` 恢复通过）。
+- MAC-EX 探活入口（`MacExClient.ping_all()` / `from_best_host()`）改用 `mac_ex_mode=True` + `MacExLoginCmd`，与 `connect()` 对齐，避免误判主站可用性。
+- 详见 [v3.3.2.2 发布说明](releases/v3.3.2.2.md)。
+
 ## v3.3.2.1 - 2026-11-04
 
 - fork 发布线对齐上游 v3.3.2（f3bfa3d）：移除 3.4.x 自发版说明与本地研究资产（scripts/f10_*、tmp_f10/），补回上游 EX / MAC / MAC-EX 完整 API 文档，仅保留 CI「PyPI 失败不阻断 GitHub Release」改动。

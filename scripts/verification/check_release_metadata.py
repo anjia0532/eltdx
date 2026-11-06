@@ -21,7 +21,7 @@ TARGET_CARGO_VERSION = "3.3.2"
 TARGET_PYTHON_VERSION = "3.3.2"
 # fork 发布标识（Git tag / GitHub Release / 文档记录）：上游版本 + .x。
 # 它与包版本解耦：artifact inventory 仍校验 3.3.2，release ref 校验 3.3.2.1。
-RELEASE_TAG_VERSION = "3.3.2.1"
+RELEASE_TAG_VERSION = "3.3.2.2"
 BANNER_KEYWORD = b"eltdx_release\x00" + TARGET_PYTHON_VERSION.encode("ascii")
 
 
